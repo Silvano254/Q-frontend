@@ -619,36 +619,43 @@ export default function App() {
   // ==========================================
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-tr from-[#181024] via-[#2D163F] to-[#181024] flex items-center justify-center p-6 font-sans">
-        <div className="w-full max-w-md bg-white rounded-3xl border border-purple-100 shadow-2xl p-8 space-y-6 flex flex-col justify-between overflow-hidden relative">
-          
-          {/* Top colored aesthetic strip */}
-          <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-[#80237E] via-[#EC4899] to-[#EAB308]" />
+      <div className="min-h-screen bg-gradient-to-br from-[#FAF7EE] via-[#F3EFE3] to-[#EAE3CE] flex items-center justify-center p-6 font-sans relative overflow-hidden">
+        {/* Soft artistic organic background blobs */}
+        <div className="absolute w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-[#80237E]/5 to-[#EAB308]/5 blur-3xl -top-40 -left-40 pointer-events-none" />
+        <div className="absolute w-[400px] h-[400px] rounded-full bg-gradient-to-br from-[#EC4899]/5 to-purple-500/5 blur-3xl -bottom-40 -right-40 pointer-events-none" />
 
-          <div className="text-center space-y-3 pt-2">
-            <div className="w-24 h-24 mx-auto rounded-2xl bg-white p-2 flex items-center justify-center shadow-lg border border-[#EC4899]/30">
+        <div className="w-full max-w-md bg-[#FCFAF6]/90 backdrop-blur-md rounded-3xl border border-[#D4AF37]/30 shadow-2xl p-8 space-y-7 flex flex-col justify-between overflow-hidden relative transition-all">
+          {/* Top double golden accent lines */}
+          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#D4AF37] via-amber-200 to-[#D4AF37]" />
+          <div className="absolute top-1 inset-x-0 h-[1px] bg-white/40" />
+
+          <div className="text-center space-y-4 pt-2">
+            <div className="w-20 h-20 mx-auto rounded-2xl bg-white p-2.5 flex items-center justify-center shadow-md border border-[#D4AF37]/20">
               <img src="/logo.jpeg" alt="Binti Tents & Events Logo" className="w-full h-full object-contain" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-[#80237E] tracking-tight">Binti Tents & Events</h1>
-              <p className="text-xs text-[#EC4899] font-extrabold tracking-widest uppercase mt-0.5">Instinctively Elegant</p>
-              <p className="text-[10px] text-gray-400 font-medium tracking-wide uppercase mt-1">Corporate Quotation & Billing Ledger</p>
+              <h1 className="text-2xl font-serif font-bold text-gray-800 tracking-tight flex items-center justify-center space-x-1.5">
+                <span className="bg-gradient-to-r from-[#80237E] via-[#6B46C1] to-[#EAB308] bg-clip-text text-transparent">Binti Events</span>
+              </h1>
+              <p className="text-[10px] text-[#D4AF37] font-extrabold tracking-[0.25em] uppercase mt-1">Instinctively Elegant</p>
+              <div className="w-12 h-[1.5px] bg-[#D4AF37]/30 mx-auto mt-3" />
+              <p className="text-[9px] text-gray-400 font-semibold tracking-wider uppercase mt-2">Executive Invoicing & Ledger Desk</p>
             </div>
           </div>
 
           {authError && (
-            <div className="p-3.5 bg-red-50 border border-red-100 rounded-xl flex items-start space-x-2 text-xs text-red-600 animate-shake">
-              <AlertTriangle className="w-4.5 h-4.5 text-red-500 shrink-0 mt-0.5" />
+            <div className="p-3 bg-red-50/70 border border-red-100 rounded-xl flex items-start space-x-2 text-xs text-red-700 animate-shake">
+              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
               <span>{authError}</span>
             </div>
           )}
 
-          <form onSubmit={handleLoginSubmit} className="space-y-4">
+          <form onSubmit={handleLoginSubmit} className="space-y-4.5">
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2">Corporate Email Address</label>
+              <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Corporate Identity (Email)</label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                  <User className="w-4 h-4 text-gray-400" />
+                  <User className="w-4 h-4 text-[#D4AF37]" />
                 </span>
                 <input
                   type="email"
@@ -656,28 +663,28 @@ export default function App() {
                   placeholder="admin@bintievents.com"
                   value={authEmail}
                   onChange={(e) => setAuthEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] font-semibold text-gray-700 bg-gray-50/45"
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200/80 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/15 focus:border-[#D4AF37] font-semibold text-gray-700 bg-white/50 transition-all"
                 />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-[10px] font-bold text-gray-400 uppercase">Private Passcode</label>
+                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest">Secret Passcode</label>
                 <button
                   type="button"
                   onClick={() => {
                     setResetEmail(authEmail || "admin@bintievents.com");
                     setShowForgotPasswordModal(true);
                   }}
-                  className="text-[10px] font-extrabold text-[#80237E] hover:text-[#EC4899] hover:underline"
+                  className="text-[9px] font-extrabold text-[#80237E] hover:text-[#D4AF37] hover:underline transition-colors"
                 >
                   Forgot Passcode?
                 </button>
               </div>
               <div className="relative">
                 <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                  <Lock className="w-4 h-4 text-gray-400" />
+                  <Lock className="w-4 h-4 text-[#D4AF37]" />
                 </span>
                 <input
                   type="password"
@@ -685,46 +692,46 @@ export default function App() {
                   placeholder="••••••••"
                   value={authPassword}
                   onChange={(e) => setAuthPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] font-semibold text-gray-700 bg-gray-50/45"
+                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200/80 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/15 focus:border-[#D4AF37] font-semibold text-gray-700 bg-white/50 transition-all"
                 />
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-[#80237E] to-[#6b1e6a] hover:from-[#6b1e6a] hover:to-[#581C87] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-purple-900/20 flex items-center justify-center space-x-1.5 hover:translate-y-[-1px]"
+              className="w-full py-3 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#80237E]/10 flex items-center justify-center space-x-1.5 hover:translate-y-[-1px] border border-[#D4AF37]/20"
             >
-              <span>Unlock Admin Ledger Desk</span>
+              <span>Unlock Admin Workspace</span>
               <ArrowRight className="w-4 h-4 text-[#EAB308]" />
             </button>
 
-            {/* Fingerprint Quick Login Divider */}
-            <div className="relative my-3">
+            {/* Fingerprint Divider */}
+            <div className="relative my-4">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-100" />
+                <div className="w-full border-t border-gray-200/40" />
               </div>
               <div className="relative flex justify-center text-[9px] uppercase tracking-wider">
-                <span className="bg-white px-3 text-gray-400 font-semibold">Or Touch Biometrics</span>
+                <span className="bg-[#FCFAF6] px-3 text-gray-400 font-bold">Secure Access</span>
               </div>
             </div>
 
             <button
               type="button"
               onClick={() => setShowBiometricModal(true)}
-              className="w-full py-2.5 bg-[#181024] hover:bg-[#261539] text-[#EAB308] border border-[#80237E]/40 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center space-x-2"
+              className="w-full py-2.5 bg-[#FAF8F2] hover:bg-[#F3EFE5] text-[#80237E] border border-[#D4AF37]/25 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center space-x-2"
             >
               <Fingerprint className="w-4.5 h-4.5 text-[#EC4899] animate-pulse" />
-              <span>Fingerprint / Touch ID Passkey</span>
+              <span>Touch ID / Fingerprint Auth</span>
             </button>
           </form>
 
           {/* Quick info footer */}
-          <div className="pt-4 border-t border-gray-50 flex items-center justify-between text-[10px] text-gray-400">
-            <span className="flex items-center space-x-1 font-semibold">
+          <div className="pt-4 border-t border-gray-200/60 flex items-center justify-between text-[9px] text-gray-400 font-semibold tracking-wider uppercase">
+            <span className="flex items-center space-x-1">
               <Shield className="w-3.5 h-3.5 text-emerald-500" />
-              <span>AES-256 Cloud Locked</span>
+              <span>AES-256 SECURED</span>
             </span>
-            <span>Demo: admin@bintievents.com / binti2026</span>
+            <span>Demo: admin@bintievents.com</span>
           </div>
 
           {/* Forgot Password Recovery Modal */}

@@ -139,7 +139,7 @@ export default function TopBar({
         </div>
 
         {/* Corporate Status Indicator */}
-        <div className="flex items-center space-x-2.5 pl-4 border-l border-gray-100">
+        <div className="hidden sm:flex items-center space-x-2.5 pl-4 border-l border-gray-100">
           <div className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping" />
           <span className="text-xs font-semibold text-gray-700 tracking-wide uppercase">Admin Session Live</span>
         </div>

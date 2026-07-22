@@ -145,36 +145,44 @@ export default function ProductsModule({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Category</label>
-                  <select
+                  <input
+                    type="text"
+                    list="categories"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs bg-white text-gray-700"
-                  >
-                    <option value="Tents">Tents hire</option>
-                    <option value="Structures">Structures & Pergolas</option>
-                    <option value="Lighting">Ambient Lighting</option>
-                    <option value="Furniture">Furniture hire</option>
-                    <option value="Decor">Bespoke Table decor</option>
-                    <option value="Logistics">Crew Logistics</option>
-                    <option value="Consultation">Site Consultation</option>
-                  </select>
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs bg-white text-gray-700 font-semibold"
+                    placeholder="Select or type category"
+                  />
+                  <datalist id="categories">
+                    <option value="Tents" />
+                    <option value="Structures" />
+                    <option value="Lighting" />
+                    <option value="Furniture" />
+                    <option value="Decor" />
+                    <option value="Logistics" />
+                    <option value="Consultation" />
+                  </datalist>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Unit Type</label>
-                  <select
+                  <input
+                    type="text"
+                    list="unitTypes"
                     value={unitType}
                     onChange={(e) => setUnitType(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs bg-white text-gray-700"
-                  >
-                    <option value="Day">Per Day</option>
-                    <option value="Setup">Per Setup</option>
-                    <option value="Event">Per Event</option>
-                    <option value="Piece">Per Piece</option>
-                    <option value="Guest">Per Guest</option>
-                    <option value="Hour">Per Hour</option>
-                    <option value="Flat Rate">Flat Rate</option>
-                  </select>
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs bg-white text-gray-700 font-semibold"
+                    placeholder="Select or type unit type"
+                  />
+                  <datalist id="unitTypes">
+                    <option value="Day" />
+                    <option value="Setup" />
+                    <option value="Event" />
+                    <option value="Piece" />
+                    <option value="Guest" />
+                    <option value="Hour" />
+                    <option value="Flat Rate" />
+                  </datalist>
                 </div>
               </div>
 
@@ -194,14 +202,15 @@ export default function ProductsModule({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">VAT Tax Rate %</label>
-                  <select
+                  <input
+                    type="number"
                     value={taxRate}
                     onChange={(e) => setTaxRate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs bg-white text-gray-700"
-                  >
-                    <option value="16">16% (Standard Kenya VAT)</option>
-                    <option value="0">0% (Zero Rated)</option>
-                  </select>
+                    className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs bg-white text-gray-700 font-semibold"
+                    placeholder="e.g. 16"
+                    min="0"
+                    max="100"
+                  />
                 </div>
 
                 <div>

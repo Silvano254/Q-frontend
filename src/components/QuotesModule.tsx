@@ -1,0 +1,1089 @@
+import React, { useState } from "react";
+import { 
+  FileText, 
+  Plus, 
+  Trash2, 
+  Sparkles, 
+  Download, 
+  Mail, 
+  ArrowRightLeft, 
+  ChevronLeft, 
+  Search, 
+  Eye, 
+  PlusCircle, 
+  CheckCircle,
+  FileCheck2,
+  ListRestart
+} from "lucide-react";
+import { jsPDF } from "jspdf";
+import { Quote, Client, ProductService, BillingItem } from "../../../shared/types.js";
+
+interface QuotesModuleProps {
+  quotes: Quote[];
+  clients: Client[];
+  products: ProductService[];
+  currency: string;
+  companySettings: {
+    companyName: string;
+    email: string;
+    phone: string;
+    address: string;
+    taxNumber: string;
+    termsTemplate: string;
+  };
+  onCreateQuote: (quote: Partial<Quote>) => Promise<void>;
+  onUpdateQuote: (id: string, quote: Partial<Quote>) => Promise<void>;
+  onDeleteQuote: (id: string) => Promise<void>;
+  onConvertToInvoice: (quote: Quote) => Promise<void>;
+  selectedQuote: Quote | null;
+  setSelectedQuote: (quote: Quote | null) => void;
+}
+
+export default function QuotesModule({
+  quotes,
+  clients,
+  products,
+  currency,
+  companySettings,
+  onCreateQuote,
+  onUpdateQuote,
+  onDeleteQuote,
+  onConvertToInvoice,
+  selectedQuote,
+  setSelectedQuote
+}: QuotesModuleProps) {
+  const [isCreating, setIsCreating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  
+  // Form States
+  const [clientId, setClientId] = useState("");
+  const [quoteDate, setQuoteDate] = useState(new Date().toISOString().split("T")[0]);
+  const [expiryDate, setExpiryDate] = useState("");
+  const [items, setItems] = useState<Partial<BillingItem>[]>([
+    { id: "qi_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }
+  ]);
+  const [notes, setNotes] = useState("");
+  const [terms, setTerms] = useState("");
+  
+  // AI Email draft / terms
+  const [aiEmailDraft, setAiEmailDraft] = useState<string | null>(null);
+  const [draftingEmail, setDraftingEmail] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [recommendingTerms, setRecommendingTerms] = useState(false);
+
+  // Auto-calculate expiry date
+  React.useEffect(() => {
+    if (quoteDate) {
+      const d = new Date(quoteDate);
+      d.setDate(d.getDate() + 30); // 30 days default validity
+      setExpiryDate(d.toISOString().split("T")[0]);
+    }
+  }, [quoteDate]);
+
+  // Handle item change
+  const handleItemChange = (index: number, field: keyof BillingItem, value: any) => {
+    const updated = [...items];
+    const item = { ...updated[index], [field]: value };
+
+    // Calculate item total amount: quantity * unitPrice * (1 - discount/100) * (1 + tax/100)
+    const qty = Number(item.quantity) || 0;
+    const price = Number(item.unitPrice) || 0;
+    const disc = Number(item.discount) || 0;
+    const taxRate = Number(item.tax) || 0;
+
+    const baseSubtotal = qty * price;
+    const discounted = baseSubtotal * (1 - disc / 100);
+    const withTax = discounted * (1 + taxRate / 100);
+
+    item.amount = Math.round(withTax * 100) / 100;
+    updated[index] = item;
+    setItems(updated);
+  };
+
+  // Add Item line
+  const handleAddItemLine = () => {
+    setItems([
+      ...items,
+      { id: "qi_" + Date.now().toString(), description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }
+    ]);
+  };
+
+  // Remove Item line
+  const handleRemoveItemLine = (index: number) => {
+    if (items.length > 1) {
+      setItems(items.filter((_, i) => i !== index));
+    }
+  };
+
+  // On selecting standard product preset (FIXED: updates multiple fields at once to avoid stale closure)
+  const handleProductPresetSelect = (index: number, prodId: string) => {
+    const prod = products.find(p => p.id === prodId);
+    if (prod) {
+      const updated = [...items];
+      const item = { 
+        ...updated[index], 
+        description: prod.name,
+        unitPrice: prod.unitPrice,
+        tax: prod.taxRate 
+      };
+
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unitPrice) || 0;
+      const disc = Number(item.discount) || 0;
+      const taxRate = Number(item.tax) || 0;
+
+      const baseSubtotal = qty * price;
+      const discounted = baseSubtotal * (1 - disc / 100);
+      const withTax = discounted * (1 + taxRate / 100);
+
+      item.amount = Math.round(withTax * 100) / 100;
+      updated[index] = item;
+      setItems(updated);
+    }
+  };
+
+  // Calculate overall quote totals
+  const getTotals = () => {
+    let subtotal = 0;
+    let discountTotal = 0;
+    let taxTotal = 0;
+
+    items.forEach(item => {
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unitPrice) || 0;
+      const disc = Number(item.discount) || 0;
+      const taxRate = Number(item.tax) || 0;
+
+      const base = qty * price;
+      const discAmount = base * (disc / 100);
+      const afterDisc = base - discAmount;
+      const taxAmount = afterDisc * (taxRate / 100);
+
+      subtotal += base;
+      discountTotal += discAmount;
+      taxTotal += taxAmount;
+    });
+
+    const grandTotal = subtotal - discountTotal + taxTotal;
+    return {
+      subtotal: Math.round(subtotal),
+      discountTotal: Math.round(discountTotal),
+      taxTotal: Math.round(taxTotal),
+      grandTotal: Math.round(grandTotal)
+    };
+  };
+
+  // Save Quote
+  const handleSaveQuote = async (status: 'draft' | 'sent') => {
+    if (!clientId) {
+      alert("Please select a client before saving.");
+      return;
+    }
+    const totals = getTotals();
+    const selectedCli = clients.find(c => c.id === clientId);
+    
+    const quotePayload: Partial<Quote> = {
+      clientId,
+      clientName: selectedCli ? selectedCli.name : "Unknown",
+      quoteDate,
+      expiryDate,
+      items: items.map(i => ({
+        id: i.id || "qi_" + Math.random().toString(),
+        description: i.description || "Custom Service",
+        quantity: Number(i.quantity) || 1,
+        unitPrice: Number(i.unitPrice) || 0,
+        discount: Number(i.discount) || 0,
+        tax: Number(i.tax) || 16,
+        amount: Number(i.amount) || 0
+      })),
+      ...totals,
+      notes,
+      terms,
+      status
+    };
+
+    await onCreateQuote(quotePayload);
+    setIsCreating(false);
+    resetForm();
+  };
+
+  const resetForm = () => {
+    setClientId("");
+    setQuoteDate(new Date().toISOString().split("T")[0]);
+    setItems([{ id: "qi_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }]);
+    setNotes("");
+    setTerms("");
+    setAiEmailDraft(null);
+  };
+
+  // Generate PDF (jsPDF)
+  const generatePDF = (quote: Quote) => {
+    const doc = new jsPDF();
+
+    // Elegant Corporate Color Palette
+    const purple = [107, 70, 193];  // #6B46C1
+    const gold = [212, 175, 55];    // #D4AF37
+    const charcoal = [31, 41, 55];  // #1F2937
+    const lightGray = [240, 240, 240];
+
+    // Header Background Accent
+    doc.setFillColor(purple[0], purple[1], purple[2]);
+    doc.rect(0, 0, 220, 15, "F");
+
+    // Title Block
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.text("BINTI EVENTS", 20, 35);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(110, 110, 110);
+    doc.text("Luxury Tents, Draping & Bespoke Styling", 20, 41);
+
+    // Document Identifier
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
+    doc.text(`OFFICIAL QUOTE: ${quote.quoteNumber}`, 130, 35);
+
+    // Quote Meta Details
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Quote Date: ${quote.quoteDate}`, 130, 42);
+    doc.text(`Valid Until: ${quote.expiryDate}`, 130, 48);
+    doc.text(`Currency: ${currency}`, 130, 54);
+
+    // Decorative Separator
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
+    doc.setLineWidth(0.75);
+    doc.line(20, 60, 190, 60);
+
+    // Party Details
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.text("FROM (SERVICE PROVIDER):", 20, 70);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
+    doc.text(companySettings.companyName, 20, 76);
+    doc.text(`PIN: ${companySettings.taxNumber}`, 20, 82);
+    doc.text(`Email: ${companySettings.email}`, 20, 88);
+    doc.text(`Address: ${companySettings.address}`, 20, 94);
+
+    // Client Details
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.text("PREPARED FOR (CLIENT):", 110, 70);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
+    const clientDetails = clients.find(c => c.id === quote.clientId);
+    doc.text(quote.clientName, 110, 76);
+    if (clientDetails) {
+      if (clientDetails.company) doc.text(clientDetails.company, 110, 82);
+      if (clientDetails.taxNumber) doc.text(`Tax PIN: ${clientDetails.taxNumber}`, 110, 88);
+      doc.text(`Email: ${clientDetails.email}`, 110, 94);
+      doc.text(`Phone: ${clientDetails.phone}`, 110, 100);
+    }
+
+    // Items Table Setup
+    doc.setFillColor(purple[0], purple[1], purple[2]);
+    doc.rect(20, 110, 170, 8, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Service Description / Hire Asset", 22, 115);
+    doc.text("Qty", 115, 115);
+    doc.text("Unit Price", 130, 115);
+    doc.text("Tax", 155, 115);
+    doc.text("Amount", 175, 115);
+
+    // Render Items
+    let currentY = 124;
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
+    
+    quote.items.forEach((item, index) => {
+      if (index % 2 === 1) {
+        doc.setFillColor(lightGray[0], lightGray[1], lightGray[2]);
+        doc.rect(20, currentY - 5, 170, 7, "F");
+      }
+
+      const splitDesc = doc.splitTextToSize(item.description, 85);
+      doc.text(splitDesc, 22, currentY);
+      doc.text(item.quantity.toString(), 115, currentY);
+      doc.text(item.unitPrice.toLocaleString(), 130, currentY);
+      doc.text(`${item.tax}%`, 155, currentY);
+      doc.text(item.amount.toLocaleString(), 175, currentY);
+      
+      currentY += (splitDesc.length * 5) + 3;
+    });
+
+    // Subtotal section line
+    doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+    doc.line(20, currentY, 190, currentY);
+    currentY += 8;
+
+    // Financial Totals
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Subtotal (excl. VAT & Discount):", 110, currentY);
+    doc.text(`${currency} ${quote.subtotal.toLocaleString()}`, 165, currentY);
+    
+    currentY += 6;
+    doc.text("Discount Deducted:", 110, currentY);
+    doc.text(`${currency} ${quote.discountTotal.toLocaleString()}`, 165, currentY);
+    
+    currentY += 6;
+    doc.text("Tax Amount (VAT 16%):", 110, currentY);
+    doc.text(`${currency} ${quote.taxTotal.toLocaleString()}`, 165, currentY);
+    
+    currentY += 8;
+    doc.setFillColor(purple[0], purple[1], purple[2]);
+    doc.rect(108, currentY - 5, 82, 8, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(255, 255, 255);
+    doc.text("GRAND TOTAL:", 110, currentY);
+    doc.text(`${currency} ${quote.grandTotal.toLocaleString()}`, 165, currentY);
+
+    // Terms and notes
+    currentY += 15;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.text("TERMS & CONDITIONS", 20, currentY);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(110, 110, 110);
+    const splitTerms = doc.splitTextToSize(quote.terms || companySettings.termsTemplate, 170);
+    doc.text(splitTerms, 20, currentY + 5);
+
+    // Signature Area
+    const sigY = 250;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(20, sigY, 70, sigY);
+    doc.line(130, sigY, 180, sigY);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("Prepared By: Binti Events", 20, sigY + 5);
+    doc.text("Client Confirmation Sign", 130, sigY + 5);
+
+    // PDF footer
+    doc.setFontSize(7);
+    doc.setTextColor(150, 150, 150);
+    doc.text("Thank you for partnering with Binti Events to design your landmark occasions.", 20, 275);
+    
+    doc.save(`${quote.quoteNumber}-${quote.clientName.replace(/\s+/g, "_")}.pdf`);
+  };
+
+  // Generate AI Email draft (calls local template engine backend)
+  const handleDraftEmail = async (quote: Quote) => {
+    setDraftingEmail(true);
+    setAiEmailDraft(null);
+    try {
+      const response = await fetch("/api/ai/draft-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "Quote",
+          number: quote.quoteNumber,
+          clientName: quote.clientName,
+          amount: quote.grandTotal,
+          dueDate: quote.expiryDate,
+          notes: quote.notes
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAiEmailDraft(data.email);
+      } else {
+        setAiEmailDraft("AI drafting failed: " + data.message);
+      }
+    } catch (err) {
+      setAiEmailDraft("Failed to connect to AI writing assistant.");
+    } finally {
+      setDraftingEmail(false);
+    }
+  };
+
+  const handleSendEmail = async (quote: Quote) => {
+    const clientDetails = clients.find(c => c.id === quote.clientId);
+    const clientEmail = clientDetails?.email;
+    
+    if (!clientEmail) {
+      alert("This client does not have an email address configured.");
+      return;
+    }
+    
+    if (!aiEmailDraft) {
+      alert("No email draft generated yet.");
+      return;
+    }
+    
+    setIsSendingEmail(true);
+    try {
+      const response = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: clientEmail,
+          subject: `Quotation Proposal ${quote.quoteNumber} - ${companySettings.companyName || 'Binti Events'}`,
+          body: aiEmailDraft
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(data.simulated ? "Email simulation success: check server console logs." : "Email sent successfully to " + clientEmail);
+      } else {
+        alert("Failed to send email: " + (data.message || "Unknown error"));
+      }
+    } catch (err) {
+      alert("Error sending email: " + err);
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  // Recommend Terms (calls local template engine backend)
+  const handleRecommendTerms = async () => {
+    setRecommendingTerms(true);
+    try {
+      const response = await fetch("/api/ai/recommend-terms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName: clients.find(c => c.id === clientId)?.name || "Valued Client",
+          items: items.map(i => ({ description: i.description }))
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTerms(data.terms);
+      } else {
+        alert("Could not load recommended terms from AI: " + data.message);
+      }
+    } catch (err) {
+      alert("Error connecting to AI advisor.");
+    } finally {
+      setRecommendingTerms(false);
+    }
+  };
+
+  // Filter & Search quotes
+  const filteredQuotes = quotes.filter(quote => {
+    const matchesSearch = quote.quoteNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          quote.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (quote.notes && quote.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesStatus = statusFilter === "all" || quote.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Module Title Banner */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800 flex items-center space-x-2">
+            <FileText className="w-5 h-5 text-[#6B46C1]" />
+            <span>Event Quotations</span>
+          </h2>
+          <p className="text-xs text-gray-500 mt-1">Configure luxury packages and generate PDF proposals.</p>
+        </div>
+        {!isCreating && !selectedQuote && (
+          <button
+            onClick={() => {
+              setIsCreating(true);
+              resetForm();
+            }}
+            className="px-4 py-2 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-2 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Event Quote</span>
+          </button>
+        )}
+      </div>
+
+      {/* VIEW 1: CREATION / EDITING FORM */}
+      {isCreating && (
+        <div className="glass-card p-6 space-y-6 animate-fade-in">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <h3 className="font-bold text-sm text-gray-800">New Premium Quote Builder</h3>
+            <button 
+              onClick={() => setIsCreating(false)}
+              className="text-gray-400 hover:text-gray-600 text-xs flex items-center space-x-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Back to Quotes</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Client Picker */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Select Binti Client</label>
+              <select
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1] bg-white text-gray-700"
+              >
+                <option value="">-- Click to choose client --</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ""}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quote Date */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Quotation Date</label>
+              <input
+                type="date"
+                value={quoteDate}
+                onChange={(e) => setQuoteDate(e.target.value)}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1]"
+              />
+            </div>
+
+            {/* Expiry Date */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Expiry Date (Validity)</label>
+              <input
+                type="date"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1]"
+              />
+            </div>
+          </div>
+
+          {/* Items Table Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-50 pb-2">
+              <span className="text-xs font-bold text-[#6B46C1] uppercase tracking-wider">Quotable Inventory & Services</span>
+              <button
+                type="button"
+                onClick={handleAddItemLine}
+                className="text-xs text-[#6B46C1] hover:text-purple-800 font-semibold flex items-center space-x-1 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100"
+              >
+                <PlusCircle className="w-3.5 h-3.5" />
+                <span>Add Item Line</span>
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {items.map((item, idx) => (
+                <div key={item.id || idx} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end p-4 bg-gray-50/70 border border-gray-100 rounded-xl">
+                  {/* Preset Selector */}
+                  <div className="lg:col-span-3">
+                    <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Inventory Preset</label>
+                    <select
+                      onChange={(e) => handleProductPresetSelect(idx, e.target.value)}
+                      defaultValue=""
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs bg-white"
+                    >
+                      <option value="">-- Use Standard Asset --</option>
+                      {products.map(p => (
+                        <option key={p.id} value={p.id}>{p.name} (KES {p.unitPrice})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Manual description */}
+                  <div className="lg:col-span-4">
+                    <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Custom Description</label>
+                    <input
+                      type="text"
+                      value={item.description || ""}
+                      onChange={(e) => handleItemChange(idx, "description", e.target.value)}
+                      placeholder="e.g. 15m x 30m Desert Gold Stretch Tent"
+                      className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs focus:ring-1 focus:ring-[#6B46C1]"
+                    />
+                  </div>
+
+                  {/* Qty */}
+                  <div className="lg:col-span-1">
+                    <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Qty</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={item.quantity || 1}
+                      onChange={(e) => handleItemChange(idx, "quantity", Number(e.target.value))}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center"
+                    />
+                  </div>
+
+                  {/* Unit price */}
+                  <div className="lg:col-span-1.5">
+                    <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Price</label>
+                    <input
+                      type="number"
+                      value={item.unitPrice || 0}
+                      onChange={(e) => handleItemChange(idx, "unitPrice", Number(e.target.value))}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-right"
+                    />
+                  </div>
+
+                  {/* Discount */}
+                  <div className="lg:col-span-1">
+                    <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Disc %</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={item.discount || 0}
+                      onChange={(e) => handleItemChange(idx, "discount", Number(e.target.value))}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center"
+                    />
+                  </div>
+
+                  {/* Tax */}
+                  <div className="lg:col-span-1">
+                    <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Tax %</label>
+                    <input
+                      type="number"
+                      value={item.tax || 16}
+                      onChange={(e) => handleItemChange(idx, "tax", Number(e.target.value))}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center"
+                    />
+                  </div>
+
+                  {/* Total amount calculated */}
+                  <div className="lg:col-span-1 flex items-center justify-between space-x-2 pb-1.5">
+                    <div className="text-right flex-1 min-w-0">
+                      <span className="text-[9px] text-gray-400 block font-semibold uppercase">Total</span>
+                      <span className="text-xs font-bold text-gray-700 truncate block">{(item.amount || 0).toLocaleString()}</span>
+                    </div>
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItemLine(idx)}
+                        className="text-red-400 hover:text-red-600 transition-colors shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quote Calculations & Summary */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 border-t border-gray-100 pt-6">
+            {/* Notes & Terms */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Quote Scope & Specific Notes</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Details about site rigging, layout styling, or crew transport details."
+                  rows={3}
+                  className="w-full p-3 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1]"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase">Custom Safety & Setup Terms</label>
+                  <button
+                    type="button"
+                    onClick={handleRecommendTerms}
+                    disabled={recommendingTerms}
+                    className="text-[10px] text-[#6B46C1] hover:text-purple-800 font-bold flex items-center space-x-1"
+                  >
+                    {recommendingTerms ? (
+                      <span>Analyzing setup...</span>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+                        <span>AI Suggest Terms</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <textarea
+                  value={terms}
+                  onChange={(e) => setTerms(e.target.value)}
+                  placeholder="Terms of payment, logistics liabilities, or damage clauses."
+                  rows={4}
+                  className="w-full p-3 border border-gray-200 rounded-xl text-xs font-mono text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1]"
+                />
+              </div>
+            </div>
+
+            {/* Totals Box */}
+            <div className="bg-[#F8F9FA] rounded-2xl p-6 border border-gray-200 flex flex-col justify-between space-y-4">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">Financial Summary</span>
+              
+              <div className="space-y-2 text-sm divide-y divide-gray-200/50">
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-500">Subtotal (excl. VAT & Discounts)</span>
+                  <span className="font-semibold text-gray-800">{currency} {getTotals().subtotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-500">Discount Amount Deducted</span>
+                  <span className="font-semibold text-emerald-600">({currency} {getTotals().discountTotal.toLocaleString()})</span>
+                </div>
+                <div className="flex justify-between py-2">
+                  <span className="text-gray-500">Tax Payable (VAT 16%)</span>
+                  <span className="font-semibold text-gray-800">{currency} {getTotals().taxTotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between py-3 text-base font-bold text-gray-800 border-t-2 border-gray-300">
+                  <span className="text-[#6B46C1]">GRAND TOTAL PAYABLE</span>
+                  <span className="text-lg text-gray-900">{currency} {getTotals().grandTotal.toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* Action Save Buttons */}
+              <div className="flex items-center space-x-4 pt-4 border-t border-gray-200/60">
+                <button
+                  type="button"
+                  onClick={() => handleSaveQuote("draft")}
+                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
+                >
+                  Save Draft
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveQuote("sent")}
+                  className="flex-1 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md shadow-[#6B46C1]/20 transition-all flex items-center justify-center space-x-1"
+                >
+                  <FileCheck2 className="w-4 h-4 text-[#D4AF37]" />
+                  <span>Finalize & Issue</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 2: QUOTE PREVIEW MODE */}
+      {selectedQuote && (
+        <div className="glass-card p-6 space-y-6 animate-fade-in">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-[#6B46C1]">Preview Mode</span>
+              <span className="text-xs text-gray-400">|</span>
+              <span className="text-xs font-bold text-gray-800">{selectedQuote.quoteNumber}</span>
+            </div>
+            <button 
+              onClick={() => {
+                setSelectedQuote(null);
+                setAiEmailDraft(null);
+              }}
+              className="text-gray-400 hover:text-gray-600 text-xs flex items-center space-x-1"
+            >
+              <ChevronLeft className="w-4 h-4" />
+              <span>Back to Listing</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Col: Core Details */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-base text-gray-800">Binti Events Corporate Proposal</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">Quote ID: {selectedQuote.id}</p>
+                </div>
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+                  selectedQuote.status === "converted" ? "bg-green-50 text-green-600 border border-green-200" :
+                  selectedQuote.status === "sent" ? "bg-blue-50 text-blue-600 border border-blue-200" :
+                  selectedQuote.status === "draft" ? "bg-gray-100 text-gray-600 border border-gray-200" :
+                  "bg-red-50 text-red-600 border border-red-200"
+                }`}>
+                  {selectedQuote.status}
+                </span>
+              </div>
+
+              {/* Sub-party details block */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-2xl">
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Prepared For Client</p>
+                  <p className="text-sm font-semibold text-gray-800 mt-1">{selectedQuote.clientName}</p>
+                  <p className="text-xs text-gray-500 mt-1">Client ID: {selectedQuote.clientId}</p>
+                </div>
+                <div className="md:border-l md:border-gray-200 md:pl-4">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Quote Timing Details</p>
+                  <p className="text-xs text-gray-700 mt-1">Quote Date: <span className="font-semibold">{selectedQuote.quoteDate}</span></p>
+                  <p className="text-xs text-gray-700 mt-0.5">Expiry Date: <span className="font-semibold">{selectedQuote.expiryDate}</span></p>
+                </div>
+              </div>
+
+              {/* Items Table Display */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Proposal Items & Pricing List</span>
+                <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
+                        <th className="p-3">Description</th>
+                        <th className="p-3 text-center">Qty</th>
+                        <th className="p-3 text-right">Price</th>
+                        <th className="p-3 text-center">Disc</th>
+                        <th className="p-3 text-center">Tax</th>
+                        <th className="p-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50 text-gray-700">
+                      {selectedQuote.items.map((item) => (
+                        <tr key={item.id} className="hover:bg-gray-50/50">
+                          <td className="p-3 font-medium text-gray-800">{item.description}</td>
+                          <td className="p-3 text-center font-bold text-gray-500">{item.quantity}</td>
+                          <td className="p-3 text-right font-medium">{item.unitPrice.toLocaleString()}</td>
+                          <td className="p-3 text-center text-emerald-600 font-bold">{item.discount}%</td>
+                          <td className="p-3 text-center text-gray-500">{item.tax}%</td>
+                          <td className="p-3 text-right font-bold text-gray-800">{item.amount.toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Notes & Custom safety Terms */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-purple-50/20 p-4 border border-purple-50 rounded-2xl">
+                  <span className="text-[10px] font-bold text-[#6B46C1] uppercase tracking-wider block mb-1">Quote Notes</span>
+                  <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{selectedQuote.notes || "No special scope notes entered."}</p>
+                </div>
+                <div className="bg-amber-50/20 p-4 border border-amber-50 rounded-2xl">
+                  <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider block mb-1">Contract Safety Terms</span>
+                  <p className="text-xs text-gray-600 leading-relaxed font-mono whitespace-pre-wrap">{selectedQuote.terms || companySettings.termsTemplate}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Col: Totals + Actions & AI Mail Draft */}
+            <div className="space-y-6">
+              {/* Financial Summary card */}
+              <div className="bg-[#1F2937] text-white p-6 rounded-2xl border border-[#6B46C1]/20 space-y-4">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Total Proposal Pricing</span>
+                
+                <div className="space-y-2 text-xs divide-y divide-gray-800">
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-gray-400">Subtotal</span>
+                    <span className="font-semibold text-gray-200">{currency} {selectedQuote.subtotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-gray-400">Discount Amount</span>
+                    <span className="font-semibold text-emerald-400">({currency} {selectedQuote.discountTotal.toLocaleString()})</span>
+                  </div>
+                  <div className="flex justify-between py-1.5">
+                    <span className="text-gray-400">Tax (VAT 16%)</span>
+                    <span className="font-semibold text-gray-200">{currency} {selectedQuote.taxTotal.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between py-3 text-sm font-bold border-t border-gray-800">
+                    <span className="text-[#D4AF37]">GRAND TOTAL</span>
+                    <span className="text-base text-white">{currency} {selectedQuote.grandTotal.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Operations */}
+                <div className="pt-4 border-t border-gray-800 space-y-2">
+                  <button
+                    onClick={() => generatePDF(selectedQuote)}
+                    className="w-full py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all shadow-md shadow-[#6B46C1]/10"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PDF Document</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleDraftEmail(selectedQuote)}
+                    disabled={draftingEmail}
+                    className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all"
+                  >
+                    {draftingEmail ? (
+                      <span>Drafting email...</span>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                        <span>AI Draft Follow-up Email</span>
+                      </>
+                    )}
+                  </button>
+
+                  {selectedQuote.status !== "converted" && (
+                    <button
+                      onClick={() => onConvertToInvoice(selectedQuote)}
+                      className="w-full py-2.5 bg-gradient-to-r from-[#D4AF37] to-amber-500 hover:from-amber-500 hover:to-[#D4AF37] text-[#1F2937] rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all"
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
+                      <span>Convert to live Invoice</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* AI Draft Email display */}
+              {aiEmailDraft && (
+                <div className="bg-purple-50/30 border border-purple-100 rounded-2xl p-4 space-y-3.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-[#6B46C1] uppercase tracking-wider flex items-center space-x-1">
+                      <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      <span>Luxury Email Draft</span>
+                    </span>
+                    <div className="flex items-center space-x-3">
+                      <button 
+                        onClick={() => handleSendEmail(selectedQuote!)}
+                        disabled={isSendingEmail}
+                        className="text-[10px] text-[#6B46C1] hover:underline font-bold disabled:opacity-50"
+                      >
+                        {isSendingEmail ? "Sending..." : "Send via Resend"}
+                      </button>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(aiEmailDraft);
+                          alert("Draft email copied to clipboard!");
+                        }}
+                        className="text-[10px] text-[#6B46C1] hover:underline font-bold"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-700 font-mono whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto p-3 bg-white border border-purple-50 rounded-xl">
+                    {aiEmailDraft}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: QUOTE LISTING TABLE */}
+      {!isCreating && !selectedQuote && (
+        <div className="glass-card p-6 space-y-4">
+          {/* Advanced Search & Filtering bar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Search query input */}
+            <div className="relative flex-1 max-w-md">
+              <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" />
+              </span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search quotes by number, client name..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/10 focus:border-[#6B46C1]"
+              />
+            </div>
+
+            {/* Status filters */}
+            <div className="flex items-center space-x-2">
+              {["all", "draft", "sent", "converted", "expired"].map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors uppercase tracking-wider text-[10px] ${
+                    statusFilter === status
+                      ? "bg-[#6B46C1] text-white"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Quotes Listing */}
+          <div className="overflow-x-auto border border-gray-50 rounded-xl">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-gray-50/80 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
+                  <th className="p-4">Quote Number</th>
+                  <th className="p-4">Client Representative</th>
+                  <th className="p-4">Quoted Date</th>
+                  <th className="p-4">Expiry Date</th>
+                  <th className="p-4">Grand Total</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 text-gray-700">
+                {filteredQuotes.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-gray-400">
+                      No event quotations match the filter requirements.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredQuotes.map((quote) => (
+                    <tr key={quote.id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="p-4 font-bold text-[#6B46C1]">
+                        <button
+                          onClick={() => setSelectedQuote(quote)}
+                          className="hover:underline text-left text-xs"
+                        >
+                          {quote.quoteNumber}
+                        </button>
+                      </td>
+                      <td className="p-4 font-semibold text-gray-800">{quote.clientName}</td>
+                      <td className="p-4 text-gray-500">{quote.quoteDate}</td>
+                      <td className="p-4 text-gray-500">{quote.expiryDate}</td>
+                      <td className="p-4 font-bold text-gray-900">{currency} {quote.grandTotal.toLocaleString()}</td>
+                      <td className="p-4">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                          quote.status === "converted" ? "bg-green-100 text-green-700" :
+                          quote.status === "sent" ? "bg-blue-100 text-blue-700" :
+                          quote.status === "draft" ? "bg-gray-100 text-gray-600" :
+                          "bg-red-100 text-red-700"
+                        }`}>
+                          {quote.status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={() => setSelectedQuote(quote)}
+                            className="p-1.5 text-gray-400 hover:text-[#6B46C1] hover:bg-purple-50 rounded-lg transition-all"
+                            title="Preview Quote Details"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          
+                          {quote.status !== "converted" && (
+                            <button
+                              onClick={() => onConvertToInvoice(quote)}
+                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+                              title="Convert directly to Invoice"
+                            >
+                              <ArrowRightLeft className="w-4 h-4" />
+                            </button>
+                          )}
+                          
+                          <button
+                            onClick={() => {
+                              if (confirm("Are you sure you want to delete this quote?")) {
+                                onDeleteQuote(quote.id);
+                              }
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Delete Quote Permanently"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

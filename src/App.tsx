@@ -10,7 +10,7 @@ import ProductsModule from "./components/ProductsModule.js";
 import PaymentsModule from "./components/PaymentsModule.js";
 import ReportsAnalyticsModule from "./components/ReportsAnalyticsModule.js";
 import SettingsModule from "./components/SettingsModule.js";
-import BiometricModal from "./components/BiometricModal.js";
+import { loginBiometric } from "./utils/webauthn.js";
 import { getApiUrl } from "./config/api.js";
 import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "../../shared/types.js";
 
@@ -28,7 +28,6 @@ export default function App() {
   });
 
   // Biometric & Password Recovery States
-  const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
   const [resetOtp, setResetOtp] = useState("");
@@ -37,6 +36,19 @@ export default function App() {
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [demoGeneratedOtp, setDemoGeneratedOtp] = useState<string | null>(null);
+
+  // Custom Toast State
+  const [toast, setToast] = useState<string | null>(null);
+  const [toastTimeoutId, setToastTimeoutId] = useState<any>(null);
+
+  const showToast = (message: string) => {
+    if (toastTimeoutId) clearTimeout(toastTimeoutId);
+    setToast(message);
+    const id = setTimeout(() => {
+      setToast(null);
+    }, 2500);
+    setToastTimeoutId(id);
+  };
 
   // Master Data States
   const [activeTab, setActiveTab] = useState<string>("dashboard");
@@ -186,8 +198,10 @@ export default function App() {
   };
 
   // BIOMETRIC FINGERPRINT LOGIN HANDLER
-  const handleBiometricLoginSuccess = async (credentialId?: string) => {
+  const handleStartBiometricLogin = async () => {
+    setAuthError(null);
     try {
+      const credentialId = await loginBiometric();
       const response = await fetch(getApiUrl("/api/auth/biometric-login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -202,8 +216,8 @@ export default function App() {
       } else {
         setAuthError(data.message || "Biometric fingerprint authentication failed.");
       }
-    } catch (err) {
-      setAuthError("Failed to process biometric fingerprint login.");
+    } catch (err: any) {
+      setAuthError(err.message || "Failed to process biometric fingerprint login.");
     }
   };
 
@@ -367,7 +381,7 @@ export default function App() {
     });
 
     if (res.ok) {
-      alert(`Quote ${quote.quoteNumber} converted to active invoice successfully.`);
+      showToast(`Quote ${quote.quoteNumber} converted to active invoice successfully.`);
       fetchAllData();
       setActiveTab("invoices");
     }
@@ -405,7 +419,7 @@ export default function App() {
       body: JSON.stringify(paymentPayload)
     });
     if (res.ok) {
-      alert("Manual payment registered, ledger statistics updated.");
+      showToast("Manual payment registered, ledger statistics updated.");
       fetchAllData();
       
       // Update selectedInvoice state to show the updated receipt logs
@@ -431,7 +445,7 @@ export default function App() {
       headers: { "Content-Type": "application/json" }
     });
     if (res.ok) {
-      alert("Database reset successfully.");
+      showToast("Database reset successfully.");
       fetchAllData();
     }
   };
@@ -534,6 +548,7 @@ export default function App() {
             onConvertToInvoice={handleConvertQuoteToInvoice}
             selectedQuote={selectedQuote}
             setSelectedQuote={setSelectedQuote}
+            showToast={showToast}
           />
         );
       case "invoices":
@@ -557,6 +572,7 @@ export default function App() {
             onDeleteInvoice={handleDeleteInvoice}
             selectedInvoice={selectedInvoice}
             setSelectedInvoice={setSelectedInvoice}
+            showToast={showToast}
           />
         );
       case "clients":
@@ -607,6 +623,12 @@ export default function App() {
             companySettings={companySettings}
             onUpdateSettings={handleUpdateSettings}
             onResetDatabase={handleResetDatabase}
+            currentUser={currentUser}
+            onUpdateCurrentUser={(updatedUser) => {
+              setCurrentUser(updatedUser);
+              localStorage.setItem("binti_user", JSON.stringify(updatedUser));
+            }}
+            showToast={showToast}
           />
         );
       default:
@@ -717,7 +739,7 @@ export default function App() {
 
             <button
               type="button"
-              onClick={() => setShowBiometricModal(true)}
+              onClick={handleStartBiometricLogin}
               className="w-full py-2.5 bg-[#FAF8F2] hover:bg-[#F3EFE5] text-[#80237E] border border-[#D4AF37]/25 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center space-x-2"
             >
               <Fingerprint className="w-4.5 h-4.5 text-[#EC4899] animate-pulse" />
@@ -849,14 +871,6 @@ export default function App() {
             </div>
           )}
 
-          {/* Biometric Fingerprint Modal */}
-          <BiometricModal 
-            isOpen={showBiometricModal}
-            mode="login"
-            userEmail={authEmail || "admin@bintievents.com"}
-            onClose={() => setShowBiometricModal(false)}
-            onSuccess={handleBiometricLoginSuccess}
-          />
         </div>
       </div>
     );
@@ -981,6 +995,11 @@ export default function App() {
           {renderWorkspace()}
         </main>
       </div>
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 text-[11px] text-[#80237E] font-extrabold tracking-wider uppercase pointer-events-none select-none">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }

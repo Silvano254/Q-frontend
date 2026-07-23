@@ -41,6 +41,7 @@ interface InvoicesModuleProps {
   onDeleteInvoice: (id: string) => Promise<void>;
   selectedInvoice: Invoice | null;
   setSelectedInvoice: (invoice: Invoice | null) => void;
+  showToast: (message: string) => void;
 }
 
 export default function InvoicesModule({
@@ -54,7 +55,8 @@ export default function InvoicesModule({
   onRecordPayment,
   onDeleteInvoice,
   selectedInvoice,
-  setSelectedInvoice
+  setSelectedInvoice,
+  showToast
 }: InvoicesModuleProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -508,7 +510,7 @@ export default function InvoicesModule({
       });
       const data = await response.json();
       if (data.success) {
-        alert(data.simulated ? "Email simulation success: check server console logs." : "Email sent successfully to " + clientEmail);
+        showToast(data.simulated ? "Email simulation success: check server console logs." : "Email sent successfully to " + clientEmail);
       } else {
         alert("Failed to send email: " + (data.message || "Unknown error"));
       }
@@ -1104,7 +1106,7 @@ export default function InvoicesModule({
                       <button 
                         onClick={() => {
                           navigator.clipboard.writeText(aiEmailDraft);
-                          alert("Email text copied!");
+                          showToast("Email text copied!");
                         }}
                         className="text-[10px] text-[#6B46C1] hover:underline font-bold"
                       >

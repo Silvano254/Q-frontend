@@ -37,6 +37,7 @@ interface QuotesModuleProps {
   onConvertToInvoice: (quote: Quote) => Promise<void>;
   selectedQuote: Quote | null;
   setSelectedQuote: (quote: Quote | null) => void;
+  showToast: (message: string) => void;
 }
 
 export default function QuotesModule({
@@ -50,7 +51,8 @@ export default function QuotesModule({
   onDeleteQuote,
   onConvertToInvoice,
   selectedQuote,
-  setSelectedQuote
+  setSelectedQuote,
+  showToast
 }: QuotesModuleProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -439,7 +441,7 @@ export default function QuotesModule({
       });
       const data = await response.json();
       if (data.success) {
-        alert(data.simulated ? "Email simulation success: check server console logs." : "Email sent successfully to " + clientEmail);
+        showToast(data.simulated ? "Email simulation success: check server console logs." : "Email sent successfully to " + clientEmail);
       } else {
         alert("Failed to send email: " + (data.message || "Unknown error"));
       }
@@ -942,7 +944,7 @@ export default function QuotesModule({
                       <button 
                         onClick={() => {
                           navigator.clipboard.writeText(aiEmailDraft);
-                          alert("Draft email copied to clipboard!");
+                          showToast("Draft email copied to clipboard!");
                         }}
                         className="text-[10px] text-[#6B46C1] hover:underline font-bold"
                       >

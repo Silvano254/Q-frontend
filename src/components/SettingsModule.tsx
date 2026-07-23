@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield } from "lucide-react";
-import BiometricModal from "./BiometricModal.js";
+import { registerBiometric } from "../utils/webauthn.js";
 import { getApiUrl } from "../config/api.js";
 import { CompanySettings } from "../../../shared/types.js";
 
@@ -8,31 +8,111 @@ interface SettingsModuleProps {
   companySettings: CompanySettings;
   onUpdateSettings: (settings: CompanySettings) => Promise<void>;
   onResetDatabase: () => Promise<void>;
+  currentUser?: { name: string; role: string; email: string } | null;
+  onUpdateCurrentUser?: (user: any) => void;
+  showToast: (message: string) => void;
 }
 
 export default function SettingsModule({
   companySettings,
   onUpdateSettings,
-  onResetDatabase
+  onResetDatabase,
+  currentUser,
+  onUpdateCurrentUser,
+  showToast
 }: SettingsModuleProps) {
   const [isSaving, setIsSaving] = useState(false);
-  const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [biometricRegistered, setBiometricRegistered] = useState(true);
 
-  const handleRegisterBiometricSuccess = async (credentialId?: string) => {
+  // Security Credentials Updates states
+  const [newAccessEmail, setNewAccessEmail] = useState(currentUser?.email || "");
+  const [newPasscode, setNewPasscode] = useState("");
+  const [profileOtp, setProfileOtp] = useState("");
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [isRequestingOtp, setIsRequestingOtp] = useState(false);
+  const [isApplyingProfileUpdate, setIsApplyingProfileUpdate] = useState(false);
+  const [demoProfileOtp, setDemoProfileOtp] = useState("");
+
+  const handleRequestProfileOtp = async () => {
+    setIsRequestingOtp(true);
+    setDemoProfileOtp("");
     try {
+      const response = await fetch(getApiUrl("/api/auth/request-profile-update-otp"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentEmail: currentUser?.email || "admin@bintievents.com" })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setOtpRequested(true);
+        if (data.otp) setDemoProfileOtp(data.otp);
+        alert("Verification code sent to your original email: " + (currentUser?.email || "admin@bintievents.com"));
+      } else {
+        alert("Failed to send verification PIN: " + data.message);
+      }
+    } catch (err) {
+      alert("Error requesting verification PIN: " + err);
+    } finally {
+      setIsRequestingOtp(false);
+    }
+  };
+
+  const handleApplyProfileUpdates = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileOtp) {
+      alert("Verification PIN is required.");
+      return;
+    }
+    
+    setIsApplyingProfileUpdate(true);
+    try {
+      const response = await fetch(getApiUrl("/api/auth/verify-profile-update"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentEmail: currentUser?.email || "admin@bintievents.com",
+          otp: profileOtp,
+          newEmail: newAccessEmail,
+          newPasscode: newPasscode || undefined
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        showToast("Security credentials updated successfully!");
+        setNewPasscode("");
+        setProfileOtp("");
+        setOtpRequested(false);
+        if (onUpdateCurrentUser && data.user) {
+          onUpdateCurrentUser(data.user);
+        }
+      } else {
+        alert("Failed to update credentials: " + data.message);
+      }
+    } catch (err) {
+      alert("Error updating security profile: " + err);
+    } finally {
+      setIsApplyingProfileUpdate(false);
+    }
+  };
+
+  const handleRegisterBiometric = async () => {
+    try {
+      const userEmail = email || currentUser?.email || "admin@bintievents.com";
+      const credentialId = await registerBiometric(userEmail);
       const res = await fetch(getApiUrl("/api/auth/register-biometric"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email || "admin@bintievents.com", credentialId })
+        body: JSON.stringify({ email: userEmail, credentialId })
       });
       const data = await res.json();
       if (data.success) {
         setBiometricRegistered(true);
-        alert("Fingerprint & Biometric Passkey registered successfully! You can now use 1-touch fingerprint login.");
+        showToast("Fingerprint & Biometric Passkey registered successfully!");
+      } else {
+        alert("Failed to register biometric credential: " + (data.message || "Unknown error"));
       }
-    } catch (err) {
-      alert("Failed to register biometric credential.");
+    } catch (err: any) {
+      alert("Failed to register biometric credential: " + err.message);
     }
   };
   
@@ -58,7 +138,7 @@ export default function SettingsModule({
         termsTemplate
       };
       await onUpdateSettings(payload);
-      alert("Corporate billing settings saved successfully.");
+      showToast("Corporate billing settings saved successfully.");
     } catch (err) {
       alert("Failed to save settings.");
     } finally {
@@ -230,12 +310,90 @@ export default function SettingsModule({
               </div>
               <button
                 type="button"
-                onClick={() => setShowBiometricModal(true)}
+                onClick={handleRegisterBiometric}
                 className="py-2 px-3 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all shadow"
               >
                 Register Fingerprint
               </button>
             </div>
+          </div>
+
+           {/* Security Credentials Card */}
+          <div className="glass-card p-6 border-l-4 border-l-[#80237E] space-y-4">
+            <span className="text-[10px] font-bold text-[#80237E] uppercase tracking-widest block">Security & Access Credentials</span>
+            
+            <form onSubmit={handleApplyProfileUpdates} className="space-y-3.5">
+              <div>
+                <label className="block text-[9px] font-bold text-gray-400 uppercase">New Access Email</label>
+                <input
+                  type="email"
+                  required
+                  value={newAccessEmail}
+                  onChange={(e) => setNewAccessEmail(e.target.value)}
+                  className="w-full mt-1 px-3.5 py-2 border border-gray-200 rounded-xl text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] font-bold text-gray-400 uppercase">New Passcode (Min 4 chars)</label>
+                <input
+                  type="password"
+                  placeholder="Leave empty to keep current"
+                  value={newPasscode}
+                  onChange={(e) => setNewPasscode(e.target.value)}
+                  className="w-full mt-1 px-3.5 py-2 border border-gray-200 rounded-xl text-xs"
+                />
+              </div>
+
+              {otpRequested ? (
+                <>
+                  {demoProfileOtp && (
+                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[10px] text-amber-800 font-semibold flex items-center justify-between">
+                      <span>Verification PIN (test):</span>
+                      <span className="font-mono font-black text-[#80237E]">{demoProfileOtp}</span>
+                    </div>
+                  )}
+                  <div>
+                    <label className="block text-[9px] font-bold text-gray-400 uppercase">Verification PIN (Sent to {currentUser?.email})</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={profileOtp}
+                      onChange={(e) => setProfileOtp(e.target.value)}
+                      placeholder="Enter 6-digit PIN"
+                      className="w-full mt-1 px-3.5 py-2 border border-[#D4AF37] rounded-xl text-xs font-mono font-bold tracking-wider"
+                    />
+                  </div>
+                  <div className="flex space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setOtpRequested(false)}
+                      className="w-1/3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-xs font-bold transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isApplyingProfileUpdate}
+                      className="w-2/3 py-2 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all"
+                    >
+                      {isApplyingProfileUpdate ? "Saving..." : "Verify & Apply"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleRequestProfileOtp}
+                  disabled={isRequestingOtp}
+                  className="w-full py-2 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold transition-all shadow shadow-[#6B46C1]/20 flex items-center justify-center space-x-1"
+                >
+                  <Mail className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>{isRequestingOtp ? "Requesting code..." : "Authorize Credentials Change"}</span>
+                </button>
+              )}
+            </form>
           </div>
 
           {/* Database reset */}
@@ -255,13 +413,6 @@ export default function SettingsModule({
         </div>
       </div>
 
-      <BiometricModal
-        isOpen={showBiometricModal}
-        mode="register"
-        userEmail={email}
-        onClose={() => setShowBiometricModal(false)}
-        onSuccess={handleRegisterBiometricSuccess}
-      />
     </div>
   );
 }

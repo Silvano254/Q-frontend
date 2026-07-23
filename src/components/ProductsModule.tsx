@@ -8,6 +8,7 @@ interface ProductsModuleProps {
   onCreateProduct: (prod: Partial<ProductService>) => Promise<void>;
   onUpdateProduct: (id: string, prod: Partial<ProductService>) => Promise<void>;
   onDeleteProduct: (id: string) => Promise<void>;
+  showToast: (message: string, type?: "success" | "warning") => void;
 }
 
 export default function ProductsModule({
@@ -15,7 +16,8 @@ export default function ProductsModule({
   currency,
   onCreateProduct,
   onUpdateProduct,
-  onDeleteProduct
+  onDeleteProduct,
+  showToast
 }: ProductsModuleProps) {
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -46,7 +48,7 @@ export default function ProductsModule({
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !unitPrice) {
-      alert("Name and price are required.");
+      showToast("Name and price are required.", "warning");
       return;
     }
 

@@ -9,7 +9,6 @@ import {
   Percent, 
   Sparkles, 
   ArrowUpRight, 
-  ArrowDownRight,
   TrendingUp,
   Activity,
   ArrowRight
@@ -86,9 +85,6 @@ export default function Dashboard({
     {
       title: "Total Payments Paid",
       value: formatCur(stats.totalPaid),
-      percentage: "+15.8%",
-      isPositive: true,
-      compare: "vs last month (KES 820K)",
       sparkline: "up",
       icon: DollarSign,
       color: "from-emerald-50 to-teal-50 border-emerald-100 text-emerald-600",
@@ -97,9 +93,6 @@ export default function Dashboard({
     {
       title: "Total Invoiced Value",
       value: formatCur(stats.totalInvoicesValue),
-      percentage: "+21.4%",
-      isPositive: true,
-      compare: "vs last month (KES 940K)",
       sparkline: "up",
       icon: Receipt,
       color: "from-purple-50 to-indigo-50 border-purple-100 text-purple-600",
@@ -108,9 +101,6 @@ export default function Dashboard({
     {
       title: "Total Outstanding",
       value: formatCur(stats.totalOutstanding),
-      percentage: "-4.2%",
-      isPositive: true, // positive meaning balance went down
-      compare: "vs last month (KES 440K)",
       sparkline: "down",
       icon: Clock,
       color: "from-amber-50 to-orange-50 border-amber-100 text-amber-600",
@@ -119,9 +109,6 @@ export default function Dashboard({
     {
       title: "Active Clients",
       value: stats.activeClientsCount.toString(),
-      percentage: "+2 new",
-      isPositive: true,
-      compare: "this billing quarter",
       sparkline: "up",
       icon: Users,
       color: "from-blue-50 to-cyan-50 border-blue-100 text-blue-600",
@@ -130,9 +117,6 @@ export default function Dashboard({
     {
       title: "Total Quotes Created",
       value: stats.totalQuotes.toString(),
-      percentage: "+12.0%",
-      isPositive: true,
-      compare: "vs last month (15 quotes)",
       sparkline: "up",
       icon: FileText,
       color: "from-pink-50 to-rose-50 border-pink-100 text-pink-600",
@@ -141,9 +125,6 @@ export default function Dashboard({
     {
       title: "Conversion Rate",
       value: `${stats.conversionRate.toFixed(1)}%`,
-      percentage: "+3.5%",
-      isPositive: true,
-      compare: "Quote → Invoice conversions",
       sparkline: "flat",
       icon: Percent,
       color: "from-indigo-50 to-violet-50 border-indigo-100 text-indigo-600",
@@ -152,9 +133,6 @@ export default function Dashboard({
     {
       title: "Avg Invoice Value",
       value: formatCur(stats.averageInvoiceValue),
-      percentage: "-1.8%",
-      isPositive: false,
-      compare: "vs annual average",
       sparkline: "down",
       icon: Activity,
       color: "from-sky-50 to-slate-50 border-sky-100 text-sky-600",
@@ -242,13 +220,6 @@ export default function Dashboard({
 
                 <div className="mt-4">
                   <h4 className="text-2xl font-bold text-gray-800 tracking-tight">{card.value}</h4>
-                  <div className="flex items-center space-x-2 mt-2">
-                    <span className={`text-xs font-bold flex items-center ${card.isPositive ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {card.isPositive ? <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" /> : <ArrowDownRight className="w-3.5 h-3.5 mr-0.5" />}
-                      {card.percentage}
-                    </span>
-                    <span className="text-[10px] text-gray-400 truncate">{card.compare}</span>
-                  </div>
                 </div>
 
                 {/* Mini trendline sparkline */}

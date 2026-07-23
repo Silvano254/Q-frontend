@@ -28,6 +28,7 @@ interface ClientsModuleProps {
   onCreateClient: (client: Partial<Client>) => Promise<void>;
   onUpdateClient: (id: string, client: Partial<Client>) => Promise<void>;
   onDeleteClient: (id: string) => Promise<void>;
+  showToast: (message: string, type?: "success" | "warning") => void;
 }
 
 export default function ClientsModule({
@@ -37,7 +38,8 @@ export default function ClientsModule({
   currency,
   onCreateClient,
   onUpdateClient,
-  onDeleteClient
+  onDeleteClient,
+  showToast
 }: ClientsModuleProps) {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -70,7 +72,7 @@ export default function ClientsModule({
   const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !email) {
-      alert("Name and email are required.");
+      showToast("Name and email are required.", "warning");
       return;
     }
 

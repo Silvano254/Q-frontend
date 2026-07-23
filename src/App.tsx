@@ -38,12 +38,12 @@ export default function App() {
   const [demoGeneratedOtp, setDemoGeneratedOtp] = useState<string | null>(null);
 
   // Custom Toast State
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "warning" } | null>(null);
   const [toastTimeoutId, setToastTimeoutId] = useState<any>(null);
 
-  const showToast = (message: string) => {
+  const showToast = (message: string, type: "success" | "warning" = "success") => {
     if (toastTimeoutId) clearTimeout(toastTimeoutId);
-    setToast(message);
+    setToast({ message: message.toLowerCase(), type });
     const id = setTimeout(() => {
       setToast(null);
     }, 2500);
@@ -260,7 +260,7 @@ export default function App() {
       if (data.success) {
         setAuthEmail(resetEmail);
         setAuthPassword(newPassword);
-        alert(data.message);
+        showToast(data.message);
         setShowForgotPasswordModal(false);
         setResetStep("request");
         setResetEmail("");
@@ -585,6 +585,7 @@ export default function App() {
             onCreateClient={handleCreateClient}
             onUpdateClient={handleUpdateClient}
             onDeleteClient={handleDeleteClient}
+            showToast={showToast}
           />
         );
       case "products":
@@ -595,6 +596,7 @@ export default function App() {
             onCreateProduct={handleCreateProduct}
             onUpdateProduct={handleUpdateProduct}
             onDeleteProduct={handleDeleteProduct}
+            showToast={showToast}
           />
         );
       case "payments":
@@ -996,8 +998,8 @@ export default function App() {
         </main>
       </div>
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 text-[11px] text-[#80237E] font-extrabold tracking-wider uppercase pointer-events-none select-none">
-          {toast}
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 text-[11px] font-extrabold tracking-wider lowercase pointer-events-none select-none ${toast.type === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+          {toast.message}
         </div>
       )}
     </div>

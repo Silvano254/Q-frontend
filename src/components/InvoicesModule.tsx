@@ -41,7 +41,7 @@ interface InvoicesModuleProps {
   onDeleteInvoice: (id: string) => Promise<void>;
   selectedInvoice: Invoice | null;
   setSelectedInvoice: (invoice: Invoice | null) => void;
-  showToast: (message: string) => void;
+  showToast: (message: string, type?: "success" | "warning") => void;
 }
 
 export default function InvoicesModule({
@@ -66,11 +66,32 @@ export default function InvoicesModule({
   const [clientId, setClientId] = useState("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
+  const [applyTax, setApplyTax] = useState(true);
   const [items, setItems] = useState<Partial<BillingItem>[]>([
     { id: "ii_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }
   ]);
   const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState("");
+
+  // Recalculate item amounts when tax settings toggle
+  React.useEffect(() => {
+    const updated = items.map(item => {
+      const qty = Number(item.quantity) || 0;
+      const price = Number(item.unitPrice) || 0;
+      const disc = Number(item.discount) || 0;
+      const taxRate = applyTax ? (Number(item.tax) || 0) : 0;
+
+      const baseSubtotal = qty * price;
+      const discounted = baseSubtotal * (1 - disc / 100);
+      const withTax = discounted * (1 + taxRate / 100);
+
+      return {
+        ...item,
+        amount: Math.round(withTax * 100) / 100
+      };
+    });
+    setItems(updated);
+  }, [applyTax]);
 
   // Record Payment form modal state
   const [isLoggingPayment, setIsLoggingPayment] = useState(false);
@@ -79,6 +100,10 @@ export default function InvoicesModule({
   const [pRef, setPRef] = useState("");
   const [pAmount, setPAmount] = useState("");
   const [pNotes, setPNotes] = useState("");
+
+  const [pdfTemplate, setPdfTemplate] = useState<'corporate' | 'binti'>(() => {
+    return (localStorage.getItem('pdf_template_preference') as 'corporate' | 'binti') || 'corporate';
+  });
 
   // AI Email
   const [aiEmailDraft, setAiEmailDraft] = useState<string | null>(null);
@@ -102,7 +127,7 @@ export default function InvoicesModule({
     const qty = Number(item.quantity) || 0;
     const price = Number(item.unitPrice) || 0;
     const disc = Number(item.discount) || 0;
-    const taxRate = Number(item.tax) || 0;
+    const taxRate = applyTax ? (Number(item.tax) || 0) : 0;
 
     const baseSubtotal = qty * price;
     const discounted = baseSubtotal * (1 - disc / 100);
@@ -143,7 +168,7 @@ export default function InvoicesModule({
       const qty = Number(item.quantity) || 0;
       const price = Number(item.unitPrice) || 0;
       const disc = Number(item.discount) || 0;
-      const taxRate = Number(item.tax) || 0;
+      const taxRate = applyTax ? (Number(item.tax) || 0) : 0;
 
       const baseSubtotal = qty * price;
       const discounted = baseSubtotal * (1 - disc / 100);
@@ -165,7 +190,7 @@ export default function InvoicesModule({
       const qty = Number(item.quantity) || 0;
       const price = Number(item.unitPrice) || 0;
       const disc = Number(item.discount) || 0;
-      const taxRate = Number(item.tax) || 0;
+      const taxRate = applyTax ? (Number(item.tax) || 0) : 0;
 
       const base = qty * price;
       const discAmount = base * (disc / 100);
@@ -189,7 +214,7 @@ export default function InvoicesModule({
   // Save Invoice
   const handleSaveInvoice = async (status: 'draft' | 'pending') => {
     if (!clientId) {
-      alert("Please select a client before saving.");
+      showToast("Please select a client before saving.", "warning");
       return;
     }
     const totals = getTotals();
@@ -237,7 +262,7 @@ export default function InvoicesModule({
 
     const amount = Number(pAmount);
     if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid payment amount.");
+      showToast("Please enter a valid payment amount.", "warning");
       return;
     }
 
@@ -264,8 +289,41 @@ export default function InvoicesModule({
     setPNotes("");
   };
 
+  const loadImgBase64 = (url: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          try {
+            resolve(canvas.toDataURL("image/png"));
+          } catch (e) {
+            resolve("");
+          }
+        } else {
+          resolve("");
+        }
+      };
+      img.onerror = () => resolve("");
+      img.src = url;
+    });
+  };
+
   // Generate TAX INVOICE PDF (jsPDF)
-  const generatePDF = (invoice: Invoice) => {
+  const generatePDF = async (invoice: Invoice) => {
+    if (pdfTemplate === 'binti') {
+      await generatePDFBinti(invoice);
+    } else {
+      generatePDFCorporate(invoice);
+    }
+  };
+
+  const generatePDFCorporate = (invoice: Invoice) => {
     const doc = new jsPDF();
 
     // Elegant Corporate Color Palette
@@ -293,7 +351,8 @@ export default function InvoicesModule({
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
-    doc.text(`TAX INVOICE: ${invoice.invoiceNumber}`, 130, 35);
+    const documentTitle = invoice.taxTotal > 0 ? `TAX INVOICE: ${invoice.invoiceNumber}` : `INVOICE: ${invoice.invoiceNumber}`;
+    doc.text(documentTitle, 130, 35);
 
     // Invoice Meta Details
     doc.setFont("helvetica", "normal");
@@ -316,7 +375,9 @@ export default function InvoicesModule({
     doc.setFont("helvetica", "normal");
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
     doc.text(companySettings.companyName, 20, 76);
-    doc.text(`PIN: ${companySettings.taxNumber}`, 20, 82);
+    if (invoice.taxTotal > 0) {
+      doc.text(`PIN: ${companySettings.taxNumber}`, 20, 82);
+    }
     doc.text(`Email: ${companySettings.email}`, 20, 88);
     doc.text(`Address: ${companySettings.address}`, 20, 94);
 
@@ -331,7 +392,7 @@ export default function InvoicesModule({
     doc.text(invoice.clientName, 110, 76);
     if (clientDetails) {
       if (clientDetails.company) doc.text(clientDetails.company, 110, 82);
-      if (clientDetails.taxNumber) doc.text(`Tax PIN: ${clientDetails.taxNumber}`, 110, 88);
+      if (invoice.taxTotal > 0 && clientDetails.taxNumber) doc.text(`Tax PIN: ${clientDetails.taxNumber}`, 110, 88);
       doc.text(`Email: ${clientDetails.email}`, 110, 94);
       doc.text(`Phone: ${clientDetails.phone}`, 110, 100);
     }
@@ -346,7 +407,9 @@ export default function InvoicesModule({
     doc.text("Service Description / Hire Asset", 22, 115);
     doc.text("Qty", 115, 115);
     doc.text("Unit Price", 130, 115);
-    doc.text("Tax", 155, 115);
+    if (invoice.taxTotal > 0) {
+      doc.text("Tax", 155, 115);
+    }
     doc.text("Amount", 175, 115);
 
     // Render Items
@@ -364,7 +427,9 @@ export default function InvoicesModule({
       doc.text(splitDesc, 22, currentY);
       doc.text(item.quantity.toString(), 115, currentY);
       doc.text(item.unitPrice.toLocaleString(), 130, currentY);
-      doc.text(`${item.tax}%`, 155, currentY);
+      if (invoice.taxTotal > 0) {
+        doc.text(`${item.tax}%`, 155, currentY);
+      }
       doc.text(item.amount.toLocaleString(), 175, currentY);
       
       currentY += (splitDesc.length * 5) + 3;
@@ -385,9 +450,11 @@ export default function InvoicesModule({
     doc.text("Discount Deducted:", 110, currentY);
     doc.text(`${currency} ${invoice.discountTotal.toLocaleString()}`, 165, currentY);
     
-    currentY += 6;
-    doc.text("Tax Amount (VAT 16%):", 110, currentY);
-    doc.text(`${currency} ${invoice.taxTotal.toLocaleString()}`, 165, currentY);
+    if (invoice.taxTotal > 0) {
+      currentY += 6;
+      doc.text("Tax Amount (VAT 16%):", 110, currentY);
+      doc.text(`${currency} ${invoice.taxTotal.toLocaleString()}`, 165, currentY);
+    }
 
     // Total payments recorded
     currentY += 6;
@@ -399,24 +466,28 @@ export default function InvoicesModule({
     
     currentY += 8;
     doc.setFillColor(purple[0], purple[1], purple[2]);
-    doc.rect(108, currentY - 5, 82, 8, "F");
+    doc.rect(110, currentY - 5, 80, 8, "F");
+
     doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
     doc.setTextColor(255, 255, 255);
-    doc.text("BALANCE REMAINING:", 110, currentY);
+    doc.text("BALANCE REMAINING DUE:", 112, currentY);
     doc.text(`${currency} ${invoice.balanceRemaining.toLocaleString()}`, 165, currentY);
 
-    // Terms and notes
-    currentY += 15;
+    // Terms & Conditions Block
+    currentY += 12;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(purple[0], purple[1], purple[2]);
-    doc.text("TERMS & PAYMENT INSTRUCTIONS", 20, currentY);
+    doc.text("LOGISTICS LIABILITY & PAYMENT CLAUSES:", 20, currentY);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
-    doc.setTextColor(110, 110, 110);
+    doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
+
     const splitTerms = doc.splitTextToSize(invoice.terms || companySettings.termsTemplate, 170);
-    doc.text(splitTerms, 20, currentY + 5);
+    currentY += 5;
+    doc.text(splitTerms, 20, currentY);
 
     // Payment History log table in PDF
     if (invoice.payments && invoice.payments.length > 0) {
@@ -450,6 +521,274 @@ export default function InvoicesModule({
     doc.setTextColor(150, 150, 150);
     doc.text("Thank you for your valuable corporate event business with Binti Events.", 20, 275);
     
+    doc.save(`${invoice.invoiceNumber}-${invoice.clientName.replace(/\s+/g, "_")}.pdf`);
+  };
+
+  const generatePDFBinti = async (invoice: Invoice) => {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = 210;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    const bottomLimit = pageHeight - margin;
+
+    // Colors
+    const pink = [255, 192, 250];      // #FFC0FA - table header
+    const black = [51, 51, 51];        // #333333
+    const gray = [102, 102, 102];      // #666666
+    const lightGray = [200, 200, 200]; // borders
+
+    const invoiceDate = invoice.issueDate;
+    const dueDate = invoice.dueDate;
+    const invoiceNo = invoice.invoiceNumber;
+    
+    let y = margin;
+
+    const ensurePageSpace = (requiredHeight: number, options = { repeatTableHeader: false }) => {
+      if (y + requiredHeight <= bottomLimit) {
+        return;
+      }
+      doc.addPage();
+      y = margin;
+      if (options.repeatTableHeader) {
+        drawTableHeader();
+        y += 8;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(black[0], black[1], black[2]);
+      }
+    };
+
+    // Load logo & thank you notes
+    const logoBase64 = await loadImgBase64('https://bintievents.vercel.app/images/invoicelogo.jpg');
+    const thankYouBase64 = await loadImgBase64('https://bintievents.vercel.app/images/thankyounote.PNG');
+
+    if (logoBase64) {
+      try {
+        doc.addImage(logoBase64, 'PNG', margin, y, 45, 20);
+      } catch (err) {
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(22);
+        doc.setTextColor(150, 50, 120);
+        doc.text('Binti Events', margin, y + 14);
+      }
+    } else {
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setFontSize(22);
+      doc.setTextColor(150, 50, 120);
+      doc.text('Binti Events', margin, y + 14);
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(28);
+    doc.setTextColor(black[0], black[1], black[2]);
+    const documentTitle = invoice.taxTotal > 0 ? 'TAX INVOICE' : 'INVOICE';
+    doc.text(documentTitle, pageWidth - margin, y + 8, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text('Binti Events', pageWidth - margin, y + 16, { align: 'right' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+    doc.text(companySettings.address, pageWidth - margin, y + 21, { align: 'right' });
+    
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7);
+    doc.text('Customer Care', pageWidth - margin, y + 28, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text(companySettings.phone, pageWidth - margin, y + 32, { align: 'right' });
+    doc.text(companySettings.email, pageWidth - margin, y + 36, { align: 'right' });
+
+    y += 48;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text('FOR', margin, y);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(invoice.clientName, margin, y + 6);
+    const clientDetails = clients.find(c => c.id === invoice.clientId);
+    if (clientDetails) {
+      if (clientDetails.company) doc.text(clientDetails.company, margin, y + 11);
+      doc.text(clientDetails.address || 'Kenya', margin, y + 16);
+    }
+
+    const labelX = pageWidth - margin - 55;
+    const valueX = pageWidth - margin;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+    doc.text('Invoice No.:', labelX, y, { align: 'right' });
+    doc.text('Issue date:', labelX, y + 6, { align: 'right' });
+    doc.text('Due date:', labelX, y + 12, { align: 'right' });
+    doc.text('Payment:', labelX, y + 18, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text(invoiceNo, valueX, y, { align: 'right' });
+    doc.text(invoiceDate, valueX, y + 6, { align: 'right' });
+    doc.text(dueDate, valueX, y + 12, { align: 'right' });
+
+    doc.setTextColor(76, 175, 80);
+    doc.text(invoice.status.toUpperCase(), valueX, y + 18, { align: 'right' });
+
+    y += 30;
+
+    const colWidths = invoice.taxTotal > 0 
+      ? [contentWidth * 0.42, contentWidth * 0.12, contentWidth * 0.16, contentWidth * 0.14, contentWidth * 0.16]
+      : [contentWidth * 0.52, contentWidth * 0.12, contentWidth * 0.18, contentWidth * 0.18];
+
+    const colX: number[] = [];
+    let currentX = margin;
+    colWidths.forEach(w => {
+      colX.push(currentX);
+      currentX += w;
+    });
+
+    const drawTableHeader = () => {
+      doc.setFillColor(pink[0], pink[1], pink[2]);
+      doc.rect(margin, y, contentWidth, 8, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(black[0], black[1], black[2]);
+      doc.text('DESCRIPTION', colX[0] + 2, y + 5.5);
+      doc.text('QTY', colX[1] + colWidths[1] / 2, y + 5.5, { align: 'center' });
+      doc.text('UNIT PRICE', colX[2] + colWidths[2] - 2, y + 5.5, { align: 'right' });
+      if (invoice.taxTotal > 0) {
+        doc.text('TAX', colX[3] + colWidths[3] / 2, y + 5.5, { align: 'center' });
+        doc.text('AMOUNT', colX[4] + colWidths[4] - 2, y + 5.5, { align: 'right' });
+      } else {
+        doc.text('AMOUNT', colX[3] + colWidths[3] - 2, y + 5.5, { align: 'right' });
+      }
+    };
+
+    drawTableHeader();
+    y += 8;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(black[0], black[1], black[2]);
+
+    invoice.items.forEach(item => {
+      const descriptionLines = doc.splitTextToSize(item.description, colWidths[0] - 4);
+      const rowHeight = Math.max(8, descriptionLines.length * 3.5 + 3);
+      const textY = y + 4.5;
+      const valueY = y + rowHeight / 2 + 1;
+
+      ensurePageSpace(rowHeight + 2, { repeatTableHeader: true });
+
+      doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+      doc.line(margin, y + rowHeight, margin + contentWidth, y + rowHeight);
+
+      doc.text(descriptionLines, colX[0] + 2, textY);
+      doc.text(String(item.quantity), colX[1] + colWidths[1] / 2, valueY, { align: 'center' });
+      doc.text(item.unitPrice.toLocaleString(), colX[2] + colWidths[2] - 2, valueY, { align: 'right' });
+      if (invoice.taxTotal > 0) {
+        doc.text(`${item.tax}%`, colX[3] + colWidths[3] / 2, valueY, { align: 'center' });
+        doc.text(item.amount.toLocaleString(), colX[4] + colWidths[4] - 2, valueY, { align: 'right' });
+      } else {
+        doc.text(item.amount.toLocaleString(), colX[3] + colWidths[3] - 2, valueY, { align: 'right' });
+      }
+
+      y += rowHeight;
+    });
+
+    doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+    doc.line(margin, y, margin + contentWidth, y);
+
+    y += 5;
+    ensurePageSpace(30);
+
+    const totalAlignX = invoice.taxTotal > 0 ? colX[4] + colWidths[4] - 2 : colX[3] + colWidths[3] - 2;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text('TOTAL:', totalAlignX - 35, y + 2, { align: 'right' });
+    doc.text(`${currency} ${invoice.grandTotal.toLocaleString()}`, totalAlignX, y + 2, { align: 'right' });
+
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+    const paidSum = invoice.payments ? invoice.payments.reduce((sum, p) => sum + p.amountPaid, 0) : 0;
+    const balanceRemaining = invoice.balanceRemaining;
+    const depositLines = doc.splitTextToSize(
+      `Paid Amount: ${currency} ${paidSum.toLocaleString()}   |   Remaining Balance: ${currency} ${balanceRemaining.toLocaleString()}`,
+      contentWidth
+    );
+    doc.text(depositLines, margin, y + 4);
+
+    y += 8 + depositLines.length * 3.5;
+
+    ensurePageSpace(15);
+    doc.setFont('helvetica', 'bolditalic');
+    doc.setFontSize(8);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text('Terms & conditions apply:', margin, y);
+
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+
+    const termsLines = invoice.terms ? invoice.terms.split('\n') : [
+      'Client by making payment authorizes Binti Tents & Events to supply the above facilities',
+      'Payment of at least 80% confirms your booking upon signing below; balance to be upon set up',
+      'Cancellation policy: Cancellation must be in writing. A month before event: 50% refund, 2 weeks before: 25% refund; Less than a week: non refundable',
+      'Client agrees to safeguard the equipment and be solely responsible for any loss or damage of the same that may occur during period of hire',
+      'Quote valid for 30 days',
+    ];
+    termsLines.forEach((term, i) => {
+      const lines = doc.splitTextToSize(`${i + 1}. ${term}`, contentWidth);
+      ensurePageSpace(lines.length * 3.5 + 2);
+      doc.text(lines, margin, y);
+      y += lines.length * 3.5;
+    });
+
+    y += 8;
+
+    ensurePageSpace(35);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text('Issued by:', pageWidth - margin, y, { align: 'right' });
+    y += 5;
+    doc.setFont('helvetica', 'bold');
+    doc.text(companySettings.companyName, pageWidth - margin, y, { align: 'right' });
+    y += 6;
+
+    if (thankYouBase64) {
+      try {
+        const imageProps = doc.getImageProperties(thankYouBase64);
+        const baseScale = Math.min(90 / imageProps.width, 45 / imageProps.height);
+        const width = imageProps.width * baseScale;
+        const height = imageProps.height * baseScale;
+        doc.addImage(thankYouBase64, 'PNG', (pageWidth - width) / 2, y, width, height);
+      } catch (e) {
+        y += 4;
+        doc.setTextColor(255, 130, 171);
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(18);
+        doc.text('thank you', pageWidth / 2, y, { align: 'center' });
+      }
+    } else {
+      y += 4;
+      doc.setTextColor(255, 130, 171);
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setFontSize(18);
+      doc.text('thank you', pageWidth / 2, y, { align: 'center' });
+    }
+
     doc.save(`${invoice.invoiceNumber}-${invoice.clientName.replace(/\s+/g, "_")}.pdf`);
   };
 
@@ -488,12 +827,12 @@ export default function InvoicesModule({
     const clientEmail = clientDetails?.email;
     
     if (!clientEmail) {
-      alert("This client does not have an email address configured.");
+      showToast("This client does not have an email address configured.", "warning");
       return;
     }
     
     if (!aiEmailDraft) {
-      alert("No email draft generated yet.");
+      showToast("No email draft generated yet.", "warning");
       return;
     }
     
@@ -512,10 +851,10 @@ export default function InvoicesModule({
       if (data.success) {
         showToast(data.simulated ? "Email simulation success: check server console logs." : "Email sent successfully to " + clientEmail);
       } else {
-        alert("Failed to send email: " + (data.message || "Unknown error"));
+        showToast("Failed to send email: " + (data.message || "Unknown error"), "warning");
       }
     } catch (err) {
-      alert("Error sending email: " + err);
+      showToast("Error sending email: " + err, "warning");
     } finally {
       setIsSendingEmail(false);
     }
@@ -607,6 +946,20 @@ export default function InvoicesModule({
               />
             </div>
           </div>
+ 
+          {/* Tax Settings Toggle */}
+          <div className="flex items-center space-x-3 bg-purple-50/30 border border-purple-100/50 rounded-xl p-3">
+            <input
+              type="checkbox"
+              id="applyTax"
+              checked={applyTax}
+              onChange={(e) => setApplyTax(e.target.checked)}
+              className="w-4 h-4 text-[#6B46C1] border-gray-300 rounded focus:ring-[#6B46C1]"
+            />
+            <label htmlFor="applyTax" className="text-xs font-semibold text-gray-700 select-none cursor-pointer">
+              Apply VAT (16%) and generate Tax Invoice
+            </label>
+          </div>
 
           {/* Items Table Section */}
           <div className="space-y-4">
@@ -641,7 +994,7 @@ export default function InvoicesModule({
                   </div>
 
                   {/* Manual description */}
-                  <div className="lg:col-span-4">
+                  <div className={applyTax ? "lg:col-span-4" : "lg:col-span-5"}>
                     <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Custom Description</label>
                     <input
                       type="text"
@@ -689,15 +1042,17 @@ export default function InvoicesModule({
                   </div>
 
                   {/* Tax */}
-                  <div className="lg:col-span-1">
-                    <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Tax %</label>
-                    <input
-                      type="number"
-                      value={item.tax || 16}
-                      onChange={(e) => handleItemChange(idx, "tax", Number(e.target.value))}
-                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center"
-                    />
-                  </div>
+                  {applyTax && (
+                    <div className="lg:col-span-1">
+                      <label className="block text-[10px] text-gray-400 font-semibold mb-1 uppercase">Tax %</label>
+                      <input
+                        type="number"
+                        value={item.tax || 16}
+                        onChange={(e) => handleItemChange(idx, "tax", Number(e.target.value))}
+                        className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-xs text-center"
+                      />
+                    </div>
+                  )}
 
                   {/* Total amount calculated */}
                   <div className="lg:col-span-1 flex items-center justify-between space-x-2 pb-1.5">
@@ -759,10 +1114,12 @@ export default function InvoicesModule({
                   <span className="text-gray-500">Discount Amount Deducted</span>
                   <span className="font-semibold text-emerald-600">({currency} {getTotals().discountTotal.toLocaleString()})</span>
                 </div>
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-500">VAT Payable (16%)</span>
-                  <span className="font-semibold text-gray-800">{currency} {getTotals().taxTotal.toLocaleString()}</span>
-                </div>
+                {applyTax && (
+                  <div className="flex justify-between py-2">
+                    <span className="text-gray-500">VAT Payable (16%)</span>
+                    <span className="font-semibold text-gray-800">{currency} {getTotals().taxTotal.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-3 text-base font-bold text-gray-800 border-t-2 border-gray-300">
                   <span className="text-[#6B46C1]">TOTAL BALANCE DUE</span>
                   <span className="text-lg text-gray-900">{currency} {getTotals().grandTotal.toLocaleString()}</span>
@@ -818,7 +1175,7 @@ export default function InvoicesModule({
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-base text-gray-800">Binti Events Official Tax Invoice</h4>
+                  <h4 className="font-bold text-base text-gray-800">Binti Events Official {selectedInvoice.taxTotal > 0 ? "Tax Invoice" : "Invoice"}</h4>
                   <p className="text-xs text-gray-400 mt-0.5">Invoice ID: {selectedInvoice.id}</p>
                 </div>
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
@@ -857,7 +1214,7 @@ export default function InvoicesModule({
                         <th className="p-3 text-center">Qty</th>
                         <th className="p-3 text-right">Price</th>
                         <th className="p-3 text-center">Disc</th>
-                        <th className="p-3 text-center">Tax</th>
+                        {selectedInvoice.taxTotal > 0 && <th className="p-3 text-center">Tax</th>}
                         <th className="p-3 text-right">Total</th>
                       </tr>
                     </thead>
@@ -868,7 +1225,7 @@ export default function InvoicesModule({
                           <td className="p-3 text-center font-bold text-gray-500">{item.quantity}</td>
                           <td className="p-3 text-right font-medium">{item.unitPrice.toLocaleString()}</td>
                           <td className="p-3 text-center text-emerald-600 font-bold">{item.discount}%</td>
-                          <td className="p-3 text-center text-gray-500">{item.tax}%</td>
+                          {selectedInvoice.taxTotal > 0 && <td className="p-3 text-center text-gray-500">{item.tax}%</td>}
                           <td className="p-3 text-right font-bold text-gray-800">{item.amount.toLocaleString()}</td>
                         </tr>
                       ))}
@@ -945,10 +1302,12 @@ export default function InvoicesModule({
                     <span className="text-gray-400">Total Discount</span>
                     <span className="font-semibold text-emerald-400">({currency} {selectedInvoice.discountTotal.toLocaleString()})</span>
                   </div>
-                  <div className="flex justify-between py-1.5">
-                    <span className="text-gray-400">Tax Payable (VAT 16%)</span>
-                    <span className="font-semibold text-gray-200">{currency} {selectedInvoice.taxTotal.toLocaleString()}</span>
-                  </div>
+                  {selectedInvoice.taxTotal > 0 && (
+                    <div className="flex justify-between py-1.5">
+                      <span className="text-gray-400">Tax Payable (VAT 16%)</span>
+                      <span className="font-semibold text-gray-200">{currency} {selectedInvoice.taxTotal.toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between py-2 border-t border-gray-800 text-emerald-400">
                     <span>Total Paid to Date</span>
                     <span className="font-semibold">-{currency} {(selectedInvoice.grandTotal - selectedInvoice.balanceRemaining).toLocaleString()}</span>
@@ -960,7 +1319,23 @@ export default function InvoicesModule({
                 </div>
 
                 {/* Operations */}
-                <div className="pt-4 border-t border-gray-800 space-y-2">
+                <div className="pt-4 border-t border-gray-800 space-y-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">PDF Template Style</label>
+                    <select
+                      value={pdfTemplate}
+                      onChange={(e) => {
+                        const val = e.target.value as 'corporate' | 'binti';
+                        setPdfTemplate(val);
+                        localStorage.setItem('pdf_template_preference', val);
+                      }}
+                      className="w-full px-2.5 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white focus:outline-none focus:border-[#6B46C1]"
+                    >
+                      <option value="corporate">Classic Corporate (Purple/Gold)</option>
+                      <option value="binti">Binti Signature (Pink Header/Logo/ThankYou)</option>
+                    </select>
+                  </div>
+
                   <button
                     onClick={() => generatePDF(selectedInvoice)}
                     className="w-full py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all shadow-md shadow-[#6B46C1]/10"

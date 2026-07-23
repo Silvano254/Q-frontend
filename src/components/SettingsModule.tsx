@@ -10,7 +10,7 @@ interface SettingsModuleProps {
   onResetDatabase: () => Promise<void>;
   currentUser?: { name: string; role: string; email: string } | null;
   onUpdateCurrentUser?: (user: any) => void;
-  showToast: (message: string) => void;
+  showToast: (message: string, type?: "success" | "warning") => void;
 }
 
 export default function SettingsModule({
@@ -46,12 +46,12 @@ export default function SettingsModule({
       if (data.success) {
         setOtpRequested(true);
         if (data.otp) setDemoProfileOtp(data.otp);
-        alert("Verification code sent to your original email: " + (currentUser?.email || "admin@bintievents.com"));
+        showToast("Verification code sent to your original email: " + (currentUser?.email || "admin@bintievents.com"));
       } else {
-        alert("Failed to send verification PIN: " + data.message);
+        showToast("Failed to send verification PIN: " + data.message, "warning");
       }
     } catch (err) {
-      alert("Error requesting verification PIN: " + err);
+      showToast("Error requesting verification PIN: " + err, "warning");
     } finally {
       setIsRequestingOtp(false);
     }
@@ -60,7 +60,7 @@ export default function SettingsModule({
   const handleApplyProfileUpdates = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profileOtp) {
-      alert("Verification PIN is required.");
+      showToast("Verification PIN is required.", "warning");
       return;
     }
     
@@ -86,10 +86,10 @@ export default function SettingsModule({
           onUpdateCurrentUser(data.user);
         }
       } else {
-        alert("Failed to update credentials: " + data.message);
+        showToast("Failed to update credentials: " + data.message, "warning");
       }
     } catch (err) {
-      alert("Error updating security profile: " + err);
+      showToast("Error updating security profile: " + err, "warning");
     } finally {
       setIsApplyingProfileUpdate(false);
     }
@@ -109,10 +109,10 @@ export default function SettingsModule({
         setBiometricRegistered(true);
         showToast("Fingerprint & Biometric Passkey registered successfully!");
       } else {
-        alert("Failed to register biometric credential: " + (data.message || "Unknown error"));
+        showToast("Failed to register biometric credential: " + (data.message || "Unknown error"), "warning");
       }
     } catch (err: any) {
-      alert("Failed to register biometric credential: " + err.message);
+      showToast("Failed to register biometric credential: " + err.message, "warning");
     }
   };
   
@@ -140,7 +140,7 @@ export default function SettingsModule({
       await onUpdateSettings(payload);
       showToast("Corporate billing settings saved successfully.");
     } catch (err) {
-      alert("Failed to save settings.");
+      showToast("Failed to save settings.", "warning");
     } finally {
       setIsSaving(false);
     }

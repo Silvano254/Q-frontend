@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Shield, User, Lock, ArrowRight, RefreshCw, AlertTriangle, Eye, Fingerprint, KeyRound, X, CheckCircle2 } from "lucide-react";
+import { Sparkles, Shield, User, Lock, ArrowRight, RefreshCw, AlertTriangle, Eye, EyeOff, Fingerprint, KeyRound, X, CheckCircle2 } from "lucide-react";
 import Sidebar from "./components/Sidebar.js";
 import TopBar from "./components/TopBar.js";
 import Dashboard from "./components/Dashboard.js";
@@ -21,6 +21,8 @@ export default function App() {
   });
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loginTab, setLoginTab] = useState<"password" | "biometric">("password");
   const [authError, setAuthError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(() => {
     const saved = localStorage.getItem("binti_user");
@@ -40,6 +42,20 @@ export default function App() {
   // Custom Toast State
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" } | null>(null);
   const [toastTimeoutId, setToastTimeoutId] = useState<any>(null);
+
+  // Theme State (Light / Dark mode)
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    return (localStorage.getItem("binti_theme") as "light" | "dark") || "light";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("binti_theme", theme);
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [theme]);
 
   const showToast = (message: string, type: "success" | "warning" = "success") => {
     if (toastTimeoutId) clearTimeout(toastTimeoutId);
@@ -98,23 +114,30 @@ export default function App() {
         fetch(getApiUrl("/api/settings")).then(r => r.json())
       ]);
 
-      setClients(resClients || []);
-      setProducts(resProducts || []);
-      setQuotes(resQuotes || []);
-      setInvoices(resInvoices || []);
-      setCompanySettings(resSettings);
+      const safeClients = Array.isArray(resClients) ? resClients : [];
+      const safeProducts = Array.isArray(resProducts) ? resProducts : [];
+      const safeQuotes = Array.isArray(resQuotes) ? resQuotes : [];
+      const safeInvoices = Array.isArray(resInvoices) ? resInvoices : [];
+
+      setClients(safeClients);
+      setProducts(safeProducts);
+      setQuotes(safeQuotes);
+      setInvoices(safeInvoices);
+      if (resSettings && resSettings.currency) {
+        setCompanySettings(resSettings);
+      }
 
       // Generate dynamic notifications based on real status
       const generatedAlerts: typeof notifications = [];
       
       // Check overdue invoices
-      (resInvoices || []).forEach((inv: Invoice) => {
-        if (inv.status === "overdue" || (inv.status !== "paid" && new Date(inv.dueDate) < new Date())) {
+      safeInvoices.forEach((inv: Invoice) => {
+        if (inv.status === "overdue" || (inv.status !== "paid" && inv.dueDate && new Date(inv.dueDate) < new Date())) {
           generatedAlerts.push({
             id: `notif-overdue-${inv.id}`,
             type: "overdue",
             title: `Invoice Overdue: ${inv.invoiceNumber}`,
-            description: `${inv.clientName} is yet to clear KES ${inv.balanceRemaining.toLocaleString()}.`,
+            description: `${inv.clientName} is yet to clear KES ${(inv.balanceRemaining || 0).toLocaleString()}.`,
             time: `Due on ${inv.dueDate}`,
             unread: true
           });
@@ -122,13 +145,13 @@ export default function App() {
       });
 
       // Recent payment notification
-      (resInvoices || []).forEach((inv: Invoice) => {
+      safeInvoices.forEach((inv: Invoice) => {
         (inv.payments || []).forEach((p, idx) => {
           generatedAlerts.push({
             id: `notif-pm-${inv.id}-${idx}`,
             type: "payment",
             title: `Payment Received - ${inv.invoiceNumber}`,
-            description: `Manual receipt registered for ${inv.clientName}: KES ${p.amountPaid.toLocaleString()} paid via ${p.paymentMethod.replace("_", " ")}.`,
+            description: `Manual receipt registered for ${inv.clientName}: KES ${(p.amountPaid || 0).toLocaleString()} paid via ${(p.paymentMethod || "").replace("_", " ")}.`,
             time: p.paymentDate,
             unread: false
           });
@@ -157,7 +180,32 @@ export default function App() {
     }
   };
 
-  // Run on Mount if authenticated
+  // Verify Token & Run on Mount if authenticated
+  useEffect(() => {
+    const token = localStorage.getItem("binti_token");
+    if (token) {
+      fetch(getApiUrl("/api/auth/verify"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token })
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            setIsAuthenticated(true);
+            setCurrentUser(data.user);
+            localStorage.setItem("binti_authenticated", "true");
+            localStorage.setItem("binti_user", JSON.stringify(data.user));
+          } else {
+            handleLogout();
+          }
+        })
+        .catch(() => {
+          // Keep offline state if server is momentarily unreachable
+        });
+    }
+  }, []);
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchAllData();
@@ -179,6 +227,7 @@ export default function App() {
       if (data.success) {
         setIsAuthenticated(true);
         setCurrentUser(data.user);
+        if (data.token) localStorage.setItem("binti_token", data.token);
         localStorage.setItem("binti_authenticated", "true");
         localStorage.setItem("binti_user", JSON.stringify(data.user));
       } else {
@@ -195,6 +244,7 @@ export default function App() {
     setCurrentUser(null);
     localStorage.removeItem("binti_authenticated");
     localStorage.removeItem("binti_user");
+    localStorage.removeItem("binti_token");
   };
 
   // BIOMETRIC FINGERPRINT LOGIN HANDLER
@@ -205,12 +255,13 @@ export default function App() {
       const response = await fetch(getApiUrl("/api/auth/biometric-login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: authEmail || "admin@bintievents.com", credentialId })
+        body: JSON.stringify({ email: authEmail || undefined, credentialId })
       });
       const data = await response.json();
       if (data.success) {
         setIsAuthenticated(true);
         setCurrentUser(data.user);
+        if (data.token) localStorage.setItem("binti_token", data.token);
         localStorage.setItem("binti_authenticated", "true");
         localStorage.setItem("binti_user", JSON.stringify(data.user));
       } else {
@@ -479,17 +530,21 @@ export default function App() {
   // VIEW RENDERING SELECTOR
   // ==========================================
   const renderWorkspace = () => {
+    const safeInvoicesList = Array.isArray(invoices) ? invoices : [];
+    const safeQuotesList = Array.isArray(quotes) ? quotes : [];
+    const safeClientsList = Array.isArray(clients) ? clients : [];
+
     // Calculate dashboard statistics on-the-fly from active client state
-    const totalInvoicesValue = invoices.reduce((sum, inv) => sum + inv.grandTotal, 0);
-    const totalPaid = invoices.reduce((sum, inv) => {
-      return sum + (inv.payments || []).reduce((pSum, pm) => pSum + pm.amountPaid, 0);
+    const totalInvoicesValue = safeInvoicesList.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
+    const totalPaid = safeInvoicesList.reduce((sum, inv) => {
+      return sum + (inv.payments || []).reduce((pSum, pm) => pSum + (pm.amountPaid || 0), 0);
     }, 0);
-    const totalOutstanding = invoices.reduce((sum, inv) => sum + inv.balanceRemaining, 0);
-    const totalQuotes = quotes.length;
-    const totalInvoices = invoices.length;
-    const activeClientsCount = clients.filter(c => c.status === "active").length;
+    const totalOutstanding = safeInvoicesList.reduce((sum, inv) => sum + (inv.balanceRemaining || 0), 0);
+    const totalQuotes = safeQuotesList.length;
+    const totalInvoices = safeInvoicesList.length;
+    const activeClientsCount = safeClientsList.filter(c => c.status === "active").length;
     const averageInvoiceValue = totalInvoices > 0 ? totalInvoicesValue / totalInvoices : 0;
-    const convertedQuotes = quotes.filter(q => q.status === "converted").length;
+    const convertedQuotes = safeQuotesList.filter(q => q.status === "converted").length;
     const conversionRate = totalQuotes > 0 ? (convertedQuotes / totalQuotes) * 100 : 0;
 
     const stats = {
@@ -507,6 +562,7 @@ export default function App() {
       case "dashboard":
         return (
           <Dashboard 
+            currentUser={currentUser}
             stats={stats}
             invoices={invoices}
             quotes={quotes}
@@ -630,6 +686,11 @@ export default function App() {
               setCurrentUser(updatedUser);
               localStorage.setItem("binti_user", JSON.stringify(updatedUser));
             }}
+            theme={theme}
+            onToggleTheme={(newTheme) => {
+              setTheme(newTheme);
+              showToast(`Visual appearance updated to ${newTheme} mode.`);
+            }}
             showToast={showToast}
           />
         );
@@ -643,237 +704,261 @@ export default function App() {
   // ==========================================
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#FAF7EE] via-[#F3EFE3] to-[#EAE3CE] flex items-center justify-center p-6 font-sans relative overflow-hidden">
-        {/* Soft artistic organic background blobs */}
-        <div className="absolute w-[500px] h-[500px] rounded-full bg-gradient-to-tr from-[#80237E]/5 to-[#EAB308]/5 blur-3xl -top-40 -left-40 pointer-events-none" />
-        <div className="absolute w-[400px] h-[400px] rounded-full bg-gradient-to-br from-[#EC4899]/5 to-purple-500/5 blur-3xl -bottom-40 -right-40 pointer-events-none" />
+      <div className="min-h-screen w-full bg-white flex flex-col justify-between p-4 sm:p-8 md:p-12 font-sans relative overflow-x-hidden">
+        {/* Top gold accent line across top of screen */}
+        <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-[#D4AF37] via-amber-200 to-[#80237E]" />
 
-        <div className="w-full max-w-md bg-[#FCFAF6]/90 backdrop-blur-md rounded-3xl border border-[#D4AF37]/30 shadow-2xl p-8 space-y-7 flex flex-col justify-between overflow-hidden relative transition-all">
-          {/* Top double golden accent lines */}
-          <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-[#D4AF37] via-amber-200 to-[#D4AF37]" />
-          <div className="absolute top-1 inset-x-0 h-[1px] bg-white/40" />
-
-          <div className="text-center space-y-4 pt-2">
-            <div className="w-20 h-20 mx-auto rounded-2xl bg-white p-2.5 flex items-center justify-center shadow-md border border-[#D4AF37]/20">
-              <img src="/logo.jpeg" alt="Binti Tents & Events Logo" className="w-full h-full object-contain" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-serif font-bold text-gray-800 tracking-tight flex items-center justify-center space-x-1.5">
-                <span className="bg-gradient-to-r from-[#80237E] via-[#6B46C1] to-[#EAB308] bg-clip-text text-transparent">Binti Events</span>
+        {/* Full Screen Centered Content Container */}
+        <div className="w-full max-w-[480px] mx-auto flex flex-col justify-between flex-1 py-6 sm:py-10 relative z-10 animate-fade-in">
+          <div>
+            {/* 1. Large Logo / Brand Graphic at top center with generous whitespace */}
+            <div className="text-center pt-4 mb-8">
+              <div className="w-24 h-24 sm:w-28 sm:h-28 mx-auto rounded-3xl bg-white p-3 border-2 border-[#D4AF37]/40 shadow-lg flex items-center justify-center mb-6 transition-transform hover:scale-105">
+                <img src="/logo.jpeg" alt="Binti Tents & Events" className="w-full h-full object-contain rounded-2xl" />
+              </div>
+              
+              {/* 2. Large welcoming headline similar to "Log in to keep track of your..." */}
+              <h1 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 leading-tight tracking-tight px-2">
+                Log in to keep track of your{" "}
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#80237E] to-[#D4AF37]">
+                  events with ease!
+                </span>
               </h1>
-              <p className="text-[10px] text-[#D4AF37] font-extrabold tracking-[0.25em] uppercase mt-1">Instinctively Elegant</p>
-              <div className="w-12 h-[1.5px] bg-[#D4AF37]/30 mx-auto mt-3" />
-              <p className="text-[9px] text-gray-400 font-semibold tracking-wider uppercase mt-2">Executive Invoicing & Ledger Desk</p>
-            </div>
-          </div>
-
-          {authError && (
-            <div className="p-3 bg-red-50/70 border border-red-100 rounded-xl flex items-start space-x-2 text-xs text-red-700 animate-shake">
-              <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-              <span>{authError}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleLoginSubmit} className="space-y-4.5">
-            <div>
-              <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest mb-2">Corporate Identity (Email)</label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                  <User className="w-4 h-4 text-[#D4AF37]" />
-                </span>
-                <input
-                  type="email"
-                  required
-                  placeholder="admin@bintievents.com"
-                  value={authEmail}
-                  onChange={(e) => setAuthEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200/80 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/15 focus:border-[#D4AF37] font-semibold text-gray-700 bg-white/50 transition-all"
-                />
-              </div>
+              {/* Supporting subtitle beneath headline */}
+              <p className="text-xs sm:text-sm text-gray-500 mt-2 font-normal leading-relaxed">
+                Enter your authorized credentials to access your executive workspace
+              </p>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-[9px] font-bold text-gray-400 uppercase tracking-widest">Secret Passcode</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResetEmail(authEmail || "admin@bintievents.com");
-                    setShowForgotPasswordModal(true);
-                  }}
-                  className="text-[9px] font-extrabold text-[#80237E] hover:text-[#D4AF37] hover:underline transition-colors"
-                >
-                  Forgot Passcode?
-                </button>
+            {/* Error Notification */}
+            {authError && (
+              <div className="mb-6 p-3.5 bg-red-50 border border-red-200 rounded-2xl flex items-start space-x-2.5 text-xs text-red-700 animate-shake">
+                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                <span className="font-medium leading-normal">{authError}</span>
               </div>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none">
-                  <Lock className="w-4 h-4 text-[#D4AF37]" />
-                </span>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={authPassword}
-                  onChange={(e) => setAuthPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200/80 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/15 focus:border-[#D4AF37] font-semibold text-gray-700 bg-white/50 transition-all"
-                />
+            )}
+
+            {/* 3. Form elements stacked vertically spanning ~85-90% of available width */}
+            <form onSubmit={handleLoginSubmit} className="w-[92%] sm:w-[90%] mx-auto space-y-6">
+              {/* Field 1: Username / Email */}
+              <div>
+                <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-2">
+                  Username
+                </label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-gray-400">
+                    <User className="w-4 h-4 text-[#80237E]" />
+                  </span>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Enter your username"
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3.5 min-h-[48px] border border-gray-200 rounded-2xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] font-semibold text-gray-800 bg-gray-50/50 transition-all"
+                  />
+                </div>
               </div>
-            </div>
 
-            <button
-              type="submit"
-              className="w-full py-3 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#80237E]/10 flex items-center justify-center space-x-1.5 hover:translate-y-[-1px] border border-[#D4AF37]/20"
-            >
-              <span>Unlock Admin Workspace</span>
-              <ArrowRight className="w-4 h-4 text-[#EAB308]" />
-            </button>
-
-            {/* Fingerprint Divider */}
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200/40" />
-              </div>
-              <div className="relative flex justify-center text-[9px] uppercase tracking-wider">
-                <span className="bg-[#FCFAF6] px-3 text-gray-400 font-bold">Secure Access</span>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleStartBiometricLogin}
-              className="w-full py-2.5 bg-[#FAF8F2] hover:bg-[#F3EFE5] text-[#80237E] border border-[#D4AF37]/25 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center space-x-2"
-            >
-              <Fingerprint className="w-4.5 h-4.5 text-[#EC4899] animate-pulse" />
-              <span>Touch ID / Fingerprint Auth</span>
-            </button>
-          </form>
-
-          {/* Quick info footer */}
-          <div className="pt-4 border-t border-gray-200/60 flex items-center justify-between text-[9px] text-gray-400 font-semibold tracking-wider uppercase">
-            <span className="flex items-center space-x-1">
-              <Shield className="w-3.5 h-3.5 text-emerald-500" />
-              <span>AES-256 SECURED</span>
-            </span>
-            <span>Demo: admin@bintievents.com</span>
-          </div>
-
-          {/* Forgot Password Recovery Modal */}
-          {showForgotPasswordModal && (
-            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-              <div className="bg-white w-full max-w-md rounded-3xl border border-gray-100 shadow-2xl p-6 relative overflow-hidden space-y-4">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                  <div className="flex items-center space-x-2">
-                    <KeyRound className="w-5 h-5 text-[#80237E]" />
-                    <h3 className="font-extrabold text-base text-gray-900">Passcode Recovery</h3>
-                  </div>
-                  <button 
+              {/* Field 2: Password & Right-Aligned "Forgot Password?" Link */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider">
+                    Password
+                  </label>
+                  <button
+                    type="button"
                     onClick={() => {
-                      setShowForgotPasswordModal(false);
-                      setResetStep("request");
-                      setResetError(null);
-                      setResetMessage(null);
+                      setResetEmail(authEmail || "");
+                      setShowForgotPasswordModal(true);
                     }}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"
+                    className="text-xs font-bold text-[#80237E] hover:text-[#6B46C1] hover:underline transition-colors"
                   >
-                    <X className="w-4 h-4" />
+                    Forgot Password?
                   </button>
                 </div>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-gray-400">
+                    <Lock className="w-4 h-4 text-[#80237E]" />
+                  </span>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="Enter your password"
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    className="w-full pl-10 pr-11 py-3.5 min-h-[48px] border border-gray-200 rounded-2xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] font-semibold text-gray-800 bg-gray-50/50 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(prev => !prev)}
+                    className="absolute inset-y-0 right-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors p-1"
+                    aria-label="Toggle password visibility"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
 
-                {resetError && (
-                  <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 flex items-center space-x-2">
-                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                    <span>{resetError}</span>
+              {/* 4. Action Row: Main prominent button + Biometric Passkey quick access button (matching reference) */}
+              <div className="flex items-center space-x-3 pt-2">
+                <button
+                  type="submit"
+                  className="flex-1 min-h-[48px] py-3.5 bg-gradient-to-r from-[#80237E] via-[#6B46C1] to-[#55369b] hover:opacity-95 text-white rounded-2xl text-xs sm:text-sm font-extrabold tracking-wide transition-all shadow-lg shadow-[#80237E]/25 flex items-center justify-center space-x-2 active:scale-[0.99]"
+                >
+                  <span>Sign In</span>
+                  <ArrowRight className="w-4 h-4 text-[#EAB308]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartBiometricLogin}
+                  title="Biometric Fingerprint / Passkey Login"
+                  className="w-12 h-12 min-h-[48px] shrink-0 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-2xl flex items-center justify-center text-[#80237E] shadow-sm transition-all active:scale-95"
+                >
+                  <Fingerprint className="w-5 h-5 text-[#EC4899]" />
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* 6. Centered bottom links bar matching reference design */}
+          <div className="pt-8 mt-10 border-t border-gray-100 flex items-center justify-center space-x-4 text-[10px] sm:text-xs text-gray-400 font-semibold uppercase tracking-wider">
+            <button 
+              type="button" 
+              onClick={() => {
+                setResetEmail(authEmail || "");
+                setShowForgotPasswordModal(true);
+              }}
+              className="hover:text-[#80237E] transition-colors"
+            >
+              Self Service
+            </button>
+            <span>•</span>
+            <span className="flex items-center space-x-1">
+              <Shield className="w-3.5 h-3.5 text-emerald-500" />
+              <span>AES-256</span>
+            </span>
+            <span>•</span>
+            <button 
+              type="button" 
+              onClick={() => {
+                setResetEmail(authEmail || "");
+                setShowForgotPasswordModal(true);
+              }}
+              className="hover:text-[#80237E] transition-colors"
+            >
+              Discover
+            </button>
+          </div>
+        </div>
+
+        {/* Forgot Password Recovery Modal */}
+        {showForgotPasswordModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white w-full max-w-md rounded-3xl border border-gray-100 shadow-2xl p-6 relative overflow-hidden space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <div className="flex items-center space-x-2">
+                  <KeyRound className="w-5 h-5 text-[#80237E]" />
+                  <h3 className="font-extrabold text-base text-gray-900">Passcode Recovery</h3>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowForgotPasswordModal(false);
+                    setResetStep("request");
+                    setResetError(null);
+                    setResetMessage(null);
+                  }}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {resetError && (
+                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                  <span>{resetError}</span>
+                </div>
+              )}
+
+              {resetMessage && (
+                <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-[#80237E] flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>{resetMessage}</span>
+                </div>
+              )}
+
+              {resetStep === "request" ? (
+                <form onSubmit={handleRequestResetOtp} className="space-y-4">
+                  <p className="text-xs text-gray-500">
+                    Enter your registered corporate email address below. A 6-digit security recovery PIN will be generated.
+                  </p>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Corporate Email</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="name@company.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E]"
+                    />
                   </div>
-                )}
-
-                {resetMessage && (
-                  <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-[#80237E] flex items-center space-x-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <span>{resetMessage}</span>
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all"
+                  >
+                    Send Recovery PIN
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">6-Digit Security PIN</label>
+                    <input
+                      type="text"
+                      required
+                      maxLength={6}
+                      placeholder="884920"
+                      value={resetOtp}
+                      onChange={(e) => setResetOtp(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-mono font-bold tracking-widest text-gray-900 focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E]"
+                    />
                   </div>
-                )}
 
-                {resetStep === "request" ? (
-                  <form onSubmit={handleRequestResetOtp} className="space-y-4">
-                    <p className="text-xs text-gray-500">
-                      Enter your registered corporate email address below. A 6-digit security recovery PIN will be generated.
-                    </p>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Corporate Email</label>
-                      <input
-                        type="email"
-                        required
-                        placeholder="admin@bintievents.com"
-                        value={resetEmail}
-                        onChange={(e) => setResetEmail(e.target.value)}
-                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E]"
-                      />
-                    </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">New Passcode</label>
+                    <input
+                      type="password"
+                      required
+                      minLength={4}
+                      placeholder="Enter new passcode"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E]"
+                    />
+                  </div>
+
+                  <div className="flex items-center space-x-2">
+                    <button
+                      type="button"
+                      onClick={() => setResetStep("request")}
+                      className="w-1/3 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-xs font-bold"
+                    >
+                      Back
+                    </button>
                     <button
                       type="submit"
-                      className="w-full py-2.5 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all"
+                      className="w-2/3 py-2.5 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all"
                     >
-                      Send Recovery PIN
+                      Update & Login
                     </button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
-                    {demoGeneratedOtp && (
-                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-semibold flex items-center justify-between">
-                        <span>Generated PIN for test:</span>
-                        <span className="text-sm font-black tracking-widest text-[#80237E] bg-white px-2 py-0.5 rounded border border-amber-300">{demoGeneratedOtp}</span>
-                      </div>
-                    )}
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">6-Digit Security PIN</label>
-                      <input
-                        type="text"
-                        required
-                        maxLength={6}
-                        placeholder="884920"
-                        value={resetOtp}
-                        onChange={(e) => setResetOtp(e.target.value)}
-                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-mono font-bold tracking-widest text-gray-900 focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">New Passcode</label>
-                      <input
-                        type="password"
-                        required
-                        minLength={4}
-                        placeholder="Enter new passcode"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E]"
-                      />
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => setResetStep("request")}
-                        className="w-1/3 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-xs font-bold"
-                      >
-                        Back
-                      </button>
-                      <button
-                        type="submit"
-                        className="w-2/3 py-2.5 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all"
-                      >
-                        Update & Login
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
+                  </div>
+                </form>
+              )}
             </div>
-          )}
-
-        </div>
+          </div>
+        )}
       </div>
     );
   }

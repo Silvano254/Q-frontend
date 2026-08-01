@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield } from "lucide-react";
+import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette } from "lucide-react";
 import { registerBiometric } from "../utils/webauthn.js";
 import { getApiUrl } from "../config/api.js";
 import { CompanySettings } from "../../../shared/types.js";
@@ -10,6 +10,8 @@ interface SettingsModuleProps {
   onResetDatabase: () => Promise<void>;
   currentUser?: { name: string; role: string; email: string } | null;
   onUpdateCurrentUser?: (user: any) => void;
+  theme?: "light" | "dark";
+  onToggleTheme?: (theme: "light" | "dark") => void;
   showToast: (message: string, type?: "success" | "warning") => void;
 }
 
@@ -19,6 +21,8 @@ export default function SettingsModule({
   onResetDatabase,
   currentUser,
   onUpdateCurrentUser,
+  theme = "light",
+  onToggleTheme,
   showToast
 }: SettingsModuleProps) {
   const [isSaving, setIsSaving] = useState(false);
@@ -36,17 +40,18 @@ export default function SettingsModule({
   const handleRequestProfileOtp = async () => {
     setIsRequestingOtp(true);
     setDemoProfileOtp("");
+    const activeEmail = currentUser?.email || companySettings.email || "admin@bintievents.co.ke";
     try {
       const response = await fetch(getApiUrl("/api/auth/request-profile-update-otp"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentEmail: currentUser?.email || "admin@bintievents.com" })
+        body: JSON.stringify({ currentEmail: activeEmail })
       });
       const data = await response.json();
       if (data.success) {
         setOtpRequested(true);
         if (data.otp) setDemoProfileOtp(data.otp);
-        showToast("Verification code sent to your original email: " + (currentUser?.email || "admin@bintievents.com"));
+        showToast("Verification code sent to your original email: " + activeEmail);
       } else {
         showToast("Failed to send verification PIN: " + data.message, "warning");
       }
@@ -65,12 +70,13 @@ export default function SettingsModule({
     }
     
     setIsApplyingProfileUpdate(true);
+    const activeEmail = currentUser?.email || companySettings.email || "admin@bintievents.co.ke";
     try {
       const response = await fetch(getApiUrl("/api/auth/verify-profile-update"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          currentEmail: currentUser?.email || "admin@bintievents.com",
+          currentEmail: activeEmail,
           otp: profileOtp,
           newEmail: newAccessEmail,
           newPasscode: newPasscode || undefined
@@ -97,7 +103,7 @@ export default function SettingsModule({
 
   const handleRegisterBiometric = async () => {
     try {
-      const userEmail = email || currentUser?.email || "admin@bintievents.com";
+      const userEmail = currentUser?.email || email || companySettings.email || "admin@bintievents.co.ke";
       const credentialId = await registerBiometric(userEmail);
       const res = await fetch(getApiUrl("/api/auth/register-biometric"), {
         method: "POST",
@@ -347,12 +353,6 @@ export default function SettingsModule({
 
               {otpRequested ? (
                 <>
-                  {demoProfileOtp && (
-                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[10px] text-amber-800 font-semibold flex items-center justify-between">
-                      <span>Verification PIN (test):</span>
-                      <span className="font-mono font-black text-[#80237E]">{demoProfileOtp}</span>
-                    </div>
-                  )}
                   <div>
                     <label className="block text-[9px] font-bold text-gray-400 uppercase">Verification PIN (Sent to {currentUser?.email})</label>
                     <input
@@ -394,6 +394,45 @@ export default function SettingsModule({
                 </button>
               )}
             </form>
+          </div>
+
+          {/* Theme & Visual Display Settings */}
+          <div className="glass-card p-6 border-l-4 border-l-[#80237E] space-y-4">
+            <div className="space-y-1">
+              <span className="text-xs font-bold text-gray-700 uppercase tracking-wide block flex items-center space-x-1.5">
+                <Palette className="w-4 h-4 text-[#80237E]" />
+                <span>Appearance & Interface Theme</span>
+              </span>
+              <p className="text-xs text-gray-500 leading-relaxed">Switch workspace visual presentation between Clean Light and Executive Dark mode.</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => onToggleTheme && onToggleTheme("light")}
+                className={`py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all border ${
+                  theme === "light" 
+                    ? "bg-[#80237E] text-white border-[#80237E] shadow-md" 
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                <Sun className="w-4 h-4 text-[#D4AF37]" />
+                <span>Light Mode</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onToggleTheme && onToggleTheme("dark")}
+                className={`py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all border ${
+                  theme === "dark" 
+                    ? "bg-[#80237E] text-white border-[#80237E] shadow-md" 
+                    : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                <Moon className="w-4 h-4 text-purple-300" />
+                <span>Dark Mode</span>
+              </button>
+            </div>
           </div>
 
           {/* Database reset */}

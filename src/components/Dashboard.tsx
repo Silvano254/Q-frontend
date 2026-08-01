@@ -16,6 +16,7 @@ import {
 import { Client, Quote, Invoice } from "../../../shared/types.js";
 
 interface DashboardProps {
+  currentUser?: { name: string; role: string; email: string } | null;
   stats: {
     totalInvoicesValue: number;
     totalPaid: number;
@@ -36,6 +37,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ 
+  currentUser,
   stats, 
   clients, 
   quotes, 
@@ -47,6 +49,14 @@ export default function Dashboard({
 }: DashboardProps) {
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
+
+  // Dynamic Time-of-Day Greeting Helper
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
 
   // Helper to format currency
   const formatCur = (val: number) => {
@@ -80,19 +90,95 @@ export default function Dashboard({
     );
   };
 
-  // Card definitions
+  // State for metric timeframe filter
+  const [timeframe, setTimeframe] = useState<"all" | "this_month" | "last_month">("all");
+
+  // Dynamic Month-over-Month (MoM) calculations
+  const now = new Date();
+  const curMonth = now.getMonth();
+  const curYear = now.getFullYear();
+
+  const prevMonth = curMonth === 0 ? 11 : curMonth - 1;
+  const prevYear = curMonth === 0 ? curYear - 1 : curYear;
+
+  // Monthly Paid
+  let curMonthPaid = 0;
+  let prevMonthPaid = 0;
+
+  (invoices || []).forEach(inv => {
+    (inv.payments || []).forEach(p => {
+      if (!p.paymentDate) return;
+      const d = new Date(p.paymentDate);
+      if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
+        curMonthPaid += p.amountPaid || 0;
+      } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
+        prevMonthPaid += p.amountPaid || 0;
+      }
+    });
+  });
+
+  const paidMomPct = prevMonthPaid > 0 
+    ? ((curMonthPaid - prevMonthPaid) / prevMonthPaid) * 100 
+    : curMonthPaid > 0 ? 100 : 0;
+
+  // Monthly Invoiced
+  let curMonthInvoiced = 0;
+  let prevMonthInvoiced = 0;
+
+  (invoices || []).forEach(inv => {
+    if (!inv.date) return;
+    const d = new Date(inv.date);
+    if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
+      curMonthInvoiced += inv.grandTotal || 0;
+    } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
+      prevMonthInvoiced += inv.grandTotal || 0;
+    }
+  });
+
+  const invoicedMomPct = prevMonthInvoiced > 0 
+    ? ((curMonthInvoiced - prevMonthInvoiced) / prevMonthInvoiced) * 100 
+    : curMonthInvoiced > 0 ? 100 : 0;
+
+  // Monthly Quotes
+  let curMonthQuotes = 0;
+  let prevMonthQuotes = 0;
+
+  (quotes || []).forEach(q => {
+    if (!q.date) return;
+    const d = new Date(q.date);
+    if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
+      curMonthQuotes += 1;
+    } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
+      prevMonthQuotes += 1;
+    }
+  });
+
+  const quotesMomPct = prevMonthQuotes > 0 
+    ? ((curMonthQuotes - prevMonthQuotes) / prevMonthQuotes) * 100 
+    : curMonthQuotes > 0 ? 100 : 0;
+
+  // Dynamic Value based on Timeframe filter
+  const displayPaid = timeframe === "this_month" ? curMonthPaid : timeframe === "last_month" ? prevMonthPaid : stats.totalPaid;
+  const displayInvoiced = timeframe === "this_month" ? curMonthInvoiced : timeframe === "last_month" ? prevMonthInvoiced : stats.totalInvoicesValue;
+  const displayQuotes = timeframe === "this_month" ? curMonthQuotes : timeframe === "last_month" ? prevMonthQuotes : stats.totalQuotes;
+
+  // Card definitions with Month-over-Month indicators
   const statCards = [
     {
-      title: "Total Payments Paid",
-      value: formatCur(stats.totalPaid),
+      title: "Payments Received",
+      value: formatCur(displayPaid),
+      momValue: `${paidMomPct >= 0 ? '+' : ''}${paidMomPct.toFixed(1)}% vs last mo`,
+      momIsPositive: paidMomPct >= 0,
       sparkline: "up",
       icon: DollarSign,
       color: "from-emerald-50 to-teal-50 border-emerald-100 text-emerald-600",
       accent: "#10B981"
     },
     {
-      title: "Total Invoiced Value",
-      value: formatCur(stats.totalInvoicesValue),
+      title: "Invoiced Volume",
+      value: formatCur(displayInvoiced),
+      momValue: `${invoicedMomPct >= 0 ? '+' : ''}${invoicedMomPct.toFixed(1)}% vs last mo`,
+      momIsPositive: invoicedMomPct >= 0,
       sparkline: "up",
       icon: Receipt,
       color: "from-purple-50 to-indigo-50 border-purple-100 text-purple-600",
@@ -101,6 +187,8 @@ export default function Dashboard({
     {
       title: "Total Outstanding",
       value: formatCur(stats.totalOutstanding),
+      momValue: `${stats.totalInvoices > 0 ? ((stats.totalOutstanding / (stats.totalInvoicesValue || 1)) * 100).toFixed(1) : '0'}% of billed`,
+      momIsPositive: false,
       sparkline: "down",
       icon: Clock,
       color: "from-amber-50 to-orange-50 border-amber-100 text-amber-600",
@@ -109,14 +197,18 @@ export default function Dashboard({
     {
       title: "Active Clients",
       value: stats.activeClientsCount.toString(),
+      momValue: `Active Accounts`,
+      momIsPositive: true,
       sparkline: "up",
       icon: Users,
       color: "from-blue-50 to-cyan-50 border-blue-100 text-blue-600",
       accent: "#3B82F6"
     },
     {
-      title: "Total Quotes Created",
-      value: stats.totalQuotes.toString(),
+      title: "Quotes Created",
+      value: displayQuotes.toString(),
+      momValue: `${quotesMomPct >= 0 ? '+' : ''}${quotesMomPct.toFixed(1)}% vs last mo`,
+      momIsPositive: quotesMomPct >= 0,
       sparkline: "up",
       icon: FileText,
       color: "from-pink-50 to-rose-50 border-pink-100 text-pink-600",
@@ -125,6 +217,8 @@ export default function Dashboard({
     {
       title: "Conversion Rate",
       value: `${stats.conversionRate.toFixed(1)}%`,
+      momValue: `${quotes.filter(q => q.status === "converted").length} Converted`,
+      momIsPositive: true,
       sparkline: "flat",
       icon: Percent,
       color: "from-indigo-50 to-violet-50 border-indigo-100 text-indigo-600",
@@ -133,10 +227,12 @@ export default function Dashboard({
     {
       title: "Avg Invoice Value",
       value: formatCur(stats.averageInvoiceValue),
-      sparkline: "down",
-      icon: Activity,
-      color: "from-sky-50 to-slate-50 border-sky-100 text-sky-600",
-      accent: "#0EA5E9"
+      momValue: `Per Deal`,
+      momIsPositive: true,
+      sparkline: "up",
+      icon: TrendingUp,
+      color: "from-[#80237E]/10 to-purple-50 border-[#80237E]/20 text-[#80237E]",
+      accent: "#80237E"
     }
   ];
 
@@ -173,7 +269,7 @@ export default function Dashboard({
             Binti Events Suite
           </span>
           <h2 className="text-3xl font-bold tracking-tight text-white font-sans">
-            Welcome Back, Executive Admin
+            {getGreeting()}, {currentUser?.name || "Executive Admin"}
           </h2>
           <p className="text-gray-300 text-sm leading-relaxed">
             Manage your high-end corporate events, stretch tents hire, and creative consulting invoicing from a single, beautiful unified workspace.
@@ -196,12 +292,40 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* Grid of Metric Cards */}
+      {/* Grid of Metric Cards with Timeframe Selector */}
       <div>
-        <h3 className="text-base font-bold text-gray-800 mb-5 flex items-center space-x-2">
-          <TrendingUp className="w-4 h-4 text-[#6B46C1]" />
-          <span>Core Billing Metrics</span>
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+          <h3 className="text-base font-bold text-gray-800 flex items-center space-x-2">
+            <TrendingUp className="w-4 h-4 text-[#6B46C1]" />
+            <span>Core Billing Metrics</span>
+          </h3>
+
+          {/* Timeframe Filter Switcher */}
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200/80 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setTimeframe("all")}
+              className={`px-3 py-1.5 rounded-lg transition-all ${timeframe === "all" ? "bg-white text-[#80237E] shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+            >
+              All Time
+            </button>
+            <button
+              type="button"
+              onClick={() => setTimeframe("this_month")}
+              className={`px-3 py-1.5 rounded-lg transition-all ${timeframe === "this_month" ? "bg-white text-[#80237E] shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => setTimeframe("last_month")}
+              className={`px-3 py-1.5 rounded-lg transition-all ${timeframe === "last_month" ? "bg-white text-[#80237E] shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+            >
+              Last Month
+            </button>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {statCards.map((card, idx) => {
             const Icon = card.icon;
@@ -218,8 +342,13 @@ export default function Dashboard({
                   </div>
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 flex items-baseline justify-between">
                   <h4 className="text-2xl font-bold text-gray-800 tracking-tight">{card.value}</h4>
+                  {card.momValue && (
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${card.momIsPositive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                      {card.momValue}
+                    </span>
+                  )}
                 </div>
 
                 {/* Mini trendline sparkline */}

@@ -60,13 +60,18 @@ export default function ReportsAnalyticsModule({
     monthlyDataMap[m] = { invoiced: 0, paid: 0 };
   });
 
-  invoices.forEach(inv => {
-    const d = new Date(inv.issueDate);
-    const mName = months[d.getMonth()] || "Jul";
+  (invoices || []).forEach(inv => {
+    const rawDate = inv.issueDate || inv.date;
+    if (!rawDate) return;
+    const d = new Date(rawDate);
+    if (isNaN(d.getTime())) return;
+    const mName = months[d.getMonth()];
     
-    monthlyDataMap[mName].invoiced += inv.grandTotal;
-    const totalPaid = (inv.payments || []).reduce((sum, p) => sum + p.amountPaid, 0);
-    monthlyDataMap[mName].paid += totalPaid;
+    if (monthlyDataMap[mName]) {
+      monthlyDataMap[mName].invoiced += Number(inv.grandTotal) || 0;
+      const totalPaid = (inv.payments || []).reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+      monthlyDataMap[mName].paid += totalPaid;
+    }
   });
 
   const chartMonthlyPerformance = months.map(m => ({

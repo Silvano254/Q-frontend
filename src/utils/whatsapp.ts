@@ -15,96 +15,69 @@ export function formatWhatsAppPhone(phone?: string): string {
 }
 
 /**
- * Constructs a structured WhatsApp message for an Invoice
+ * Constructs a concise WhatsApp message for an Invoice
  */
 export function buildInvoiceWhatsAppMessage(
   invoice: Invoice,
   client?: Client | null,
-  companySettings?: CompanySettings
+  companySettings?: CompanySettings,
+  pdfTemplateStyle: string = "corporate"
 ): string {
   const companyName = companySettings?.companyName || "Binti Events";
   const clientName = client?.name || invoice.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
-
-  let itemsText = (invoice.items || [])
-    .map((item, idx) => `  ${idx + 1}. *${item.description}* (x${item.quantity}) - ${currency} ${item.amount.toLocaleString()}`)
-    .join("\n");
-
-  if (!itemsText) {
-    itemsText = `  • Total Invoice Amount: ${currency} ${invoice.grandTotal.toLocaleString()}`;
-  }
-
   const dateFormatted = invoice.issueDate ? invoice.issueDate.split("T")[0] : "N/A";
   const dueDateFormatted = invoice.dueDate ? invoice.dueDate.split("T")[0] : "N/A";
   const balanceText = invoice.balanceRemaining !== undefined 
     ? `${currency} ${invoice.balanceRemaining.toLocaleString()}` 
     : `${currency} ${invoice.grandTotal.toLocaleString()}`;
+  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Corporate';
 
   return `📄 *INVOICE: #${invoice.invoiceNumber}*
-----------------------------------------
+
 Dear *${clientName}*,
 
-Here is your invoice summary from *${companyName}*:
+Please find attached your Tax Invoice (*#${invoice.invoiceNumber}*) from *${companyName}*.
 
-• *Invoice Date:* ${dateFormatted}
+• *Issue Date:* ${dateFormatted}
 • *Due Date:* ${dueDateFormatted}
-• *Status:* ${invoice.status.toUpperCase()}
+• *Total Billed:* ${currency} ${invoice.grandTotal.toLocaleString()}
+• *Balance Due:* ${balanceText}
+• *PDF Document Template:* ${templateName}
 
-*Billed Services / Equipment:*
-${itemsText}
+The official itemized PDF invoice document has been generated for your record.
 
-----------------------------------------
-*Grand Total:* ${currency} ${invoice.grandTotal.toLocaleString()}
-*Balance Due:* ${balanceText}
-----------------------------------------
-
-*Payment Info & Inquiries:*
-Please let us know once payment has been initiated.
-
-Thank you for partnering with *${companyName}*!`;
+Thank you for choosing *${companyName}*!`;
 }
 
 /**
- * Constructs a structured WhatsApp message for a Quote
+ * Constructs a concise WhatsApp message for a Quote
  */
 export function buildQuoteWhatsAppMessage(
   quote: Quote,
   client?: Client | null,
-  companySettings?: CompanySettings
+  companySettings?: CompanySettings,
+  pdfTemplateStyle: string = "corporate"
 ): string {
   const companyName = companySettings?.companyName || "Binti Events";
   const clientName = client?.name || quote.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
-
-  let itemsText = (quote.items || [])
-    .map((item, idx) => `  ${idx + 1}. *${item.description}* (x${item.quantity}) - ${currency} ${item.amount.toLocaleString()}`)
-    .join("\n");
-
-  if (!itemsText) {
-    itemsText = `  • Total Quote Amount: ${currency} ${quote.grandTotal.toLocaleString()}`;
-  }
-
   const quoteDateFormatted = quote.quoteDate ? quote.quoteDate.split("T")[0] : "N/A";
   const expiryDateFormatted = quote.expiryDate ? quote.expiryDate.split("T")[0] : "N/A";
+  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Corporate';
 
   return `📋 *QUOTATION: #${quote.quoteNumber}*
-----------------------------------------
+
 Dear *${clientName}*,
 
-Thank you for reaching out to *${companyName}*! Please review your custom quotation below:
+Please find attached your customized Quotation (*#${quote.quoteNumber}*) from *${companyName}*.
 
 • *Quote Date:* ${quoteDateFormatted}
 • *Valid Until:* ${expiryDateFormatted}
-• *Status:* ${quote.status.toUpperCase()}
+• *Estimated Total:* ${currency} ${quote.grandTotal.toLocaleString()}
+• *PDF Document Template:* ${templateName}
 
-*Proposed Services & Event Logistics:*
-${itemsText}
-
-----------------------------------------
-*Estimated Total:* ${currency} ${quote.grandTotal.toLocaleString()}
-----------------------------------------
-
-Please review and confirm to reserve your event setup dates. Feel free to reply directly here if you have any questions or custom modifications!
+The complete itemized PDF proposal document is attached for your review. Feel free to reply directly if you have any questions!
 
 Warm regards,
 *${companyName}*`;

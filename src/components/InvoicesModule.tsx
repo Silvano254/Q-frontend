@@ -128,11 +128,24 @@ export default function InvoicesModule({
 
   const handleOpenWhatsAppModal = (invoice: Invoice) => {
     const client = clients.find(c => c.id === invoice.clientId);
-    const msg = buildInvoiceWhatsAppMessage(invoice, client, companySettings as any);
+    const msg = buildInvoiceWhatsAppMessage(invoice, client, companySettings as any, pdfTemplate);
     setWhatsAppInvoice(invoice);
     setWhatsAppPhone(client?.phone || "");
     setWhatsAppMessage(msg);
     setWhatsAppModalOpen(true);
+  };
+
+  const handleDispatchWhatsApp = () => {
+    if (!whatsAppMessage) {
+      showToast("Please provide message text.", "warning");
+      return;
+    }
+    if (whatsAppInvoice) {
+      generatePDF(whatsAppInvoice); // Auto-generate & download PDF in admin's chosen template style
+    }
+    openWhatsApp(whatsAppPhone, whatsAppMessage);
+    showToast("WhatsApp message & PDF download initiated!");
+    setWhatsAppModalOpen(false);
   };
 
   // Email Dispatch States & Modal
@@ -144,7 +157,7 @@ export default function InvoicesModule({
 
   const handleOpenEmailModal = (invoice: Invoice) => {
     const client = clients.find(c => c.id === invoice.clientId);
-    const content = buildInvoiceEmailContent(invoice, client, companySettings as any);
+    const content = buildInvoiceEmailContent(invoice, client, companySettings as any, pdfTemplate);
     setEmailInvoice(invoice);
     setEmailTo(client?.email || "");
     setEmailSubject(content.subject);
@@ -1770,6 +1783,23 @@ export default function InvoicesModule({
             </div>
 
             <div className="space-y-4">
+              <div className="p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
+                  <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
+                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Corporate (Purple/Gold)'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => generatePDF(whatsAppInvoice)}
+                  className="px-2.5 py-1 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Get PDF</span>
+                </button>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Client WhatsApp Number</label>
                 <input
@@ -1783,11 +1813,11 @@ export default function InvoicesModule({
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">WhatsApp Message Preview</label>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">WhatsApp Short Message Preview</label>
                 <textarea
                   value={whatsAppMessage}
                   onChange={(e) => setWhatsAppMessage(e.target.value)}
-                  rows={8}
+                  rows={6}
                   className="w-full p-3.5 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-xl text-xs font-mono text-gray-800 dark:text-gray-200 leading-relaxed focus:outline-none focus:border-[#25D366]"
                 />
               </div>
@@ -1841,6 +1871,23 @@ export default function InvoicesModule({
             </div>
 
             <div className="space-y-4">
+              <div className="p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
+                  <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
+                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Corporate (Purple/Gold)'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => generatePDF(emailInvoice)}
+                  className="px-2.5 py-1 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Get PDF</span>
+                </button>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Recipient Email Address</label>
                 <input

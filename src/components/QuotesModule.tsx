@@ -117,7 +117,7 @@ export default function QuotesModule({
 
   const handleOpenWhatsAppModal = (quote: Quote) => {
     const client = clients.find(c => c.id === quote.clientId);
-    const msg = buildQuoteWhatsAppMessage(quote, client, companySettings as any);
+    const msg = buildQuoteWhatsAppMessage(quote, client, companySettings as any, pdfTemplate);
     setWhatsAppQuote(quote);
     setWhatsAppPhone(client?.phone || "");
     setWhatsAppMessage(msg);
@@ -129,8 +129,11 @@ export default function QuotesModule({
       showToast("Please provide message text.", "warning");
       return;
     }
+    if (whatsAppQuote) {
+      generatePDF(whatsAppQuote); // Auto-generate & download PDF in admin's chosen template style
+    }
     openWhatsApp(whatsAppPhone, whatsAppMessage);
-    showToast("WhatsApp dispatch initiated!");
+    showToast("WhatsApp message & PDF download initiated!");
     setWhatsAppModalOpen(false);
   };
 
@@ -143,7 +146,7 @@ export default function QuotesModule({
 
   const handleOpenEmailModal = (quote: Quote) => {
     const client = clients.find(c => c.id === quote.clientId);
-    const content = buildQuoteEmailContent(quote, client, companySettings as any);
+    const content = buildQuoteEmailContent(quote, client, companySettings as any, pdfTemplate);
     setEmailQuote(quote);
     setEmailTo(client?.email || "");
     setEmailSubject(content.subject);
@@ -1585,6 +1588,23 @@ export default function QuotesModule({
             </div>
 
             <div className="space-y-4">
+              <div className="p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
+                  <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
+                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Corporate (Purple/Gold)'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => generatePDF(whatsAppQuote)}
+                  className="px-2.5 py-1 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Get PDF</span>
+                </button>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Client WhatsApp Number</label>
                 <input
@@ -1598,11 +1618,11 @@ export default function QuotesModule({
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">WhatsApp Message Preview</label>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">WhatsApp Short Message Preview</label>
                 <textarea
                   value={whatsAppMessage}
                   onChange={(e) => setWhatsAppMessage(e.target.value)}
-                  rows={8}
+                  rows={6}
                   className="w-full p-3.5 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-xl text-xs font-mono text-gray-800 dark:text-gray-200 leading-relaxed focus:outline-none focus:border-[#25D366]"
                 />
               </div>
@@ -1656,6 +1676,23 @@ export default function QuotesModule({
             </div>
 
             <div className="space-y-4">
+              <div className="p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 rounded-xl flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
+                  <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
+                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Corporate (Purple/Gold)'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => generatePDF(emailQuote)}
+                  className="px-2.5 py-1 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1"
+                >
+                  <Download className="w-3 h-3" />
+                  <span>Get PDF</span>
+                </button>
+              </div>
+
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Recipient Email Address</label>
                 <input

@@ -1,26 +1,20 @@
 import { Invoice, Quote, Client, CompanySettings } from "../../../shared/types.js";
 
 /**
- * Builds structured email subject and body for an Invoice
+ * Builds concise email subject and body for an Invoice
  */
 export function buildInvoiceEmailContent(
   invoice: Invoice,
   client?: Client | null,
-  companySettings?: CompanySettings
+  companySettings?: CompanySettings,
+  pdfTemplateStyle: string = "corporate"
 ): { subject: string; body: string } {
   const companyName = companySettings?.companyName || "Binti Events";
   const clientName = client?.name || invoice.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
+  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Corporate';
 
-  const subject = `Invoice #${invoice.invoiceNumber} from ${companyName}`;
-
-  let itemsText = (invoice.items || [])
-    .map((item, idx) => `  ${idx + 1}. ${item.description} (Qty: ${item.quantity}) - ${currency} ${item.amount.toLocaleString()}`)
-    .join("\n");
-
-  if (!itemsText) {
-    itemsText = `  • Total Invoice Amount: ${currency} ${invoice.grandTotal.toLocaleString()}`;
-  }
+  const subject = `Invoice #${invoice.invoiceNumber} - ${companyName}`;
 
   const dateFormatted = invoice.issueDate ? invoice.issueDate.split("T")[0] : "N/A";
   const dueDateFormatted = invoice.dueDate ? invoice.dueDate.split("T")[0] : "N/A";
@@ -30,27 +24,21 @@ export function buildInvoiceEmailContent(
 
   const body = `Dear ${clientName},
 
-Please find below your invoice summary for recent event services from ${companyName}.
+Please find attached your Tax Invoice (${invoice.invoiceNumber}) for recent event services from ${companyName}.
 
-Invoice Details:
+Invoice Summary:
 ----------------------------------------
 • Invoice Number: #${invoice.invoiceNumber}
 • Issue Date: ${dateFormatted}
 • Payment Due Date: ${dueDateFormatted}
-• Status: ${invoice.status.toUpperCase()}
-
-Billed Services / Equipment:
-${itemsText}
-
-----------------------------------------
-Grand Total: ${currency} ${invoice.grandTotal.toLocaleString()}
-Balance Remaining: ${balanceText}
+• Total Billed: ${currency} ${invoice.grandTotal.toLocaleString()}
+• Balance Due: ${balanceText}
+• Document Style: ${templateName}
 ----------------------------------------
 
-Payment Instructions & Logistics:
-Please initiate payment on or before the due date. Once payment has been completed, kindly notify us so we can issue your official payment receipt.
+The official itemized PDF invoice document formatted using our ${templateName} template is attached to this dispatch for your accounting records.
 
-If you have any questions or require custom corporate billing split options, please feel free to reply directly to this email.
+If you have any questions or require custom payment terms, please feel free to reply directly to this email.
 
 Thank you for choosing ${companyName}!
 
@@ -61,50 +49,40 @@ ${companyName} Logistics & Finance Desk`;
 }
 
 /**
- * Builds structured email subject and body for a Quote
+ * Builds concise email subject and body for a Quote
  */
 export function buildQuoteEmailContent(
   quote: Quote,
   client?: Client | null,
-  companySettings?: CompanySettings
+  companySettings?: CompanySettings,
+  pdfTemplateStyle: string = "corporate"
 ): { subject: string; body: string } {
   const companyName = companySettings?.companyName || "Binti Events";
   const clientName = client?.name || quote.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
+  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Corporate';
 
-  const subject = `Quotation #${quote.quoteNumber} from ${companyName}`;
-
-  let itemsText = (quote.items || [])
-    .map((item, idx) => `  ${idx + 1}. ${item.description} (Qty: ${item.quantity}) - ${currency} ${item.amount.toLocaleString()}`)
-    .join("\n");
-
-  if (!itemsText) {
-    itemsText = `  • Total Quote Amount: ${currency} ${quote.grandTotal.toLocaleString()}`;
-  }
+  const subject = `Quotation #${quote.quoteNumber} - ${companyName}`;
 
   const quoteDateFormatted = quote.quoteDate ? quote.quoteDate.split("T")[0] : "N/A";
   const expiryDateFormatted = quote.expiryDate ? quote.expiryDate.split("T")[0] : "N/A";
 
   const body = `Dear ${clientName},
 
-Thank you for contacting ${companyName}! We are pleased to provide you with your customized event quotation below:
+Thank you for contacting ${companyName}! Please find attached your customized event quotation (${quote.quoteNumber}).
 
 Quotation Summary:
 ----------------------------------------
 • Quote Number: #${quote.quoteNumber}
 • Quote Date: ${quoteDateFormatted}
 • Valid Until: ${expiryDateFormatted}
-• Status: ${quote.status.toUpperCase()}
-
-Proposed Services & Logistics breakdown:
-${itemsText}
-
-----------------------------------------
-Estimated Total: ${currency} ${quote.grandTotal.toLocaleString()}
+• Estimated Total: ${currency} ${quote.grandTotal.toLocaleString()}
+• Document Style: ${templateName}
 ----------------------------------------
 
-Next Steps:
-Please review the proposed breakdown. To confirm booking and reserve your event setup dates, reply directly to this email or contact our event coordinator desk.
+The complete itemized PDF proposal document formatted with our ${templateName} design template is attached for your review.
+
+Please let us know if you would like to confirm your reservation or adjust any logistics details.
 
 Warm regards,
 ${companyName} Consulting Team`;

@@ -126,8 +126,9 @@ export default function Dashboard({
   let prevMonthInvoiced = 0;
 
   (invoices || []).forEach(inv => {
-    if (!inv.date) return;
-    const d = new Date(inv.date);
+    const dateStr = inv.issueDate || (inv as any).date;
+    if (!dateStr) return;
+    const d = new Date(dateStr);
     if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
       curMonthInvoiced += inv.grandTotal || 0;
     } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
@@ -144,12 +145,13 @@ export default function Dashboard({
   let prevMonthQuotes = 0;
 
   (quotes || []).forEach(q => {
-    if (!q.date) return;
-    const d = new Date(q.date);
+    const dateStr = q.quoteDate || (q as any).date;
+    if (!dateStr) return;
+    const d = new Date(dateStr);
     if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
       curMonthQuotes += 1;
     } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
-      prevMonthQuotes += 1;
+      curMonthQuotes += 1;
     }
   });
 

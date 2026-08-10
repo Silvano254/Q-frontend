@@ -61,7 +61,7 @@ export default function ReportsAnalyticsModule({
   });
 
   (invoices || []).forEach(inv => {
-    const rawDate = inv.issueDate || inv.date;
+    const rawDate = inv.issueDate || (inv as any).date;
     if (!rawDate) return;
     const d = new Date(rawDate);
     if (isNaN(d.getTime())) return;

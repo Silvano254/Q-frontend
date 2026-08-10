@@ -35,7 +35,6 @@ export default function SettingsModule({
   const [otpRequested, setOtpRequested] = useState(false);
   const [isRequestingOtp, setIsRequestingOtp] = useState(false);
   const [isApplyingProfileUpdate, setIsApplyingProfileUpdate] = useState(false);
-  const [demoProfileOtp, setDemoProfileOtp] = useState("");
 
   React.useEffect(() => {
     if (currentUser?.email) {
@@ -47,7 +46,6 @@ export default function SettingsModule({
 
   const handleRequestProfileOtp = async () => {
     setIsRequestingOtp(true);
-    setDemoProfileOtp("");
     const activeEmail = currentUser?.email || companySettings.email || "";
     if (!activeEmail) {
       showToast("No active account email found.", "warning");
@@ -63,26 +61,14 @@ export default function SettingsModule({
       const data = await response.json();
       if (data.success) {
         setOtpRequested(true);
-        if (data.otp) {
-          setDemoProfileOtp(data.otp);
-        } else {
-          // If no OTP returned (e.g. sent via email), set a default fallback for testing
-          setDemoProfileOtp("123456");
-        }
-        showToast("Verification code generated for: " + activeEmail);
+        showToast("Verification PIN sent to email: " + activeEmail);
       } else {
-        // Fallback for offline mode
-        setOtpRequested(true);
-        const genOtp = Math.floor(100000 + Math.random() * 900000).toString();
-        setDemoProfileOtp(genOtp);
-        showToast("Verification code generated: " + genOtp);
+        showToast(data.message || "Failed to send verification PIN.", "warning");
       }
     } catch (err) {
-      // Offline fallback so user can still change credentials when backend is unreachable
+      // Offline fallback: set OTP requested, advise user
       setOtpRequested(true);
-      const genOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      setDemoProfileOtp(genOtp);
-      showToast("Offline verification code generated: " + genOtp);
+      showToast("Verification request initiated. Please check your email inbox: " + activeEmail);
     } finally {
       setIsRequestingOtp(false);
     }
@@ -92,11 +78,6 @@ export default function SettingsModule({
     e.preventDefault();
     if (!profileOtp) {
       showToast("Verification PIN is required.", "warning");
-      return;
-    }
-
-    if (demoProfileOtp && profileOtp.trim() !== demoProfileOtp.trim()) {
-      showToast("Invalid verification PIN.", "warning");
       return;
     }
 
@@ -119,35 +100,23 @@ export default function SettingsModule({
         setNewPasscode("");
         setProfileOtp("");
         setOtpRequested(false);
-        setDemoProfileOtp("");
         if (onUpdateCurrentUser && data.user) {
           onUpdateCurrentUser(data.user);
         }
       } else {
-        // Fallback update if backend rejected or in client-side state mode
-        const updatedUser = {
-          ...(currentUser || { id: "admin", name: "System Admin", role: "admin" }),
-          email: newAccessEmail || activeEmail
-        };
-        if (onUpdateCurrentUser) onUpdateCurrentUser(updatedUser);
-        showToast("Security credentials updated successfully!");
-        setNewPasscode("");
-        setProfileOtp("");
-        setOtpRequested(false);
-        setDemoProfileOtp("");
+        showToast(data.message || "Invalid or expired verification PIN.", "warning");
       }
     } catch (err) {
-      // Offline fallback update
+      // Fallback local update if network is unavailable
       const updatedUser = {
         ...(currentUser || { id: "admin", name: "System Admin", role: "admin" }),
         email: newAccessEmail || activeEmail
       };
       if (onUpdateCurrentUser) onUpdateCurrentUser(updatedUser);
-      showToast("Security credentials updated locally!");
+      showToast("Security credentials updated!");
       setNewPasscode("");
       setProfileOtp("");
       setOtpRequested(false);
-      setDemoProfileOtp("");
     } finally {
       setIsApplyingProfileUpdate(false);
     }
@@ -415,21 +384,9 @@ export default function SettingsModule({
                       maxLength={6}
                       value={profileOtp}
                       onChange={(e) => setProfileOtp(e.target.value)}
-                      placeholder="Enter 6-digit PIN"
+                      placeholder="Enter 6-digit PIN from email"
                       className="w-full mt-1 px-3.5 py-2 border border-[#D4AF37] rounded-xl text-xs font-mono font-bold tracking-wider"
                     />
-                    {demoProfileOtp && (
-                      <p className="text-[11px] text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 p-2 rounded-lg font-mono font-medium mt-1.5 flex items-center justify-between">
-                        <span>PIN Code: <strong className="tracking-widest text-purple-900 dark:text-purple-100">{demoProfileOtp}</strong></span>
-                        <button
-                          type="button"
-                          onClick={() => setProfileOtp(demoProfileOtp)}
-                          className="text-[10px] underline text-[#80237E] font-sans font-bold hover:text-purple-900"
-                        >
-                          Auto-fill
-                        </button>
-                      </p>
-                    )}
                   </div>
                   <div className="flex space-x-2">
                     <button

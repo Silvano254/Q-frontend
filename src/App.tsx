@@ -726,10 +726,6 @@ export default function App() {
                   events with ease!
                 </span>
               </h1>
-              {/* Supporting subtitle beneath headline */}
-              <p className="text-xs sm:text-sm text-gray-500 mt-2 font-normal leading-relaxed">
-                Enter your authorized credentials to access your executive workspace
-              </p>
             </div>
 
             {/* Error Notification */}

@@ -85,15 +85,13 @@ export default function QuotesModule({
       const qty = Number(item.quantity) || 0;
       const price = Number(item.unitPrice) || 0;
       const disc = Number(item.discount) || 0;
-      const taxRate = applyTax ? (Number(item.tax) || 0) : 0;
 
       const baseSubtotal = qty * price;
       const discounted = baseSubtotal * (1 - disc / 100);
-      const withTax = discounted * (1 + taxRate / 100);
 
       return {
         ...item,
-        amount: Math.round(withTax * 100) / 100
+        amount: Math.round(discounted * 100) / 100
       };
     });
     setItems(updated);
@@ -206,17 +204,14 @@ export default function QuotesModule({
     const updated = [...items];
     const item = { ...updated[index], [field]: value };
 
-    // Calculate item total amount: quantity * unitPrice * (1 - discount/100) * (1 + tax/100)
     const qty = Number(item.quantity) || 0;
     const price = Number(item.unitPrice) || 0;
     const disc = Number(item.discount) || 0;
-    const taxRate = applyTax ? (Number(item.tax) || 0) : 0;
 
     const baseSubtotal = qty * price;
     const discounted = baseSubtotal * (1 - disc / 100);
-    const withTax = discounted * (1 + taxRate / 100);
 
-    item.amount = Math.round(withTax * 100) / 100;
+    item.amount = Math.round(discounted * 100) / 100;
     updated[index] = item;
     setItems(updated);
   };
@@ -236,7 +231,7 @@ export default function QuotesModule({
     }
   };
 
-  // On selecting standard product preset (FIXED: updates multiple fields at once to avoid stale closure)
+  // On selecting standard product preset
   const handleProductPresetSelect = (index: number, prodId: string) => {
     const prod = products.find(p => p.id === prodId);
     if (prod) {
@@ -251,13 +246,11 @@ export default function QuotesModule({
       const qty = Number(item.quantity) || 0;
       const price = Number(item.unitPrice) || 0;
       const disc = Number(item.discount) || 0;
-      const taxRate = applyTax ? (Number(item.tax) || 0) : 0;
 
       const baseSubtotal = qty * price;
       const discounted = baseSubtotal * (1 - disc / 100);
-      const withTax = discounted * (1 + taxRate / 100);
 
-      item.amount = Math.round(withTax * 100) / 100;
+      item.amount = Math.round(discounted * 100) / 100;
       updated[index] = item;
       setItems(updated);
     }
@@ -285,12 +278,13 @@ export default function QuotesModule({
       taxTotal += taxAmount;
     });
 
-    const grandTotal = subtotal - discountTotal + taxTotal;
+    const netSubtotal = subtotal - discountTotal;
+    const grandTotal = Math.round(netSubtotal + taxTotal);
     return {
       subtotal: Math.round(subtotal),
       discountTotal: Math.round(discountTotal),
       taxTotal: Math.round(taxTotal),
-      grandTotal: Math.round(grandTotal)
+      grandTotal
     };
   };
 
@@ -477,7 +471,8 @@ export default function QuotesModule({
       if (quote.taxTotal > 0) {
         doc.text(`${item.tax}%`, 155, currentY);
       }
-      doc.text(item.amount.toLocaleString(), 175, currentY);
+      const lineNet = Math.round((item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100)) * 100) / 100;
+      doc.text(lineNet.toLocaleString(), 175, currentY);
       
       currentY += (splitDesc.length * 5) + 3;
     });
@@ -706,11 +701,12 @@ export default function QuotesModule({
       doc.text(descriptionLines, colX[0] + 2, textY);
       doc.text(String(item.quantity), colX[1] + colWidths[1] / 2, valueY, { align: 'center' });
       doc.text(item.unitPrice.toLocaleString(), colX[2] + colWidths[2] - 2, valueY, { align: 'right' });
+      const lineNet = Math.round((item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100)) * 100) / 100;
       if (quote.taxTotal > 0) {
         doc.text(`${item.tax}%`, colX[3] + colWidths[3] / 2, valueY, { align: 'center' });
-        doc.text(item.amount.toLocaleString(), colX[4] + colWidths[4] - 2, valueY, { align: 'right' });
+        doc.text(lineNet.toLocaleString(), colX[4] + colWidths[4] - 2, valueY, { align: 'right' });
       } else {
-        doc.text(item.amount.toLocaleString(), colX[3] + colWidths[3] - 2, valueY, { align: 'right' });
+        doc.text(lineNet.toLocaleString(), colX[3] + colWidths[3] - 2, valueY, { align: 'right' });
       }
 
       y += rowHeight;

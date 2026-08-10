@@ -13,10 +13,19 @@ import {
   PlusCircle, 
   CheckCircle,
   FileCheck2,
-  ListRestart
+  ListRestart,
+  X,
+  Copy
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { Quote, Client, ProductService, BillingItem } from "../../../shared/types.js";
+import { buildQuoteWhatsAppMessage, openWhatsApp } from "../utils/whatsapp.js";
+
+const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.461c-1.926 0-3.72-.519-5.263-1.423l-.377-.222-3.913 1.026 1.044-3.815-.247-.393A9.873 9.873 0 012.1 11.92c0-5.461 4.444-9.905 9.907-9.905 5.46 0 9.904 4.444 9.904 9.905 0 5.46-4.444 9.907-9.904 9.907m0-21.782c-6.559 0-11.896 5.335-11.896 11.875 0 2.096.547 4.14 1.587 5.945L0 24l6.335-1.662a11.87 11.87 0 005.672 1.449h.005c6.557 0 11.894-5.337 11.894-11.876 0-3.174-1.236-6.158-3.483-8.406A11.798 11.798 0 0012.051.061z"/>
+  </svg>
+);
 
 interface QuotesModuleProps {
   quotes: Quote[];
@@ -98,6 +107,31 @@ export default function QuotesModule({
   const [draftingEmail, setDraftingEmail] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [recommendingTerms, setRecommendingTerms] = useState(false);
+
+  // WhatsApp Dispatch States
+  const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
+  const [whatsAppPhone, setWhatsAppPhone] = useState("");
+  const [whatsAppMessage, setWhatsAppMessage] = useState("");
+  const [whatsAppQuote, setWhatsAppQuote] = useState<Quote | null>(null);
+
+  const handleOpenWhatsAppModal = (quote: Quote) => {
+    const client = clients.find(c => c.id === quote.clientId);
+    const msg = buildQuoteWhatsAppMessage(quote, client, companySettings as any);
+    setWhatsAppQuote(quote);
+    setWhatsAppPhone(client?.phone || "");
+    setWhatsAppMessage(msg);
+    setWhatsAppModalOpen(true);
+  };
+
+  const handleDispatchWhatsApp = () => {
+    if (!whatsAppMessage) {
+      showToast("Please provide message text.", "warning");
+      return;
+    }
+    openWhatsApp(whatsAppPhone, whatsAppMessage);
+    showToast("WhatsApp dispatch initiated!");
+    setWhatsAppModalOpen(false);
+  };
 
   // Auto-calculate expiry date
   React.useEffect(() => {
@@ -1252,6 +1286,14 @@ export default function QuotesModule({
                   </button>
 
                   <button
+                    onClick={() => handleOpenWhatsAppModal(selectedQuote)}
+                    className="w-full py-2.5 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all shadow-md shadow-[#25D366]/20"
+                  >
+                    <WhatsAppIcon className="w-4 h-4" />
+                    <span>Send Quote via WhatsApp</span>
+                  </button>
+
+                  <button
                     onClick={() => handleDraftEmail(selectedQuote)}
                     disabled={draftingEmail}
                     className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all"
@@ -1407,6 +1449,14 @@ export default function QuotesModule({
                           >
                             <Eye className="w-4 h-4" />
                           </button>
+
+                          <button
+                            onClick={() => handleOpenWhatsAppModal(quote)}
+                            className="p-1.5 text-gray-400 hover:text-[#25D366] hover:bg-emerald-50 rounded-lg transition-all"
+                            title="Send Quote via WhatsApp"
+                          >
+                            <WhatsAppIcon className="w-4 h-4" />
+                          </button>
                           
                           {quote.status !== "converted" && (
                             <button
@@ -1436,6 +1486,77 @@ export default function QuotesModule({
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Modal Overlay */}
+      {whatsAppModalOpen && whatsAppQuote && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-gray-100 dark:border-gray-800 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-10 h-10 rounded-xl bg-[#25D366]/10 text-[#25D366] flex items-center justify-center">
+                  <WhatsAppIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-gray-900 dark:text-white">Send Quotation via WhatsApp</h3>
+                  <p className="text-[11px] text-gray-500 font-mono">Quote #{whatsAppQuote.quoteNumber}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setWhatsAppModalOpen(false)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Client WhatsApp Number</label>
+                <input
+                  type="text"
+                  value={whatsAppPhone}
+                  onChange={(e) => setWhatsAppPhone(e.target.value)}
+                  placeholder="e.g. +254 712 345 678"
+                  className="w-full px-3.5 py-2.5 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-xl text-xs font-semibold text-gray-800 dark:text-white focus:outline-none focus:border-[#25D366]"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Accepts local (07...) or international format (+254...)</p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">WhatsApp Message Preview</label>
+                <textarea
+                  value={whatsAppMessage}
+                  onChange={(e) => setWhatsAppMessage(e.target.value)}
+                  rows={8}
+                  className="w-full p-3.5 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-xl text-xs font-mono text-gray-800 dark:text-gray-200 leading-relaxed focus:outline-none focus:border-[#25D366]"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(whatsAppMessage);
+                  showToast("WhatsApp text copied to clipboard!");
+                }}
+                className="w-1/3 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copy Text</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDispatchWhatsApp}
+                className="w-2/3 py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl text-xs font-bold shadow-lg shadow-[#25D366]/20 transition-all flex items-center justify-center space-x-2"
+              >
+                <WhatsAppIcon className="w-4 h-4" />
+                <span>Open in WhatsApp</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

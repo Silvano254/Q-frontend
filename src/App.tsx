@@ -537,7 +537,9 @@ export default function App() {
     // Calculate dashboard statistics on-the-fly from active client state
     const totalInvoicesValue = safeInvoicesList.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
     const totalPaid = safeInvoicesList.reduce((sum, inv) => {
-      return sum + (inv.payments || []).reduce((pSum, pm) => pSum + (pm.amountPaid || 0), 0);
+      const pSum = (inv.payments || []).reduce((pSumAcc, pm) => pSumAcc + (pm.amountPaid || 0), 0);
+      const computedPaid = pSum > 0 ? pSum : Math.max(0, (inv.grandTotal || 0) - (inv.balanceRemaining || 0));
+      return sum + computedPaid;
     }, 0);
     const totalOutstanding = safeInvoicesList.reduce((sum, inv) => sum + (inv.balanceRemaining || 0), 0);
     const totalQuotes = safeQuotesList.length;

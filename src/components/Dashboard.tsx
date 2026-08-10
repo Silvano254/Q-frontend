@@ -106,24 +106,42 @@ export default function Dashboard({
   let prevMonthPaid = 0;
 
   (invoices || []).forEach(inv => {
-    (inv.payments || []).forEach(p => {
-      if (!p.paymentDate) return;
-      const d = new Date(p.paymentDate);
-      if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
-        curMonthPaid += p.amountPaid || 0;
-      } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
-        prevMonthPaid += p.amountPaid || 0;
+    if (inv.payments && inv.payments.length > 0) {
+      inv.payments.forEach(p => {
+        if (!p.paymentDate) return;
+        const d = new Date(p.paymentDate);
+        if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
+          curMonthPaid += p.amountPaid || 0;
+        } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
+          prevMonthPaid += p.amountPaid || 0;
+        }
+      });
+    } else {
+      const dateStr = inv.issueDate || (inv as any).date;
+      if (!dateStr) return;
+      const d = new Date(dateStr);
+      const paidAmt = Math.max(0, (inv.grandTotal || 0) - (inv.balanceRemaining || 0));
+      if (paidAmt > 0) {
+        if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
+          curMonthPaid += paidAmt;
+        } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
+          prevMonthPaid += paidAmt;
+        }
       }
-    });
+    }
   });
 
   const paidMomPct = prevMonthPaid > 0 
     ? ((curMonthPaid - prevMonthPaid) / prevMonthPaid) * 100 
     : curMonthPaid > 0 ? 100 : 0;
 
-  // Monthly Invoiced
+  // Monthly Invoiced & Invoice Counts
   let curMonthInvoiced = 0;
   let prevMonthInvoiced = 0;
+  let curMonthInvoicesCount = 0;
+  let prevMonthInvoicesCount = 0;
+  let curMonthOutstanding = 0;
+  let prevMonthOutstanding = 0;
 
   (invoices || []).forEach(inv => {
     const dateStr = inv.issueDate || (inv as any).date;
@@ -131,14 +149,21 @@ export default function Dashboard({
     const d = new Date(dateStr);
     if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
       curMonthInvoiced += inv.grandTotal || 0;
+      curMonthInvoicesCount += 1;
+      curMonthOutstanding += inv.balanceRemaining || 0;
     } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
       prevMonthInvoiced += inv.grandTotal || 0;
+      prevMonthInvoicesCount += 1;
+      prevMonthOutstanding += inv.balanceRemaining || 0;
     }
   });
 
   const invoicedMomPct = prevMonthInvoiced > 0 
     ? ((curMonthInvoiced - prevMonthInvoiced) / prevMonthInvoiced) * 100 
     : curMonthInvoiced > 0 ? 100 : 0;
+
+  const curAvgInvoiceValue = curMonthInvoicesCount > 0 ? curMonthInvoiced / curMonthInvoicesCount : 0;
+  const prevAvgInvoiceValue = prevMonthInvoicesCount > 0 ? prevMonthInvoiced / prevMonthInvoicesCount : 0;
 
   // Monthly Quotes
   let curMonthQuotes = 0;
@@ -151,7 +176,7 @@ export default function Dashboard({
     if (d.getMonth() === curMonth && d.getFullYear() === curYear) {
       curMonthQuotes += 1;
     } else if (d.getMonth() === prevMonth && d.getFullYear() === prevYear) {
-      curMonthQuotes += 1;
+      prevMonthQuotes += 1;
     }
   });
 
@@ -162,7 +187,11 @@ export default function Dashboard({
   // Dynamic Value based on Timeframe filter
   const displayPaid = timeframe === "this_month" ? curMonthPaid : timeframe === "last_month" ? prevMonthPaid : stats.totalPaid;
   const displayInvoiced = timeframe === "this_month" ? curMonthInvoiced : timeframe === "last_month" ? prevMonthInvoiced : stats.totalInvoicesValue;
+  const displayOutstanding = timeframe === "this_month" ? curMonthOutstanding : timeframe === "last_month" ? prevMonthOutstanding : stats.totalOutstanding;
   const displayQuotes = timeframe === "this_month" ? curMonthQuotes : timeframe === "last_month" ? prevMonthQuotes : stats.totalQuotes;
+  const displayAvgInvoiceValue = timeframe === "this_month" ? curAvgInvoiceValue : timeframe === "last_month" ? prevAvgInvoiceValue : stats.averageInvoiceValue;
+
+  const outstandingRatio = displayInvoiced > 0 ? (displayOutstanding / displayInvoiced) * 100 : 0;
 
   // Card definitions with Month-over-Month indicators
   const statCards = [
@@ -171,7 +200,7 @@ export default function Dashboard({
       value: formatCur(displayPaid),
       momValue: `${paidMomPct >= 0 ? '+' : ''}${paidMomPct.toFixed(1)}% vs last mo`,
       momIsPositive: paidMomPct >= 0,
-      sparkline: "up",
+      sparkline: paidMomPct >= 0 ? "up" : "down",
       icon: DollarSign,
       color: "from-emerald-50 to-teal-50 border-emerald-100 text-emerald-600",
       accent: "#10B981"
@@ -181,17 +210,17 @@ export default function Dashboard({
       value: formatCur(displayInvoiced),
       momValue: `${invoicedMomPct >= 0 ? '+' : ''}${invoicedMomPct.toFixed(1)}% vs last mo`,
       momIsPositive: invoicedMomPct >= 0,
-      sparkline: "up",
+      sparkline: invoicedMomPct >= 0 ? "up" : "down",
       icon: Receipt,
       color: "from-purple-50 to-indigo-50 border-purple-100 text-purple-600",
       accent: "#6B46C1"
     },
     {
       title: "Total Outstanding",
-      value: formatCur(stats.totalOutstanding),
-      momValue: `${stats.totalInvoices > 0 ? ((stats.totalOutstanding / (stats.totalInvoicesValue || 1)) * 100).toFixed(1) : '0'}% of billed`,
-      momIsPositive: false,
-      sparkline: "down",
+      value: formatCur(displayOutstanding),
+      momValue: `${outstandingRatio.toFixed(1)}% of billed`,
+      momIsPositive: outstandingRatio <= 25,
+      sparkline: outstandingRatio <= 25 ? "down" : "up",
       icon: Clock,
       color: "from-amber-50 to-orange-50 border-amber-100 text-amber-600",
       accent: "#D4AF37"
@@ -211,7 +240,7 @@ export default function Dashboard({
       value: displayQuotes.toString(),
       momValue: `${quotesMomPct >= 0 ? '+' : ''}${quotesMomPct.toFixed(1)}% vs last mo`,
       momIsPositive: quotesMomPct >= 0,
-      sparkline: "up",
+      sparkline: quotesMomPct >= 0 ? "up" : "down",
       icon: FileText,
       color: "from-pink-50 to-rose-50 border-pink-100 text-pink-600",
       accent: "#EC4899"
@@ -228,7 +257,7 @@ export default function Dashboard({
     },
     {
       title: "Avg Invoice Value",
-      value: formatCur(stats.averageInvoiceValue),
+      value: formatCur(displayAvgInvoiceValue),
       momValue: `Per Deal`,
       momIsPositive: true,
       sparkline: "up",

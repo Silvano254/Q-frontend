@@ -1,73 +1,109 @@
-# Binti Events — Frontend Client (React + Vite)
+# Binti Events Corporate Suite — Frontend Client
 
-Corporate Quotation, Tax Invoice & Billing Ledger Web Application.
+> **Author:** Silvano Otieno  
+> **Repository:** [Silvano254/Q-frontend](https://github.com/Silvano254/Q-frontend.git)  
+> **Live Web Application:** [binti-events.vercel.app](https://q-frontend-weld.vercel.app)
+
+Binti Events Corporate Suite is a modern, high-performance web application engineered for event management companies, marquee equipment providers, and corporate event planners. It provides automated quotations, tax invoice generation, payment ledgers, client relationship management, and **Binti**—an AI assistant powered by Google Gemini 3.5+.
 
 ---
 
-## 🛠️ Local Development
+## ✨ Features & Functional Modules
 
-### 1. Install Dependencies
+### 1. 📊 Executive Dashboard & AI Analyst
+- Real-time KPI summary (Total Revenue, Active Quotes, Issued Invoices, Pending Balances).
+- Executive business report generation via **Binti AI Analyst**.
+- Cash flow recovery metrics and conversion rate indicators.
+
+### 2. 🧾 Quotations & Proposals Management
+- Custom proposal creation with catalog equipment selection, line-item quantities, and custom discounting.
+- Proposal status tracking (*Draft*, *Sent*, *Converted*, *Declined*).
+- **1-Click Conversion**: Automatically convert approved Quotations into official Tax Invoices.
+- PDF generation and client email/WhatsApp sharing utilities.
+
+### 3. 💳 Tax Invoices & Billing Ledger
+- Official Tax Invoice generation with corporate tax numbers/PINs and due dates.
+- Partial & full payment recording with automated balance calculation.
+- PDF downloads and printable payment receipts.
+- Payment status indicators (*Paid*, *Partially Paid*, *Unpaid*, *Overdue*).
+
+### 4. 💰 Payments Ledger
+- Centralized tracking for M-Pesa, Bank Transfers, Cheques, and Cash payments.
+- Automatic balance deduction and printable transaction vouchers.
+
+### 5. 👥 Clients Directory
+- Corporate and individual client profiles with contact details, tax numbers, and communication history.
+- Lifetime Value (LTV) revenue analytics per client.
+
+### 6. 🎪 Products & Services Catalog
+- Inventory catalog for Tents & Marquees, Decor & Styling, Furniture & Seating, Audio & Lighting, Catering Equipment, and Consultation.
+- Real-time stock status and category pricing configuration.
+
+### 7. 🤖 Binti AI Assistant
+- Interactive floating assistant (`Binti ✨`) powered by Google Gemini 3.5+ backend REST integration.
+- Contextual suggestions across Dashboard, Quotes, Invoices, and Clients modules.
+- Non-blocking onboarding introduction card.
+- Live business context metric bar and Quick Action Cards.
+
+---
+
+## 🛠️ Technology Stack
+
+- **Framework**: React 18 / TypeScript
+- **Build Tool**: Vite 6
+- **Styling**: Tailwind CSS / Custom Glassmorphism UI tokens
+- **Icons**: Lucide React
+- **Document Export**: html2canvas / jsPDF / DOM-to-Image
+- **Deployment**: Vercel
+
+---
+
+## 🚀 Getting Started (Local Development)
+
+### 1. Prerequisites
+- Node.js `>= 18.0.0`
+- npm `>= 9.0.0`
+
+### 2. Installation
 ```bash
+# Clone repository
+git clone https://github.com/Silvano254/Q-frontend.git
+cd Q-frontend
+
+# Install dependencies
 npm install
 ```
 
-### 2. Run Local Dev Server
+### 3. Environment Setup
+Create a `.env` file in the root directory:
+```env
+# Optional production backend API URL (Leave empty to use Vite dev proxy to http://localhost:3000)
+VITE_API_URL=
+
+# Application Branding Title
+VITE_APP_NAME=Binti Events Corporate Suite
+```
+
+### 4. Run Development Server
 ```bash
 npm run dev
 ```
-The client app runs on `http://localhost:5173`. Any `/api/*` requests will be proxied automatically to `http://localhost:3000`.
+Open your browser at `http://localhost:5173`.
 
----
-
-## 🚀 Deploying to Vercel (Step-by-Step)
-
-You can deploy this React client application to [Vercel](https://vercel.com) in under 2 minutes.
-
-### Option A: Deploy via Vercel Dashboard
-
-1. Push your code (or the `client` folder) to **GitHub**, **GitLab**, or **Bitbucket**.
-2. Go to your [Vercel Dashboard](https://vercel.com/dashboard) and click **Add New... -> Project**.
-3. Import your repository.
-4. Configure the Project Settings:
-   - **Framework Preset**: `Vite`
-   - **Root Directory**: `client` *(if deploying from a monorepo)*
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-5. Expand **Environment Variables** and add:
-   - `VITE_API_URL`: `https://binti-events-backend.onrender.com` *(Replace with your live Render backend URL)*
-6. Click **Deploy**.
-
----
-
-### Option B: Deploy via Vercel CLI
-
+### 5. Production Build
 ```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Deploy from the client directory
-cd client
-vercel
-```
-
-When prompted:
-- **Set up and deploy?**: `Yes`
-- **Which scope?**: Choose your Vercel account
-- **Link to existing project?**: `No`
-- **Project Name**: `binti-events-client`
-- **In which directory is your code located?**: `./`
-
-To set the production environment variable via CLI:
-```bash
-vercel env add VITE_API_URL production https://binti-events-backend.onrender.com
-vercel --prod
+npm run build
 ```
 
 ---
 
-## 🔗 Environment Variables Reference
+## 🔒 Security & Privacy
+- **Zero Client API Keys**: Frontend holds no API credentials; 100% of AI requests delegate to the secure Render backend.
+- **WebAuthn Biometric Authentication**: Native biometric passkey login integration.
 
-| Variable | Local Default | Production (Vercel) Value | Description |
-| :--- | :--- | :--- | :--- |
-| `VITE_API_URL` | *(empty)* | `https://<your-render-app>.onrender.com` | Base URL of your deployed Express API backend service |
-| `VITE_APP_NAME` | `Binti Events` | `Binti Events` | App branding title |
+---
+
+## 👤 Author & Support
+- **Author**: Silvano Otieno
+- **GitHub**: [@Silvano254](https://github.com/Silvano254)
+- **License**: MIT

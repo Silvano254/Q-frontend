@@ -62,6 +62,28 @@ export async function askGeminiAssistant(
 function getLocalIntelligentFallback(prompt: string, context?: SaaSContext): string {
   const p = prompt.toLowerCase();
 
+  // Searching / Finding Invoices
+  if (p.includes("invoice") && (p.includes("find") || p.includes("search") || p.includes("cant") || p.includes("can't") || p.includes("look") || p.includes("where") || p.includes("missing"))) {
+    return `To locate or search for an invoice:
+1. **Global Search Bar**: Use the search input at the top header (*"Global search by client, inv #, quote #, email..."*) to search across all invoices instantly.
+2. **Invoices Module**: Click **Invoices & Ledger** in the left sidebar menu to view your full list of invoices, filter by status (*Paid, Unpaid, Overdue*), or export PDF copies.`;
+  }
+
+  // Searching / Finding Quotes
+  if ((p.includes("quote") || p.includes("proposal") || p.includes("quotation")) && (p.includes("find") || p.includes("search") || p.includes("cant") || p.includes("can't") || p.includes("look") || p.includes("where") || p.includes("missing"))) {
+    return `To locate a quote or proposal:
+1. **Global Search Bar**: Type the quote number (e.g. \`QT-2026-001\`) or client name in the top search bar.
+2. **Quotes Module**: Click **Quotes** in the left sidebar menu to view all active, draft, sent, or converted proposals.`;
+  }
+
+  // Searching / Finding Clients
+  if (p.includes("client") && (p.includes("find") || p.includes("search") || p.includes("cant") || p.includes("can't") || p.includes("look") || p.includes("where") || p.includes("missing"))) {
+    return `To locate a client profile:
+1. Use the **Global Search Bar** at the top header.
+2. Or click **Clients** in the left sidebar menu to view your full address directory, corporate profiles, and billing timelines.`;
+  }
+
+  // Converting Quotes
   if (p.includes("convert") && (p.includes("quote") || p.includes("quotation"))) {
     return `To convert a Quotation into a Tax Invoice:
 1. Navigate to the **Quotes Module** from the left sidebar.
@@ -70,6 +92,7 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext): str
 4. Review the generated Tax Invoice with pre-filled line items, tax rates, and client details, then click **Save & Issue**.`;
   }
 
+  // Email drafting
   if (p.includes("email") || p.includes("reminder") || p.includes("draft")) {
     return `Here is a professional email template you can copy:
 
@@ -87,6 +110,7 @@ Warm regards,
 **${context?.companyName || "Binti Events Team"}**`;
   }
 
+  // Terms & Policies
   if (p.includes("payment") || p.includes("term") || p.includes("deposit") || p.includes("policy")) {
     return `**Recommended Standard Terms & Deposit Policies for Event Bookings:**
 
@@ -98,12 +122,5 @@ Warm regards,
 
   return `I am **Binti**, your assistant for **${context?.companyName || "Binti Events"}**.
 
-Here is a quick summary of your current platform status:
-• **Active Clients:** ${context?.clientCount ?? 0}
-• **Total Proposals Issued:** ${context?.totalQuotes ?? 0}
-• **Tax Invoices Generated:** ${context?.totalInvoices ?? 0}
-• **Realized Revenue:** ${context?.currency || "$"}${(context?.totalRevenue || 0).toLocaleString()}
-• **Outstanding Receivables:** ${context?.currency || "$"}${(context?.pendingBalance || 0).toLocaleString()}
-
-How can I assist you further with quotes, invoices, or client records today?`;
+How can I assist you further with quotes, invoices, client records, or system settings today?`;
 }

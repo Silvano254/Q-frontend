@@ -104,7 +104,7 @@ export default function TopBar({
               <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
                 <h3 className="font-semibold text-sm text-gray-800 flex items-center space-x-1.5">
                   <Bell className="w-4 h-4 text-[#6B46C1]" />
-                  <span>SaaS Notifications</span>
+                  <span>Notifications</span>
                 </h3>
                 {unreadCount > 0 && (
                   <span className="text-[10px] bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-medium">

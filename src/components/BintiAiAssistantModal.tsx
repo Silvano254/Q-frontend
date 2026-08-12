@@ -3,15 +3,11 @@ import {
   Sparkles, 
   X, 
   Send, 
-  Key, 
   Bot, 
   User, 
   Copy, 
   Check, 
   RefreshCw, 
-  HelpCircle, 
-  ChevronRight, 
-  Settings, 
   Zap, 
   ShieldCheck, 
   FileText, 
@@ -20,8 +16,6 @@ import {
   AlertCircle
 } from "lucide-react";
 import { 
-  getGeminiApiKey, 
-  setGeminiApiKey, 
   askGeminiAssistant, 
   ChatMessage, 
   SaaSContext 
@@ -37,7 +31,7 @@ const DEFAULT_SUGGESTIONS = [
   "How do I convert a quotation into a tax invoice?",
   "Draft a professional payment reminder email for a client.",
   "What recommended payment terms should we use for event bookings?",
-  "Summarize our current SaaS billing and revenue status.",
+  "Summarize our current billing and revenue status.",
   "How do I record a partial payment on an invoice?"
 ];
 
@@ -46,14 +40,11 @@ export default function BintiAiAssistantModal({
   onClose,
   saasContext
 }: BintiAiAssistantModalProps) {
-  const [apiKey, setApiKeyInput] = useState<string>("");
-  const [currentKey, setCurrentKey] = useState<string>("");
-  const [showKeyPrompt, setShowKeyPrompt] = useState<boolean>(false);
   const [inputMessage, setInputMessage] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "model",
-      content: `Hello! I'm **Binti**, your assistant for Binti Events Corporate Suite. ✨\n\nHow can I help you manage your quotations, billing ledgers, client relations, or system settings today?`,
+      content: `Hello! I'm **Binti**, your assistant for Binti Events. ✨\n\nHow can I help you manage your quotations, billing, clients, or system settings today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -64,38 +55,14 @@ export default function BintiAiAssistantModal({
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const key = getGeminiApiKey();
-    setCurrentKey(key);
-    setApiKeyInput(key);
-    if (!key) {
-      setShowKeyPrompt(true);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isOpen]);
 
-  const handleSaveKey = (e: React.FormEvent) => {
-    e.preventDefault();
-    setGeminiApiKey(apiKey);
-    const updatedKey = getGeminiApiKey();
-    setCurrentKey(updatedKey);
-    setShowKeyPrompt(false);
-    setErrorMsg(null);
-  };
-
   const handleSendMessage = async (textToSend?: string) => {
     const query = textToSend || inputMessage;
     if (!query || query.trim() === "" || loading) return;
-
-    const activeKey = getGeminiApiKey();
-    if (!activeKey) {
-      setShowKeyPrompt(true);
-      return;
-    }
 
     const userTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMsg: ChatMessage = {
@@ -124,7 +91,7 @@ export default function BintiAiAssistantModal({
 
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
-      setErrorMsg(err.message || "Failed to reach Gemini API. Please check your network or API key.");
+      setErrorMsg(err.message || "Failed to reach assistant service. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -140,7 +107,7 @@ export default function BintiAiAssistantModal({
     setMessages([
       {
         role: "model",
-        content: `Conversation reset. Ready for your next query! How can I assist you in Binti Events today?`,
+        content: `Conversation reset. How can I assist you in Binti Events today?`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ]);
@@ -170,30 +137,18 @@ export default function BintiAiAssistantModal({
               <div className="flex items-center space-x-2">
                 <h2 className="font-bold text-base text-white tracking-wide">Binti</h2>
                 <span className="bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#D4AF37] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Gemini AI
+                  AI
                 </span>
               </div>
               <p className="text-xs text-gray-300 flex items-center space-x-1 mt-0.5">
                 <span className="w-2 h-2 bg-green-400 rounded-full animate-ping inline-block" />
-                <span>SaaS Assistant & Specialist</span>
+                <span>Assistant</span>
               </p>
             </div>
           </div>
 
           {/* Action Tools */}
           <div className="flex items-center space-x-2 relative z-10">
-            <button
-              onClick={() => setShowKeyPrompt(!showKeyPrompt)}
-              title="Configure Gemini API Key"
-              className={`p-2 rounded-xl transition-colors ${
-                currentKey 
-                  ? "text-gray-300 hover:text-white hover:bg-white/10" 
-                  : "text-amber-300 bg-amber-500/20 border border-amber-400/40 animate-pulse"
-              }`}
-            >
-              <Key className="w-4 h-4" />
-            </button>
-
             <button
               onClick={handleClearChat}
               title="Clear Conversation"
@@ -211,7 +166,7 @@ export default function BintiAiAssistantModal({
           </div>
         </div>
 
-        {/* Live Context Metric Pill Bar */}
+        {/* Live Context Metric Bar */}
         {saasContext && (
           <div className="bg-[#F8F9FA] px-4 py-2 border-b border-gray-100 flex items-center justify-between overflow-x-auto text-[11px] text-gray-600 space-x-3">
             <span className="flex items-center space-x-1 font-medium text-gray-700 whitespace-nowrap">
@@ -226,36 +181,6 @@ export default function BintiAiAssistantModal({
               <DollarSign className="w-3 h-3 text-green-600" />
               <span>Revenue: {saasContext.currency || "$"}{(saasContext.totalRevenue || 0).toLocaleString()}</span>
             </span>
-          </div>
-        )}
-
-        {/* API Key Modal Drawer Header (If Key Missing or Toggled) */}
-        {showKeyPrompt && (
-          <div className="p-4 bg-amber-50 border-b border-amber-200 text-amber-900 animate-fade-in">
-            <div className="flex items-start space-x-3">
-              <Key className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
-              <div className="flex-1">
-                <h4 className="font-semibold text-xs text-amber-900">Google Gemini API Key Setup</h4>
-                <p className="text-[11px] text-amber-700 mt-0.5">
-                  Enter your Google Gemini API key below to unlock AI assistance. Your key is stored locally in your browser.
-                </p>
-                <form onSubmit={handleSaveKey} className="mt-3 flex items-center space-x-2">
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => setApiKeyInput(e.target.value)}
-                    placeholder="AIzaSy..."
-                    className="flex-1 px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                  />
-                  <button
-                    type="submit"
-                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-semibold shadow-sm transition-colors"
-                  >
-                    Save Key
-                  </button>
-                </form>
-              </div>
-            </div>
           </div>
         )}
 
@@ -341,7 +266,7 @@ export default function BintiAiAssistantModal({
               </div>
               <div className="p-3 bg-white border border-gray-100 rounded-2xl rounded-tl-none text-xs text-gray-500 flex items-center space-x-2">
                 <div className="w-2 h-2 bg-[#80237E] rounded-full animate-ping" />
-                <span>Binti is analyzing your request...</span>
+                <span>Binti is processing...</span>
               </div>
             </div>
           )}
@@ -381,7 +306,7 @@ export default function BintiAiAssistantModal({
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              placeholder={currentKey ? "Ask Binti about quotes, invoices, settings..." : "Please enter your Gemini API key above to start..."}
+              placeholder="Ask Binti about quotes, invoices, clients..."
               disabled={loading}
               className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] bg-gray-50/50 disabled:opacity-60 transition-all"
             />
@@ -395,10 +320,10 @@ export default function BintiAiAssistantModal({
             </button>
           </form>
           <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400 px-1">
-            <span>Powered by Google Gemini 2.5 Flash</span>
+            <span>Powered by Gemini</span>
             <span className="flex items-center space-x-1 text-green-600 font-medium">
               <ShieldCheck className="w-3 h-3" />
-              <span>SaaS Context Active</span>
+              <span>Active Context</span>
             </span>
           </div>
         </div>

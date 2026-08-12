@@ -3,7 +3,6 @@ import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLe
 import { registerBiometric } from "../utils/webauthn.js";
 import { getApiUrl } from "../config/api.js";
 import { CompanySettings } from "../../../shared/types.js";
-import { getGeminiApiKey, setGeminiApiKey } from "../services/geminiService";
 
 interface SettingsModuleProps {
   companySettings: CompanySettings;
@@ -151,7 +150,6 @@ export default function SettingsModule({
   const [address, setAddress] = useState(companySettings.address || "Warehouse Block B, Ngong Road, Nairobi");
   const [taxNumber, setTaxNumber] = useState(companySettings.taxNumber || "P051234567A");
   const [termsTemplate, setTermsTemplate] = useState(companySettings.termsTemplate || "");
-  const [geminiKeyInput, setGeminiKeyInput] = useState(getGeminiApiKey());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

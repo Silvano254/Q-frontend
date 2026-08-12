@@ -14,7 +14,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { Client, Quote, Invoice } from "../../../shared/types.js";
-import { getGeminiApiKey, askGeminiAssistant } from "../services/geminiService";
+import { askGeminiAssistant } from "../services/geminiService";
 
 interface DashboardProps {
   currentUser?: { name: string; role: string; email: string } | null;
@@ -271,11 +271,8 @@ export default function Dashboard({
   // Request Gemini report
   const handleGenerateAiReport = async () => {
     setLoadingAi(true);
-    const geminiKey = getGeminiApiKey();
-
-    if (geminiKey) {
-      try {
-        const prompt = `Provide a high-level executive financial and operations report for Binti Events.
+    try {
+      const prompt = `Provide a high-level executive financial and operations report for Binti Events.
 Metrics:
 - Total Invoices: ${stats.totalInvoices}
 - Realized Revenue: ${currency}${stats.totalPaid.toLocaleString()}
@@ -285,35 +282,17 @@ Metrics:
 - Active Clients: ${stats.activeClientsCount}
 
 Provide 3 key business insights and 2 actionable recommendations for increasing booking conversion and revenue collection.`;
-        const report = await askGeminiAssistant(prompt, [], {
-          clientCount: stats.activeClientsCount,
-          totalQuotes: stats.totalQuotes,
-          totalInvoices: stats.totalInvoices,
-          totalRevenue: stats.totalPaid,
-          pendingBalance: stats.totalOutstanding,
-          currency
-        });
-        setAiReport(report);
-        setLoadingAi(false);
-        return;
-      } catch (err) {
-        console.warn("Direct Gemini call failed, trying backend...", err);
-      }
-    }
-
-    try {
-      const response = await fetch("/api/ai/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
+      const report = await askGeminiAssistant(prompt, [], {
+        clientCount: stats.activeClientsCount,
+        totalQuotes: stats.totalQuotes,
+        totalInvoices: stats.totalInvoices,
+        totalRevenue: stats.totalPaid,
+        pendingBalance: stats.totalOutstanding,
+        currency
       });
-      const data = await response.json();
-      if (data.success) {
-        setAiReport(data.analysis);
-      } else {
-        setAiReport("Unable to load AI analytics report: " + data.message);
-      }
+      setAiReport(report);
     } catch (err) {
-      setAiReport("Connection failure. Configure your Gemini API key in Settings or Ask Binti AI.");
+      setAiReport("Unable to load business report. Please try again.");
     } finally {
       setLoadingAi(false);
     }

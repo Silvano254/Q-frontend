@@ -67,8 +67,20 @@ export default function App() {
     setToastTimeoutId(id);
   };
 
-  // AI Assistant Drawer State
+  // AI Assistant Drawer & Onboarding States
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
+  const [bintiInitialPrompt, setBintiInitialPrompt] = useState("");
+  const [showBintiWelcome, setShowBintiWelcome] = useState<boolean>(() => {
+    return localStorage.getItem("binti_welcome_seen") !== "true";
+  });
+
+  const dismissBintiWelcome = (openAssistant = false) => {
+    localStorage.setItem("binti_welcome_seen", "true");
+    setShowBintiWelcome(false);
+    if (openAssistant) {
+      setIsAiAssistantOpen(true);
+    }
+  };
 
   // Master Data States
   const [activeTab, setActiveTab] = useState<string>("dashboard");
@@ -1086,22 +1098,105 @@ export default function App() {
         </main>
       </div>
 
-      {/* Floating Binti Bottom-Right Action Button */}
-      <button
-        onClick={() => setIsAiAssistantOpen(true)}
-        className="fixed bottom-6 right-6 z-40 p-2.5 bg-white border-2 border-[#D4AF37]/50 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center space-x-2.5 group"
-        title="Open Binti"
-      >
-        <div className="w-8 h-8 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100 shrink-0">
-          <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain" />
-        </div>
-        <span className="text-xs font-bold text-gray-800 pr-1 hidden md:inline">Binti</span>
-      </button>
+      {/* Floating Binti Bottom-Right Action Container */}
+      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end space-y-2 pointer-events-auto select-none font-sans">
+        
+        {/* 1. First-time Non-blocking Onboarding Welcome Card */}
+        {showBintiWelcome && (
+          <div className="w-72 p-4 bg-white border border-gray-100 rounded-3xl shadow-2xl space-y-3 animate-fade-in border-t-4 border-t-[#80237E] relative">
+            <button
+              onClick={() => dismissBintiWelcome(false)}
+              className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 p-1"
+              title="Close intro"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+            <div className="flex items-center space-x-2.5">
+              <div className="w-8 h-8 rounded-xl bg-[#1F2937] p-1 flex items-center justify-center border border-[#D4AF37]/50 shrink-0 shadow-sm">
+                <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain rounded-lg" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-gray-900 flex items-center space-x-1">
+                  <span>✨ Meet Binti</span>
+                </h4>
+                <p className="text-[11px] text-gray-500 font-medium">Your smart event assistant</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              I can help you manage your quotations, billing invoices, bookings, and financial reports.
+            </p>
+            <div className="flex items-center justify-end space-x-2 pt-1">
+              <button
+                onClick={() => dismissBintiWelcome(false)}
+                className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 font-medium rounded-xl transition-colors"
+              >
+                Maybe later
+              </button>
+              <button
+                onClick={() => dismissBintiWelcome(true)}
+                className="px-3.5 py-1.5 bg-gradient-to-r from-[#1F2937] to-[#80237E] text-white text-xs font-bold rounded-xl shadow-md hover:opacity-95 transition-all flex items-center space-x-1"
+              >
+                <span>Try Binti</span>
+                <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 2. Contextual Helper Hint Bubble (shown when welcome card is dismissed) */}
+        {!showBintiWelcome && activeTab && (
+          <div 
+            onClick={() => {
+              const promptMap: Record<string, string> = {
+                dashboard: "Summarize today's business activity and financial health.",
+                quotes: "How do I create a quotation and convert it into an invoice?",
+                invoices: "How do I record payment for an invoice?",
+                clients: "Summarize our active client records."
+              };
+              setBintiInitialPrompt(promptMap[activeTab] || "");
+              setIsAiAssistantOpen(true);
+            }}
+            className="hidden md:flex items-center space-x-1.5 bg-white/95 hover:bg-white border border-gray-200/80 hover:border-[#80237E]/40 px-3 py-1.5 rounded-full shadow-lg text-[11px] text-gray-700 cursor-pointer transition-all hover:scale-105"
+          >
+            <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+            <span className="font-semibold text-gray-800">
+              {activeTab === "dashboard" && "Want me to summarize today's activity?"}
+              {activeTab === "quotes" && "Need help creating or converting a quote?"}
+              {activeTab === "invoices" && "Need to track payments or explain an invoice?"}
+              {activeTab === "clients" && "Want a summary of active clients?"}
+              {!["dashboard", "quotes", "invoices", "clients"].includes(activeTab) && "Ask Binti anything"}
+            </span>
+          </div>
+        )}
+
+        {/* 3. Sleek Floating Pill Button "✨ Binti" */}
+        <button
+          onClick={() => {
+            setBintiInitialPrompt("");
+            setIsAiAssistantOpen(true);
+          }}
+          className="px-4 py-2.5 bg-white border-2 border-[#D4AF37]/60 hover:border-[#80237E] rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center space-x-2.5 group"
+          title="Open Binti Assistant"
+        >
+          <div className="w-7 h-7 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100 shrink-0 shadow-xs">
+            <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain" />
+          </div>
+          <span className="text-xs font-bold text-gray-900 tracking-wide flex items-center space-x-1">
+            <span>Binti</span>
+            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] group-hover:scale-110 transition-transform" />
+          </span>
+        </button>
+
+      </div>
 
       {/* Binti AI Assistant Slide-over Drawer Modal */}
       <BintiAiAssistantModal
         isOpen={isAiAssistantOpen}
-        onClose={() => setIsAiAssistantOpen(false)}
+        onClose={() => {
+          setIsAiAssistantOpen(false);
+          setBintiInitialPrompt("");
+        }}
+        initialPrompt={bintiInitialPrompt}
         saasContext={{
           clientCount: (Array.isArray(clients) ? clients : []).length,
           totalQuotes: (Array.isArray(quotes) ? quotes : []).length,

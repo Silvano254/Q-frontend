@@ -13,7 +13,11 @@ import {
   FileText, 
   DollarSign, 
   Users, 
-  AlertCircle
+  AlertCircle,
+  TrendingUp,
+  CreditCard,
+  HelpCircle,
+  ChevronRight
 } from "lucide-react";
 import { 
   askGeminiAssistant, 
@@ -25,26 +29,47 @@ interface BintiAiAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
   saasContext?: SaaSContext;
+  initialPrompt?: string;
 }
 
-const DEFAULT_SUGGESTIONS = [
-  "How do I convert a quotation into a tax invoice?",
-  "Draft a professional payment reminder email for a client.",
-  "What recommended payment terms should we use for event bookings?",
-  "Summarize our current billing and revenue status.",
-  "How do I record a partial payment on an invoice?"
+const QUICK_CARDS = [
+  {
+    icon: TrendingUp,
+    title: "Analyze my business",
+    subtitle: "Cash flow, booking trends & revenue recovery",
+    prompt: "Provide an analysis of our current business performance, quote conversions, and outstanding receivables."
+  },
+  {
+    icon: FileText,
+    title: "Create or convert a quote",
+    subtitle: "Step-by-step guidance & drafting help",
+    prompt: "How do I create a quotation and convert it into a tax invoice?"
+  },
+  {
+    icon: CreditCard,
+    title: "Payment & invoice helper",
+    subtitle: "Track balances & draft payment reminders",
+    prompt: "Draft a polite follow-up payment reminder email for a client with an unpaid invoice."
+  },
+  {
+    icon: HelpCircle,
+    title: "Ask me anything",
+    subtitle: "System navigation, terms & corporate setup",
+    prompt: "What standard payment terms and deposit policies should we use for event bookings?"
+  }
 ];
 
 export default function BintiAiAssistantModal({
   isOpen,
   onClose,
-  saasContext
+  saasContext,
+  initialPrompt
 }: BintiAiAssistantModalProps) {
   const [inputMessage, setInputMessage] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "model",
-      content: `Hello! I'm **Binti**, your assistant for Binti Events. ✨\n\nHow can I help you manage your quotations, billing, clients, or system settings today?`,
+      content: `Hi! I'm **Binti**, your smart event assistant. ✨\n\nI can help you manage your events, quotations, billing ledgers, and system settings.`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -53,6 +78,15 @@ export default function BintiAiAssistantModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (initialPrompt && initialPrompt.trim().length > 0) {
+        handleSendMessage(initialPrompt);
+      }
+    }
+  }, [isOpen, initialPrompt]);
 
   useEffect(() => {
     if (isOpen) {
@@ -116,10 +150,12 @@ export default function BintiAiAssistantModal({
 
   if (!isOpen) return null;
 
+  const isFreshChat = messages.length <= 1;
+
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-black/40 backdrop-blur-sm transition-opacity duration-300">
       {/* Slide-over Container */}
-      <div className="w-full max-w-lg bg-white h-full shadow-2xl flex flex-col justify-between transform transition-transform duration-300 ease-in-out border-l border-gray-100">
+      <div className="w-full max-w-lg bg-white h-full shadow-2xl flex flex-col justify-between transform transition-transform duration-300 ease-in-out border-l border-gray-100 font-sans">
         
         {/* Drawer Header */}
         <div className="p-4 md:p-5 bg-gradient-to-r from-[#1F2937] via-[#2D1B4E] to-[#80237E] text-white flex items-center justify-between relative overflow-hidden border-b border-[#80237E]/30">
@@ -128,19 +164,17 @@ export default function BintiAiAssistantModal({
           </div>
 
           <div className="flex items-center space-x-3 relative z-10">
-            <div className="w-10 h-10 rounded-2xl bg-white p-1 border-2 border-[#D4AF37]/50 flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 rounded-2xl bg-white p-1 border-2 border-[#D4AF37]/60 flex items-center justify-center shadow-lg">
               <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain rounded-xl" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
-                <h2 className="font-bold text-base text-white tracking-wide">Binti</h2>
-                <span className="bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#D4AF37] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  AI
-                </span>
+                <h2 className="font-bold text-base text-white tracking-wide flex items-center space-x-1.5">
+                  <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                  <span>Binti</span>
+                </h2>
               </div>
-              <p className="text-xs text-gray-300 mt-0.5">
-                <span>Assistant</span>
-              </p>
+              <p className="text-xs text-gray-300 mt-0.5 font-medium">Your smart event assistant</p>
             </div>
           </div>
 
@@ -148,7 +182,7 @@ export default function BintiAiAssistantModal({
           <div className="flex items-center space-x-2 relative z-10">
             <button
               onClick={handleClearChat}
-              title="Clear Conversation"
+              title="Reset Conversation"
               className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
             >
               <RefreshCw className="w-4 h-4" />
@@ -167,15 +201,15 @@ export default function BintiAiAssistantModal({
         {saasContext && (
           <div className="bg-[#F8F9FA] px-4 py-2 border-b border-gray-100 flex items-center justify-between overflow-x-auto text-[11px] text-gray-600 space-x-3">
             <span className="flex items-center space-x-1 font-medium text-gray-700 whitespace-nowrap">
-              <Users className="w-3 h-3 text-[#80237E]" />
+              <Users className="w-3.5 h-3.5 text-[#80237E]" />
               <span>Clients: {saasContext.clientCount ?? 0}</span>
             </span>
             <span className="flex items-center space-x-1 font-medium text-gray-700 whitespace-nowrap">
-              <FileText className="w-3 h-3 text-blue-600" />
+              <FileText className="w-3.5 h-3.5 text-blue-600" />
               <span>Quotes: {saasContext.totalQuotes ?? 0}</span>
             </span>
             <span className="flex items-center space-x-1 font-medium text-gray-700 whitespace-nowrap">
-              <DollarSign className="w-3 h-3 text-green-600" />
+              <DollarSign className="w-3.5 h-3.5 text-green-600" />
               <span>Revenue: {saasContext.currency || "$"}{(saasContext.totalRevenue || 0).toLocaleString()}</span>
             </span>
           </div>
@@ -196,7 +230,51 @@ export default function BintiAiAssistantModal({
 
         {/* Chat History Area */}
         <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gradient-to-b from-[#FDFBFD] to-white">
-          {messages.map((msg, idx) => (
+          {/* Welcome Screen & Cards for Fresh Chat */}
+          {isFreshChat && (
+            <div className="py-4 space-y-5 animate-fade-in">
+              <div className="text-center space-y-2 py-2">
+                <div className="w-14 h-14 mx-auto rounded-3xl bg-gradient-to-tr from-[#1F2937] via-[#2D1B4E] to-[#80237E] p-0.5 shadow-xl flex items-center justify-center border border-[#D4AF37]/40">
+                  <div className="w-full h-full bg-white rounded-[22px] flex items-center justify-center p-2">
+                    <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+                <h3 className="text-base font-bold text-gray-900 tracking-tight">Hi! I'm Binti. ✨</h3>
+                <p className="text-xs text-gray-500 max-w-xs mx-auto leading-relaxed">
+                  I can help you manage your events, bookings, quotations, tax invoices, and financial reports.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5 pt-1">
+                {QUICK_CARDS.map((card, cIdx) => {
+                  const Icon = card.icon;
+                  return (
+                    <button
+                      key={cIdx}
+                      onClick={() => handleSendMessage(card.prompt)}
+                      className="p-3.5 bg-white hover:bg-purple-50/50 border border-gray-100 hover:border-[#80237E]/30 rounded-2xl text-left transition-all shadow-xs hover:shadow-md flex items-center justify-between group"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-9 h-9 rounded-xl bg-purple-50 text-[#80237E] group-hover:bg-[#80237E] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-gray-800 group-hover:text-[#80237E] transition-colors">
+                            {card.title}
+                          </h4>
+                          <p className="text-[11px] text-gray-500 mt-0.5">{card.subtitle}</p>
+                        </div>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#80237E] group-hover:translate-x-0.5 transition-all shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Active Conversation Messages */}
+          {!isFreshChat && messages.map((msg, idx) => (
             <div
               key={idx}
               className={`flex items-start space-x-3 ${
@@ -208,13 +286,13 @@ export default function BintiAiAssistantModal({
                 className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
                   msg.role === "user"
                     ? "bg-[#80237E] text-white"
-                    : "bg-gradient-to-tr from-[#1F2937] to-[#2D1B4E] text-[#D4AF37] border border-[#D4AF37]/30"
+                    : "bg-[#1F2937] text-[#D4AF37] border border-[#D4AF37]/30"
                 }`}
               >
                 {msg.role === "user" ? (
                   <User className="w-4 h-4" />
                 ) : (
-                  <Bot className="w-4 h-4" />
+                  <Sparkles className="w-4 h-4 text-[#D4AF37]" />
                 )}
               </div>
 
@@ -223,7 +301,7 @@ export default function BintiAiAssistantModal({
                 <div
                   className={`p-3.5 rounded-2xl text-xs leading-relaxed shadow-sm ${
                     msg.role === "user"
-                      ? "bg-[#80237E] text-white rounded-tr-none"
+                      ? "bg-[#80237E] text-white rounded-tr-none font-medium"
                       : "bg-white border border-gray-100 text-gray-800 rounded-tl-none shadow-gray-100/50"
                   }`}
                 >
@@ -258,8 +336,8 @@ export default function BintiAiAssistantModal({
           {/* Loading Indicator */}
           {loading && (
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#1F2937] to-[#2D1B4E] text-[#D4AF37] flex items-center justify-center shrink-0 border border-[#D4AF37]/30">
-                <Bot className="w-4 h-4 animate-bounce" />
+              <div className="w-8 h-8 rounded-xl bg-[#1F2937] text-[#D4AF37] flex items-center justify-center shrink-0 border border-[#D4AF37]/30">
+                <Sparkles className="w-4 h-4 text-[#D4AF37] animate-spin" />
               </div>
               <div className="p-3 bg-white border border-gray-100 rounded-2xl rounded-tl-none text-xs text-gray-500 flex items-center space-x-2">
                 <div className="w-2 h-2 bg-[#80237E] rounded-full animate-ping" />
@@ -269,25 +347,6 @@ export default function BintiAiAssistantModal({
           )}
 
           <div ref={messagesEndRef} />
-        </div>
-
-        {/* Quick Suggestion Chips */}
-        <div className="p-3 bg-gray-50/80 border-t border-gray-100 overflow-x-auto whitespace-nowrap">
-          <div className="flex items-center space-x-2">
-            <span className="text-[10px] uppercase font-bold text-gray-400 flex items-center space-x-1 shrink-0">
-              <Zap className="w-3 h-3 text-[#D4AF37]" />
-              <span>Suggested:</span>
-            </span>
-            {DEFAULT_SUGGESTIONS.map((suggestion, sIdx) => (
-              <button
-                key={sIdx}
-                onClick={() => handleSendMessage(suggestion)}
-                className="px-2.5 py-1 bg-white hover:bg-purple-50 border border-gray-200 hover:border-[#80237E]/40 text-gray-700 hover:text-[#80237E] rounded-full text-[11px] font-medium transition-all shadow-xs shrink-0"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Chat Input Field */}
@@ -303,9 +362,9 @@ export default function BintiAiAssistantModal({
               type="text"
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Ask Binti about quotes, invoices, clients..."
+              placeholder="Ask Binti anything..."
               disabled={loading}
-              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] bg-gray-50/50 disabled:opacity-60 transition-all"
+              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] bg-gray-50/50 disabled:opacity-60 transition-all font-medium"
             />
             <button
               type="submit"

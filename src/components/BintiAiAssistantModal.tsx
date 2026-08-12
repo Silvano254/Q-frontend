@@ -3,12 +3,10 @@ import {
   Sparkles, 
   X, 
   Send, 
-  Bot, 
   User, 
   Copy, 
   Check, 
   RefreshCw, 
-  Zap, 
   ShieldCheck, 
   FileText, 
   DollarSign, 
@@ -17,7 +15,8 @@ import {
   TrendingUp,
   CreditCard,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  MessageSquare
 } from "lucide-react";
 import { 
   askGeminiAssistant, 
@@ -69,7 +68,7 @@ export default function BintiAiAssistantModal({
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "model",
-      content: `Hi! I'm **Binti**, your smart event assistant. ✨\n\nI can help you manage your events, quotations, billing ledgers, and system settings.`,
+      content: `Hi! I'm **Binti**, your event assistant. How can I help you manage your quotations, billing ledgers, or client records today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -173,8 +172,11 @@ export default function BintiAiAssistantModal({
                   <Sparkles className="w-4 h-4 text-[#D4AF37]" />
                   <span>Binti</span>
                 </h2>
+                <span className="bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#D4AF37] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  AI
+                </span>
               </div>
-              <p className="text-xs text-gray-300 mt-0.5 font-medium">Your smart event assistant</p>
+              <p className="text-xs text-gray-300 mt-0.5 font-medium">Event Assistant</p>
             </div>
           </div>
 
@@ -200,16 +202,16 @@ export default function BintiAiAssistantModal({
         {/* Live Context Metric Bar */}
         {saasContext && (
           <div className="bg-[#F8F9FA] px-4 py-2 border-b border-gray-100 flex items-center justify-between overflow-x-auto text-[11px] text-gray-600 space-x-3">
-            <span className="flex items-center space-x-1 font-medium text-gray-700 whitespace-nowrap">
+            <span className="flex items-center space-x-1.5 font-medium text-gray-700 whitespace-nowrap">
               <Users className="w-3.5 h-3.5 text-[#80237E]" />
               <span>Clients: {saasContext.clientCount ?? 0}</span>
             </span>
-            <span className="flex items-center space-x-1 font-medium text-gray-700 whitespace-nowrap">
+            <span className="flex items-center space-x-1.5 font-medium text-gray-700 whitespace-nowrap">
               <FileText className="w-3.5 h-3.5 text-blue-600" />
               <span>Quotes: {saasContext.totalQuotes ?? 0}</span>
             </span>
-            <span className="flex items-center space-x-1 font-medium text-gray-700 whitespace-nowrap">
-              <DollarSign className="w-3.5 h-3.5 text-green-600" />
+            <span className="flex items-center space-x-1.5 font-medium text-gray-700 whitespace-nowrap">
+              <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
               <span>Revenue: {saasContext.currency || "$"}{(saasContext.totalRevenue || 0).toLocaleString()}</span>
             </span>
           </div>
@@ -239,7 +241,10 @@ export default function BintiAiAssistantModal({
                     <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain" />
                   </div>
                 </div>
-                <h3 className="text-base font-bold text-gray-900 tracking-tight">Hi! I'm Binti. ✨</h3>
+                <h3 className="text-base font-bold text-gray-900 tracking-tight flex items-center justify-center space-x-1.5">
+                  <span>Hi! I'm Binti</span>
+                  <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                </h3>
                 <p className="text-xs text-gray-500 max-w-xs mx-auto leading-relaxed">
                   I can help you manage your events, bookings, quotations, tax invoices, and financial reports.
                 </p>
@@ -323,7 +328,7 @@ export default function BintiAiAssistantModal({
                     title="Copy response"
                   >
                     {copiedIndex === idx ? (
-                      <Check className="w-3 h-3 text-green-500" />
+                      <Check className="w-3 h-3 text-emerald-500" />
                     ) : (
                       <Copy className="w-3 h-3" />
                     )}
@@ -376,8 +381,11 @@ export default function BintiAiAssistantModal({
             </button>
           </form>
           <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400 px-1">
-            <span>Powered by Gemini</span>
-            <span className="flex items-center space-x-1 text-green-600 font-medium">
+            <span className="flex items-center space-x-1">
+              <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+              <span>Powered by Gemini</span>
+            </span>
+            <span className="flex items-center space-x-1 text-emerald-600 font-medium">
               <ShieldCheck className="w-3 h-3" />
               <span>Active Context</span>
             </span>

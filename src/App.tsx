@@ -1116,8 +1116,9 @@ export default function App() {
                 <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain rounded-lg" />
               </div>
               <div>
-                <h4 className="text-xs font-bold text-gray-900 flex items-center space-x-1">
-                  <span>✨ Meet Binti</span>
+                <h4 className="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
+                  <span>Meet Binti</span>
                 </h4>
                 <p className="text-[11px] text-gray-500 font-medium">Your smart event assistant</p>
               </div>

@@ -87,12 +87,13 @@ Warm regards,
 **${context?.companyName || "Binti Events Team"}**`;
   }
 
-  if (p.includes("payment") || p.includes("term") || p.includes("deposit")) {
-    return `**Recommended Standard Terms for Event Bookings:**
-1. **Deposit**: 50% commitment deposit required upon booking to secure date and inventory.
-2. **Final Balance**: Remaining 50% balance due 7 days prior to event installation day.
-3. **Cancellation**: Cancellations within 14 days of event date forfeit the deposit.
-4. **Site Access**: Client must ensure ground clearance and power access within 30 metres.`;
+  if (p.includes("payment") || p.includes("term") || p.includes("deposit") || p.includes("policy")) {
+    return `**Recommended Standard Terms & Deposit Policies for Event Bookings:**
+
+1. **50% Commitment Deposit**: Required at booking to lock in your event date, tents, gear, and crew.
+2. **50% Final Settlement**: Due 7 days prior to installation and setup day.
+3. **Cancellation Policy**: Cancellations within 14 days of the event date forfeit the deposit.
+4. **Ground Access**: Client must guarantee site access and 15A power within 30 metres.`;
   }
 
   return `I am **Binti**, your assistant for **${context?.companyName || "Binti Events"}**.

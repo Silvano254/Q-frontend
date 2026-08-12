@@ -15,8 +15,7 @@ import {
   TrendingUp,
   CreditCard,
   HelpCircle,
-  ChevronRight,
-  MessageSquare
+  ChevronRight
 } from "lucide-react";
 import { 
   askGeminiAssistant, 
@@ -58,6 +57,147 @@ const QUICK_CARDS = [
   }
 ];
 
+/**
+ * Clean Formatter: Renders AI responses cleanly without raw markdown symbols (**, ##, ---, ***)
+ */
+function CleanResponseRenderer({ content, isUser }: { content: string; isUser: boolean }) {
+  if (isUser) {
+    return <div className="whitespace-pre-wrap">{content}</div>;
+  }
+
+  // Split lines to process markdown structures (tables, headings, bullets, horizontal rules)
+  const lines = content.split("\n");
+  const elements: React.ReactNode[] = [];
+  let inTable = false;
+  let tableRows: string[][] = [];
+  let tableHeader: string[] = [];
+
+  const processInlineFormatting = (text: string) => {
+    // Strip remaining raw asterisks or dashes
+    const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
+    return parts.map((part, pIdx) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return <strong key={pIdx} className="font-semibold text-gray-900">{part.slice(2, -2)}</strong>;
+      }
+      if (part.startsWith("*") && part.endsWith("*")) {
+        return <em key={pIdx} className="italic text-gray-800">{part.slice(1, -1)}</em>;
+      }
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return <code key={pIdx} className="bg-purple-50 text-[#80237E] px-1 py-0.5 rounded text-[11px] font-mono">{part.slice(1, -1)}</code>;
+      }
+      return part;
+    });
+  };
+
+  const renderCurrentTable = (key: number) => {
+    if (tableRows.length === 0 && tableHeader.length === 0) return null;
+    const header = tableHeader;
+    const rows = tableRows;
+    tableHeader = [];
+    tableRows = [];
+    inTable = false;
+
+    return (
+      <div key={`table-${key}`} className="my-2.5 overflow-x-auto rounded-xl border border-gray-200/80 shadow-xs">
+        <table className="w-full text-[11px] text-left border-collapse font-sans">
+          {header.length > 0 && (
+            <thead>
+              <tr className="bg-gray-100/80 text-gray-700 font-bold border-b border-gray-200">
+                {header.map((col, hIdx) => (
+                  <th key={hIdx} className="px-3 py-2 uppercase tracking-wider text-[10px]">
+                    {col.replace(/\*\*/g, '').trim()}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+          )}
+          <tbody className="divide-y divide-gray-100 bg-white">
+            {rows.map((row, rIdx) => (
+              <tr key={rIdx} className="hover:bg-purple-50/20 transition-colors">
+                {row.map((cell, cIdx) => (
+                  <td key={cIdx} className="px-3 py-2 text-gray-800">
+                    {processInlineFormatting(cell.trim())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+
+    // Check for Markdown table line
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const cells = trimmed.split("|").slice(1, -1);
+      // Skip delimiter row like | --- | --- |
+      if (cells.every(c => c.trim().replace(/:/g, '').replace(/-/g, '') === '')) {
+        return;
+      }
+      if (!inTable) {
+        inTable = true;
+        tableHeader = cells;
+      } else {
+        tableRows.push(cells);
+      }
+      return;
+    } else if (inTable) {
+      elements.push(renderCurrentTable(index));
+    }
+
+    // Horizontal Dividers (--- or *** or ___)
+    if (/^([-*_]){3,}$/.test(trimmed)) {
+      elements.push(<hr key={index} className="my-2.5 border-t border-gray-100" />);
+      return;
+    }
+
+    // Headings (### or ## or #)
+    if (trimmed.startsWith("#")) {
+      const headingText = trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '');
+      elements.push(
+        <h4 key={index} className="font-bold text-[#80237E] text-xs uppercase tracking-wide mt-3 mb-1 border-b border-purple-50 pb-1">
+          {headingText}
+        </h4>
+      );
+      return;
+    }
+
+    // Bullet points (* or - or •)
+    if (/^[-*•]\s+/.test(trimmed)) {
+      const bulletContent = trimmed.replace(/^[-*•]\s+/, '');
+      elements.push(
+        <div key={index} className="flex items-start space-x-2 my-1 text-gray-800 leading-relaxed">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#80237E] mt-1.5 shrink-0" />
+          <div className="flex-1">{processInlineFormatting(bulletContent)}</div>
+        </div>
+      );
+      return;
+    }
+
+    // Empty lines
+    if (!trimmed) {
+      elements.push(<div key={index} className="h-1.5" />);
+      return;
+    }
+
+    // Regular paragraphs
+    elements.push(
+      <p key={index} className="my-1 text-gray-800 leading-relaxed">
+        {processInlineFormatting(trimmed)}
+      </p>
+    );
+  });
+
+  if (inTable) {
+    elements.push(renderCurrentTable(lines.length));
+  }
+
+  return <div className="space-y-0.5 font-sans">{elements}</div>;
+}
+
 export default function BintiAiAssistantModal({
   isOpen,
   onClose,
@@ -68,7 +208,7 @@ export default function BintiAiAssistantModal({
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "model",
-      content: `Hi! I'm **Binti**, your event assistant. How can I help you manage your quotations, billing ledgers, or client records today?`,
+      content: `Hi! I'm Binti, your event assistant. How can I help you manage your quotations, billing ledgers, or client records today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -131,7 +271,9 @@ export default function BintiAiAssistantModal({
   };
 
   const handleCopy = (content: string, index: number) => {
-    navigator.clipboard.writeText(content);
+    // Clean text before copying so exported text is clean
+    const cleanText = content.replace(/[*#]/g, '').replace(/\|/g, ' ');
+    navigator.clipboard.writeText(cleanText);
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
   };
@@ -302,17 +444,15 @@ export default function BintiAiAssistantModal({
               </div>
 
               {/* Message Bubble */}
-              <div className="max-w-[82%] group relative">
+              <div className="max-w-[85%] group relative">
                 <div
-                  className={`p-3.5 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                  className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm ${
                     msg.role === "user"
                       ? "bg-[#80237E] text-white rounded-tr-none font-medium"
                       : "bg-white border border-gray-100 text-gray-800 rounded-tl-none shadow-gray-100/50"
                   }`}
                 >
-                  <div className="whitespace-pre-wrap font-sans space-y-1">
-                    {msg.content}
-                  </div>
+                  <CleanResponseRenderer content={msg.content} isUser={msg.role === "user"} />
                 </div>
 
                 {/* Bubble Timestamp & Copy Action */}
@@ -325,7 +465,7 @@ export default function BintiAiAssistantModal({
                   <button
                     onClick={() => handleCopy(msg.content, idx)}
                     className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-gray-600"
-                    title="Copy response"
+                    title="Copy text"
                   >
                     {copiedIndex === idx ? (
                       <Check className="w-3 h-3 text-emerald-500" />

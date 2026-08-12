@@ -29,7 +29,6 @@ export async function askGeminiAssistant(
   chatHistory: ChatMessage[] = [],
   saasContext?: SaaSContext
 ): Promise<string> {
-  // Delegate request to Render Backend Service (uses server process.env.GEMINI_API_KEY)
   try {
     const backendUrl = getApiUrl("/api/ai/chat");
     const res = await fetch(backendUrl, {
@@ -42,17 +41,30 @@ export async function askGeminiAssistant(
       })
     });
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.reply || data.analysis || data.message || data.text) {
-        return data.reply || data.analysis || data.message || data.text;
-      }
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok && data.success && data.reply) {
+      return data.reply;
     }
+
+    // Specific HTTP Error Reporting
+    if (res.status === 401) {
+      return `⚠️ **Authentication Error (401)**\n\n${data.error || "No valid GEMINI_API_KEY found on server. Please configure your key in Render environment variables."}`;
+    }
+
+    if (res.status === 429) {
+      return `⚠️ **Quota Exceeded (429)**\n\nGemini API rate limit or quota has been exceeded. Please try again in a few moments.`;
+    }
+
+    if (!res.ok && data.error) {
+      return `⚠️ **Service Alert (${res.status})**\n\n${data.error}`;
+    }
+
   } catch (backendErr) {
-    console.warn("Backend /api/ai/chat call failed, providing fallback response...", backendErr);
+    console.warn("Backend /api/ai/chat call failed, using intelligent fallback...", backendErr);
   }
 
-  // Intelligent fallback responder if backend is initializing or endpoint format differs
+  // Intelligent fallback responder if backend is initializing or unreachable
   return getLocalIntelligentFallback(prompt, saasContext);
 }
 

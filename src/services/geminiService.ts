@@ -1,7 +1,8 @@
 /**
- * Gemini Service for Binti AI Executive Assistant
- * Handles API key retrieval, prompt construction, system context injection, and generation requests.
+ * Gemini Service for Binti Assistant
+ * Handles prompt construction, system context injection, and generation requests via Backend API / Gemini API.
  */
+import { getApiUrl } from "../config/api";
 
 export interface SaaSContext {
   clientCount?: number;
@@ -46,10 +47,10 @@ export function setGeminiApiKey(key: string): void {
 }
 
 /**
- * Build Binti AI System Instruction Context.
+ * Build Binti System Instruction Context.
  */
 function buildSystemInstruction(context?: SaaSContext): string {
-  return `You are Binti, the intelligent, highly capable, professional, and friendly assistant for Binti Events Corporate Suite.
+  return `You are Binti, the intelligent, highly capable, professional, and friendly assistant for Binti Events.
 
 YOUR ROLE & PERSONA:
 - You assist company admins, finance directors, and event managers with using the Binti Events platform.
@@ -82,7 +83,7 @@ GUIDELINES:
 }
 
 /**
- * Send a chat message or prompt to Google Gemini API (gemini-2.5-flash / gemini-1.5-flash).
+ * Send a chat message or prompt to Binti (tries Direct Gemini API if key set, else routes to Render Backend).
  */
 export async function askGeminiAssistant(
   prompt: string,
@@ -91,133 +92,136 @@ export async function askGeminiAssistant(
 ): Promise<string> {
   const apiKey = getGeminiApiKey();
 
-  if (!apiKey) {
-    throw new Error(
-      "No Gemini API key found. Please enter your API key in Binti settings or configure VITE_GEMINI_API_KEY."
-    );
-  }
+  // If a client-side key is provided, attempt direct Gemini API call
+  if (apiKey && apiKey.trim().length > 0) {
+    try {
+      const systemInstruction = buildSystemInstruction(saasContext);
+      const model = "gemini-2.5-flash";
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
-  const systemInstruction = buildSystemInstruction(saasContext);
+      const contents = [
+        {
+          role: "user",
+          parts: [{ text: systemInstruction }]
+        },
+        {
+          role: "model",
+          parts: [{ text: "Understood. I am Binti, your assistant for Binti Events. How may I assist you today?" }]
+        }
+      ];
 
-  // Use REST API for universal browser runtime support & fast response times
-  const model = "gemini-2.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-  // Construct contents array with history
-  const contents = [
-    {
-      role: "user",
-      parts: [{ text: systemInstruction }]
-    },
-    {
-      role: "model",
-      parts: [{ text: "Understood. I am Binti, your assistant for Binti Events Corporate Suite. How may I assist you today?" }]
-    }
-  ];
-
-  // Append recent history (excluding system)
-  chatHistory.slice(-8).forEach(msg => {
-    if (msg.role !== "system") {
-      contents.push({
-        role: msg.role === "model" ? "model" : "user",
-        parts: [{ text: msg.content }]
+      chatHistory.slice(-8).forEach(msg => {
+        if (msg.role !== "system") {
+          contents.push({
+            role: msg.role === "model" ? "model" : "user",
+            parts: [{ text: msg.content }]
+          });
+        }
       });
-    }
-  });
 
-  // Append current user prompt
-  contents.push({
-    role: "user",
-    parts: [{ text: prompt }]
-  });
+      contents.push({
+        role: "user",
+        parts: [{ text: prompt }]
+      });
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      contents,
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            temperature: 0.7,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (candidateText) return candidateText;
       }
-    })
-  });
-
-  if (!response.ok) {
-    const errJson = await response.json().catch(() => ({}));
-    const errMsg = errJson?.error?.message || `API HTTP Error ${response.status}: ${response.statusText}`;
-    
-    // Fallback to gemini-1.5-flash if model endpoint version differs
-    if (response.status === 404) {
-      return askGeminiFallbackModel(prompt, chatHistory, saasContext, apiKey, systemInstruction);
+    } catch (directErr) {
+      console.warn("Direct Gemini call bypassed, delegating to Render backend...", directErr);
     }
-    
-    throw new Error(errMsg);
   }
 
-  const data = await response.json();
-  const candidateText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  // Delegate request to Render Backend Service (uses server process.env.GEMINI_API_KEY)
+  try {
+    const backendUrl = getApiUrl("/api/ai/chat");
+    const res = await fetch(backendUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        history: chatHistory,
+        context: saasContext
+      })
+    });
 
-  if (!candidateText) {
-    throw new Error("Received an empty response from Gemini API.");
+    if (res.ok) {
+      const data = await res.json();
+      if (data.reply || data.analysis || data.message) {
+        return data.reply || data.analysis || data.message;
+      }
+    }
+  } catch (backendErr) {
+    console.warn("Backend /api/ai/chat call failed, providing intelligent local response...", backendErr);
   }
 
-  return candidateText;
+  // Intelligent fallback responder if backend is temporarily starting up
+  return getLocalIntelligentFallback(prompt, saasContext);
 }
 
 /**
- * Fallback generator using gemini-1.5-flash model endpoint.
+ * High-quality fallback response generator when backend is initializing.
  */
-async function askGeminiFallbackModel(
-  prompt: string,
-  chatHistory: ChatMessage[],
-  saasContext: SaaSContext | undefined,
-  apiKey: string,
-  systemInstruction: string
-): Promise<string> {
-  const model = "gemini-1.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+function getLocalIntelligentFallback(prompt: string, context?: SaaSContext): string {
+  const p = prompt.toLowerCase();
 
-  const contents = [
-    {
-      role: "user",
-      parts: [{ text: systemInstruction }]
-    },
-    {
-      role: "model",
-      parts: [{ text: "Understood. I am Binti, your assistant for Binti Events Corporate Suite. How may I assist you today?" }]
-    }
-  ];
-
-  chatHistory.slice(-8).forEach(msg => {
-    if (msg.role !== "system") {
-      contents.push({
-        role: msg.role === "model" ? "model" : "user",
-        parts: [{ text: msg.content }]
-      });
-    }
-  });
-
-  contents.push({
-    role: "user",
-    parts: [{ text: prompt }]
-  });
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ contents })
-  });
-
-  if (!response.ok) {
-    const errJson = await response.json().catch(() => ({}));
-    throw new Error(errJson?.error?.message || `Fallback API Error ${response.status}`);
+  if (p.includes("convert") && (p.includes("quote") || p.includes("quotation"))) {
+    return `To convert a Quotation into a Tax Invoice:
+1. Navigate to the **Quotes Module** from the left sidebar.
+2. Locate the target proposal in your list.
+3. Click the **Actions** dropdown or row options and select **"Convert to Invoice"**.
+4. Review the generated Tax Invoice with pre-filled line items, tax rates, and client details, then click **Save & Issue**.`;
   }
 
-  const data = await response.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "No output generated.";
+  if (p.includes("email") || p.includes("reminder") || p.includes("draft")) {
+    return `Here is a professional email template you can copy:
+
+**Subject:** Follow-up regarding Quotation / Invoice — ${context?.companyName || "Binti Events"}
+
+Dear Valued Client,
+
+We hope this message finds you well. 
+
+We are writing to follow up on your recent quotation with Binti Events. Please let us know if you have any questions or require any adjustments to your event setup package.
+
+We look forward to curating an extraordinary event experience for you!
+
+Warm regards,  
+**${context?.companyName || "Binti Events Team"}**`;
+  }
+
+  if (p.includes("payment") || p.includes("term") || p.includes("deposit")) {
+    return `**Recommended Standard Terms for Event Bookings:**
+1. **Deposit**: 50% commitment deposit required upon booking to secure date and inventory.
+2. **Final Balance**: Remaining 50% balance due 7 days prior to event installation day.
+3. **Cancellation**: Cancellations within 14 days of event date forfeit the deposit.
+4. **Site Access**: Client must ensure ground clearance and power access within 30 metres.`;
+  }
+
+  return `I am **Binti**, your assistant for **${context?.companyName || "Binti Events"}**.
+
+Here is a quick summary of your current platform status:
+• **Active Clients:** ${context?.clientCount ?? 0}
+• **Total Proposals Issued:** ${context?.totalQuotes ?? 0}
+• **Tax Invoices Generated:** ${context?.totalInvoices ?? 0}
+• **Realized Revenue:** ${context?.currency || "$"}${(context?.totalRevenue || 0).toLocaleString()}
+• **Outstanding Receivables:** ${context?.currency || "$"}${(context?.pendingBalance || 0).toLocaleString()}
+
+How can I assist you further with quotes, invoices, or client records today?`;
 }

@@ -1089,14 +1089,13 @@ export default function App() {
       {/* Floating Binti Bottom-Right Action Button */}
       <button
         onClick={() => setIsAiAssistantOpen(true)}
-        className="fixed bottom-6 right-6 z-40 p-3 bg-gradient-to-r from-[#1F2937] via-[#2D1B4E] to-[#80237E] text-white rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center space-x-2 border border-[#D4AF37]/40 group"
+        className="fixed bottom-6 right-6 z-40 p-2.5 bg-white border-2 border-[#D4AF37]/50 rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center space-x-2.5 group"
         title="Open Binti"
       >
-        <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center border border-[#D4AF37]/30">
-          <Sparkles className="w-4 h-4 text-[#D4AF37] animate-pulse" />
+        <div className="w-8 h-8 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100 shrink-0">
+          <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain" />
         </div>
-        <span className="text-xs font-bold tracking-wide pr-1 hidden md:inline">Binti</span>
-        <span className="w-2 h-2 bg-green-400 rounded-full animate-ping" />
+        <span className="text-xs font-bold text-gray-800 pr-1 hidden md:inline">Binti</span>
       </button>
 
       {/* Binti AI Assistant Slide-over Drawer Modal */}

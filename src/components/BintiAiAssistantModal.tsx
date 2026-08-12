@@ -128,10 +128,8 @@ export default function BintiAiAssistantModal({
           </div>
 
           <div className="flex items-center space-x-3 relative z-10">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#D4AF37] to-[#80237E] flex items-center justify-center p-0.5 shadow-lg shadow-purple-900/40">
-              <div className="w-full h-full bg-[#1F2937] rounded-[14px] flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-[#D4AF37] animate-pulse" />
-              </div>
+            <div className="w-10 h-10 rounded-2xl bg-white p-1 border-2 border-[#D4AF37]/50 flex items-center justify-center shadow-lg">
+              <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain rounded-xl" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
@@ -140,8 +138,7 @@ export default function BintiAiAssistantModal({
                   AI
                 </span>
               </div>
-              <p className="text-xs text-gray-300 flex items-center space-x-1 mt-0.5">
-                <span className="w-2 h-2 bg-green-400 rounded-full animate-ping inline-block" />
+              <p className="text-xs text-gray-300 mt-0.5">
                 <span>Assistant</span>
               </p>
             </div>

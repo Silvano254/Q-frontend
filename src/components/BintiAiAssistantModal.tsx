@@ -58,22 +58,25 @@ const QUICK_CARDS = [
 ];
 
 /**
- * Clean Formatter: Renders AI responses cleanly without raw markdown symbols (**, ##, ---, ***)
+ * Clean Formatter: Executive-grade renderer without horizontal lines or markdown clutter
  */
 function CleanResponseRenderer({ content, isUser }: { content: string; isUser: boolean }) {
   if (isUser) {
     return <div className="whitespace-pre-wrap">{content}</div>;
   }
 
-  // Split lines to process markdown structures (tables, headings, bullets, horizontal rules)
-  const lines = content.split("\n");
+  // Strip any raw horizontal rule markdown syntax (---, ***, ___)
+  const cleanContent = content
+    .replace(/^[-*_]{3,}$/gm, '')
+    .replace(/\n{3,}/g, '\n\n');
+
+  const lines = cleanContent.split("\n");
   const elements: React.ReactNode[] = [];
   let inTable = false;
   let tableRows: string[][] = [];
   let tableHeader: string[] = [];
 
   const processInlineFormatting = (text: string) => {
-    // Strip remaining raw asterisks or dashes
     const parts = text.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
     return parts.map((part, pIdx) => {
       if (part.startsWith("**") && part.endsWith("**")) {
@@ -83,7 +86,7 @@ function CleanResponseRenderer({ content, isUser }: { content: string; isUser: b
         return <em key={pIdx} className="italic text-gray-800">{part.slice(1, -1)}</em>;
       }
       if (part.startsWith("`") && part.endsWith("`")) {
-        return <code key={pIdx} className="bg-purple-50 text-[#80237E] px-1 py-0.5 rounded text-[11px] font-mono">{part.slice(1, -1)}</code>;
+        return <code key={pIdx} className="bg-purple-50 text-[#80237E] px-1.5 py-0.5 rounded text-[11px] font-mono">{part.slice(1, -1)}</code>;
       }
       return part;
     });
@@ -98,22 +101,22 @@ function CleanResponseRenderer({ content, isUser }: { content: string; isUser: b
     inTable = false;
 
     return (
-      <div key={`table-${key}`} className="my-2.5 overflow-x-auto rounded-xl border border-gray-200/80 shadow-xs">
+      <div key={`table-${key}`} className="my-3 overflow-x-auto rounded-2xl bg-gray-50/70 p-1.5 border border-gray-100/80 shadow-xs">
         <table className="w-full text-[11px] text-left border-collapse font-sans">
           {header.length > 0 && (
             <thead>
-              <tr className="bg-gray-100/80 text-gray-700 font-bold border-b border-gray-200">
+              <tr className="text-gray-500 font-bold border-b border-gray-200/60">
                 {header.map((col, hIdx) => (
-                  <th key={hIdx} className="px-3 py-2 uppercase tracking-wider text-[10px]">
+                  <th key={hIdx} className="px-3 py-2 uppercase tracking-wider text-[10px] text-gray-600">
                     {col.replace(/\*\*/g, '').trim()}
                   </th>
                 ))}
               </tr>
             </thead>
           )}
-          <tbody className="divide-y divide-gray-100 bg-white">
+          <tbody className="divide-y divide-gray-100/80 bg-white rounded-xl">
             {rows.map((row, rIdx) => (
-              <tr key={rIdx} className="hover:bg-purple-50/20 transition-colors">
+              <tr key={rIdx} className="hover:bg-purple-50/30 transition-colors">
                 {row.map((cell, cIdx) => (
                   <td key={cIdx} className="px-3 py-2 text-gray-800">
                     {processInlineFormatting(cell.trim())}
@@ -133,7 +136,6 @@ function CleanResponseRenderer({ content, isUser }: { content: string; isUser: b
     // Check for Markdown table line
     if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
       const cells = trimmed.split("|").slice(1, -1);
-      // Skip delimiter row like | --- | --- |
       if (cells.every(c => c.trim().replace(/:/g, '').replace(/-/g, '') === '')) {
         return;
       }
@@ -148,9 +150,9 @@ function CleanResponseRenderer({ content, isUser }: { content: string; isUser: b
       elements.push(renderCurrentTable(index));
     }
 
-    // Horizontal Dividers (--- or *** or ___)
+    // Ignore horizontal lines completely (replaced by clean spacing)
     if (/^([-*_]){3,}$/.test(trimmed)) {
-      elements.push(<hr key={index} className="my-2.5 border-t border-gray-100" />);
+      elements.push(<div key={index} className="h-2" />);
       return;
     }
 
@@ -158,7 +160,7 @@ function CleanResponseRenderer({ content, isUser }: { content: string; isUser: b
     if (trimmed.startsWith("#")) {
       const headingText = trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '');
       elements.push(
-        <h4 key={index} className="font-bold text-[#80237E] text-xs uppercase tracking-wide mt-3 mb-1 border-b border-purple-50 pb-1">
+        <h4 key={index} className="font-bold text-[#80237E] text-xs uppercase tracking-wide mt-4 mb-1.5">
           {headingText}
         </h4>
       );
@@ -179,7 +181,7 @@ function CleanResponseRenderer({ content, isUser }: { content: string; isUser: b
 
     // Empty lines
     if (!trimmed) {
-      elements.push(<div key={index} className="h-1.5" />);
+      elements.push(<div key={index} className="h-2" />);
       return;
     }
 
@@ -271,9 +273,8 @@ export default function BintiAiAssistantModal({
   };
 
   const handleCopy = (content: string, index: number) => {
-    // Clean text before copying so exported text is clean
-    const cleanText = content.replace(/[*#]/g, '').replace(/\|/g, ' ');
-    navigator.clipboard.writeText(cleanText);
+    const cleanText = content.replace(/[*#\-_]/g, ' ').replace(/\|/g, ' ').replace(/\s+/g, ' ');
+    navigator.clipboard.writeText(cleanText.trim());
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
   };

@@ -14,6 +14,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { Client, Quote, Invoice } from "../../../shared/types.js";
+import { getGeminiApiKey, askGeminiAssistant } from "../services/geminiService";
 
 interface DashboardProps {
   currentUser?: { name: string; role: string; email: string } | null;
@@ -267,9 +268,39 @@ export default function Dashboard({
     }
   ];
 
-  // Request Gemini report (now local template engine)
+  // Request Gemini report
   const handleGenerateAiReport = async () => {
     setLoadingAi(true);
+    const geminiKey = getGeminiApiKey();
+
+    if (geminiKey) {
+      try {
+        const prompt = `Provide a high-level executive financial and operations report for Binti Events.
+Metrics:
+- Total Invoices: ${stats.totalInvoices}
+- Realized Revenue: ${currency}${stats.totalPaid.toLocaleString()}
+- Pending Balances: ${currency}${stats.totalOutstanding.toLocaleString()}
+- Total Quotes: ${stats.totalQuotes}
+- Quote Conversion Rate: ${stats.conversionRate.toFixed(1)}%
+- Active Clients: ${stats.activeClientsCount}
+
+Provide 3 key business insights and 2 actionable recommendations for increasing booking conversion and revenue collection.`;
+        const report = await askGeminiAssistant(prompt, [], {
+          clientCount: stats.activeClientsCount,
+          totalQuotes: stats.totalQuotes,
+          totalInvoices: stats.totalInvoices,
+          totalRevenue: stats.totalPaid,
+          pendingBalance: stats.totalOutstanding,
+          currency
+        });
+        setAiReport(report);
+        setLoadingAi(false);
+        return;
+      } catch (err) {
+        console.warn("Direct Gemini call failed, trying backend...", err);
+      }
+    }
+
     try {
       const response = await fetch("/api/ai/analyze", {
         method: "POST",
@@ -282,7 +313,7 @@ export default function Dashboard({
         setAiReport("Unable to load AI analytics report: " + data.message);
       }
     } catch (err) {
-      setAiReport("Connection failure. Make sure the server is fully running.");
+      setAiReport("Connection failure. Configure your Gemini API key in Settings or Ask Binti AI.");
     } finally {
       setLoadingAi(false);
     }
@@ -401,7 +432,7 @@ export default function Dashboard({
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-gray-800">Binti AI Executive Business Analyst</h4>
+              <h4 className="text-sm font-bold text-gray-800">Binti Business Analyst</h4>
               <p className="text-xs text-gray-500 mt-1">
                 Generate instant strategic insights about events cash flows, outstanding balances, and customized recommendations.
               </p>

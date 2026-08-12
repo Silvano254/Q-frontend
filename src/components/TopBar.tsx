@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, Bell, Clock, AlertTriangle, CheckCircle2, User, ChevronDown, Menu } from "lucide-react";
+import { Search, Bell, Clock, AlertTriangle, CheckCircle2, User, ChevronDown, Menu, Sparkles } from "lucide-react";
 
 interface TopBarProps {
   globalSearch: string;
@@ -15,6 +15,7 @@ interface TopBarProps {
   }>;
   onNotificationClick: (id: string) => void;
   onToggleMobileMenu?: () => void;
+  onOpenAiAssistant?: () => void;
 }
 
 export default function TopBar({ 
@@ -23,7 +24,8 @@ export default function TopBar({
   currency, 
   notifications, 
   onNotificationClick,
-  onToggleMobileMenu
+  onToggleMobileMenu,
+  onOpenAiAssistant
 }: TopBarProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const unreadCount = notifications.filter(n => n.unread).length;
@@ -64,7 +66,18 @@ export default function TopBar({
       </div>
 
       {/* Right Side Tools */}
-      <div className="flex items-center space-x-6">
+      <div className="flex items-center space-x-4 md:space-x-6">
+        {/* Ask Binti Button */}
+        {onOpenAiAssistant && (
+          <button
+            onClick={onOpenAiAssistant}
+            className="flex items-center space-x-2 px-3 py-1.5 bg-gradient-to-r from-[#1F2937] via-[#2D1B4E] to-[#80237E] text-white hover:opacity-95 rounded-xl shadow-md shadow-purple-900/10 transition-all border border-[#80237E]/30"
+          >
+            <Sparkles className="w-4 h-4 text-[#D4AF37] animate-pulse" />
+            <span className="text-xs font-semibold tracking-wide hidden sm:inline">Ask Binti</span>
+          </button>
+        )}
+
         {/* Currency Status Indicator */}
         <div className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 bg-[#80237E]/5 border border-[#80237E]/10 rounded-lg">
           <span className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">Standard Currency:</span>

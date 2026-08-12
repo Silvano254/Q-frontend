@@ -10,6 +10,7 @@ import ProductsModule from "./components/ProductsModule.js";
 import PaymentsModule from "./components/PaymentsModule.js";
 import ReportsAnalyticsModule from "./components/ReportsAnalyticsModule.js";
 import SettingsModule from "./components/SettingsModule.js";
+import BintiAiAssistantModal from "./components/BintiAiAssistantModal.js";
 import { loginBiometric } from "./utils/webauthn.js";
 import { getApiUrl } from "./config/api.js";
 import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "../../shared/types.js";
@@ -65,6 +66,9 @@ export default function App() {
     }, 2500);
     setToastTimeoutId(id);
   };
+
+  // AI Assistant Drawer State
+  const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
 
   // Master Data States
   const [activeTab, setActiveTab] = useState<string>("dashboard");
@@ -993,6 +997,7 @@ export default function App() {
           notifications={notifications}
           onNotificationClick={handleNotificationClick}
           onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
+          onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
         />
 
         {/* Dynamic Workspace Area */}
@@ -1080,6 +1085,38 @@ export default function App() {
           {renderWorkspace()}
         </main>
       </div>
+
+      {/* Floating Binti Bottom-Right Action Button */}
+      <button
+        onClick={() => setIsAiAssistantOpen(true)}
+        className="fixed bottom-6 right-6 z-40 p-3 bg-gradient-to-r from-[#1F2937] via-[#2D1B4E] to-[#80237E] text-white rounded-2xl shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center space-x-2 border border-[#D4AF37]/40 group"
+        title="Open Binti"
+      >
+        <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center border border-[#D4AF37]/30">
+          <Sparkles className="w-4 h-4 text-[#D4AF37] animate-pulse" />
+        </div>
+        <span className="text-xs font-bold tracking-wide pr-1 hidden md:inline">Binti</span>
+        <span className="w-2 h-2 bg-green-400 rounded-full animate-ping" />
+      </button>
+
+      {/* Binti AI Assistant Slide-over Drawer Modal */}
+      <BintiAiAssistantModal
+        isOpen={isAiAssistantOpen}
+        onClose={() => setIsAiAssistantOpen(false)}
+        saasContext={{
+          clientCount: (Array.isArray(clients) ? clients : []).length,
+          totalQuotes: (Array.isArray(quotes) ? quotes : []).length,
+          totalInvoices: (Array.isArray(invoices) ? invoices : []).length,
+          totalRevenue: (Array.isArray(invoices) ? invoices : []).reduce((sum, inv) => {
+            const pSum = (inv.payments || []).reduce((pSumAcc, pm) => pSumAcc + (pm.amountPaid || 0), 0);
+            return sum + (pSum > 0 ? pSum : Math.max(0, (inv.grandTotal || 0) - (inv.balanceRemaining || 0)));
+          }, 0),
+          pendingBalance: (Array.isArray(invoices) ? invoices : []).reduce((sum, inv) => sum + (inv.balanceRemaining || 0), 0),
+          currency: companySettings.currency,
+          companyName: companySettings.companyName
+        }}
+      />
+
       {toast && (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 text-[11px] font-extrabold tracking-wider lowercase pointer-events-none select-none ${toast.type === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
           {toast.message}

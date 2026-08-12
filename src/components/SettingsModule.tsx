@@ -1,8 +1,9 @@
-import React, { useState } from "react";
-import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key } from "lucide-react";
 import { registerBiometric } from "../utils/webauthn.js";
 import { getApiUrl } from "../config/api.js";
 import { CompanySettings } from "../../../shared/types.js";
+import { getGeminiApiKey, setGeminiApiKey } from "../services/geminiService";
 
 interface SettingsModuleProps {
   companySettings: CompanySettings;
@@ -150,6 +151,7 @@ export default function SettingsModule({
   const [address, setAddress] = useState(companySettings.address || "Warehouse Block B, Ngong Road, Nairobi");
   const [taxNumber, setTaxNumber] = useState(companySettings.taxNumber || "P051234567A");
   const [termsTemplate, setTermsTemplate] = useState(companySettings.termsTemplate || "");
+  const [geminiKeyInput, setGeminiKeyInput] = useState(getGeminiApiKey());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -454,6 +456,42 @@ export default function SettingsModule({
               >
                 <Moon className="w-4 h-4 text-purple-300" />
                 <span>Dark Mode</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Gemini AI Key Card */}
+          <div className="glass-card p-6 border-l-4 border-l-[#80237E] space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-800 uppercase tracking-wide flex items-center space-x-1.5">
+                <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                <span>Binti (Google Gemini)</span>
+              </span>
+              <span className="text-[10px] bg-purple-100 text-[#80237E] font-bold px-2 py-0.5 rounded-full">
+                Gemini 2.5 Flash
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              Enter your Google Gemini API Key to enable Binti assistant chat, automated follow-up email generation, and terms recommendations.
+            </p>
+            <div className="space-y-2">
+              <input
+                type="password"
+                value={geminiKeyInput}
+                onChange={(e) => setGeminiKeyInput(e.target.value)}
+                placeholder="AIzaSy..."
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[#80237E]/20"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setGeminiApiKey(geminiKeyInput);
+                  showToast("Google Gemini API Key updated successfully!");
+                }}
+                className="w-full py-2.5 px-4 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-95 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 shadow"
+              >
+                <Key className="w-4 h-4 text-[#D4AF37]" />
+                <span>Save Gemini API Key</span>
               </button>
             </div>
           </div>

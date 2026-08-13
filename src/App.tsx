@@ -14,6 +14,7 @@ import BintiAiAssistantModal from "./components/BintiAiAssistantModal.js";
 import { loginBiometric } from "./utils/webauthn.js";
 import { getApiUrl } from "./config/api.js";
 import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "../../shared/types.js";
+import { supabase, isSupabaseConfigured } from "./services/supabaseClient.js";
 
 export default function App() {
   // Authentication States
@@ -118,27 +119,106 @@ export default function App() {
     unread: boolean;
   }>>([]);
 
-  // Fetch all data from Express API
+  // Fetch all data directly from Supabase PostgreSQL (Zero Cold Start!)
   const fetchAllData = async () => {
     setLoading(true);
     try {
-      const [resClients, resProducts, resQuotes, resInvoices, resSettings] = await Promise.all([
-        fetch(getApiUrl("/api/clients")).then(r => r.json()),
-        fetch(getApiUrl("/api/products")).then(r => r.json()),
-        fetch(getApiUrl("/api/quotes")).then(r => r.json()),
-        fetch(getApiUrl("/api/invoices")).then(r => r.json()),
-        fetch(getApiUrl("/api/settings")).then(r => r.json())
-      ]);
+      let resClients: any[] = [];
+      let resProducts: any[] = [];
+      let resQuotes: any[] = [];
+      let resInvoices: any[] = [];
+      let resSettings: any = null;
 
-      const safeClients = Array.isArray(resClients) ? resClients : [];
-      const safeProducts = Array.isArray(resProducts) ? resProducts : [];
-      const safeQuotes = Array.isArray(resQuotes) ? resQuotes : [];
-      const safeInvoices = Array.isArray(resInvoices) ? resInvoices : [];
+      if (isSupabaseConfigured) {
+        const [cRes, pRes, qRes, iRes, sRes] = await Promise.all([
+          supabase.from('clients').select('*'),
+          supabase.from('products').select('*'),
+          supabase.from('quotes').select('*'),
+          supabase.from('invoices').select('*'),
+          supabase.from('company_settings').select('*').limit(1).maybeSingle()
+        ]);
 
-      setClients(safeClients);
-      setProducts(safeProducts);
-      setQuotes(safeQuotes);
-      setInvoices(safeInvoices);
+        resClients = (cRes.data || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          email: c.email || '',
+          phone: c.phone || '',
+          company: c.company_name || '',
+          taxNumber: c.tax_number || '',
+          address: c.address || '',
+          status: c.status || 'active',
+          revenue: Number(c.revenue) || 0
+        }));
+
+        resProducts = (pRes.data || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          category: p.category || 'Decor & Event Hire',
+          description: p.description || '',
+          unitPrice: Number(p.price) || 0,
+          unitType: p.unit || 'day',
+          taxRate: 16,
+          status: p.status || 'active'
+        }));
+
+        resQuotes = (qRes.data || []).map((q: any) => ({
+          id: q.id,
+          quoteNumber: q.quote_number,
+          clientName: q.client_name,
+          grandTotal: Number(q.grand_total) || 0,
+          status: q.status || 'draft',
+          items: q.items || [],
+          notes: q.notes || ''
+        }));
+
+        resInvoices = (iRes.data || []).map((inv: any) => ({
+          id: inv.id,
+          invoiceNumber: inv.invoice_number,
+          clientName: inv.client_name,
+          grandTotal: Number(inv.grand_total) || 0,
+          balanceRemaining: Number(inv.balance_remaining) || 0,
+          status: inv.status || 'unpaid',
+          items: inv.items || [],
+          notes: inv.notes || '',
+          payments: []
+        }));
+
+        if (sRes.data) {
+          resSettings = {
+            companyName: sRes.data.company_name || companySettings.companyName,
+            taxNumber: sRes.data.tax_number || companySettings.taxNumber,
+            address: sRes.data.address || companySettings.address,
+            bankDetails: sRes.data.bank_details || companySettings.bankDetails,
+            currency: sRes.data.currency || companySettings.currency,
+            termsTemplate: sRes.data.terms_template || companySettings.termsTemplate
+          };
+        }
+      }
+
+      // Fallback to Express backend if Supabase returned zero records
+      if (resClients.length === 0 && resInvoices.length === 0) {
+        try {
+          const [bkC, bkP, bkQ, bkI, bkS] = await Promise.all([
+            fetch(getApiUrl("/api/clients")).then(r => r.json()).catch(() => []),
+            fetch(getApiUrl("/api/products")).then(r => r.json()).catch(() => []),
+            fetch(getApiUrl("/api/quotes")).then(r => r.json()).catch(() => []),
+            fetch(getApiUrl("/api/invoices")).then(r => r.json()).catch(() => []),
+            fetch(getApiUrl("/api/settings")).then(r => r.json()).catch(() => null)
+          ]);
+          if (Array.isArray(bkC) && bkC.length > 0) resClients = bkC;
+          if (Array.isArray(bkP) && bkP.length > 0) resProducts = bkP;
+          if (Array.isArray(bkQ) && bkQ.length > 0) resQuotes = bkQ;
+          if (Array.isArray(bkI) && bkI.length > 0) resInvoices = bkI;
+          if (bkS) resSettings = bkS;
+        } catch (bkErr) {
+          console.warn("Backend fallback skipped.");
+        }
+      }
+
+      setClients(resClients);
+      if (resProducts.length > 0) setProducts(resProducts);
+      setQuotes(resQuotes);
+      setInvoices(resInvoices);
       if (resSettings && resSettings.currency) {
         setCompanySettings(resSettings);
       }
@@ -147,7 +227,7 @@ export default function App() {
       const generatedAlerts: typeof notifications = [];
       
       // Check overdue invoices
-      safeInvoices.forEach((inv: Invoice) => {
+      resInvoices.forEach((inv: Invoice) => {
         if (inv.status === "overdue" || (inv.status !== "paid" && inv.dueDate && new Date(inv.dueDate) < new Date())) {
           generatedAlerts.push({
             id: `notif-overdue-${inv.id}`,
@@ -161,7 +241,7 @@ export default function App() {
       });
 
       // Recent payment notification
-      safeInvoices.forEach((inv: Invoice) => {
+      resInvoices.forEach((inv: Invoice) => {
         (inv.payments || []).forEach((p, idx) => {
           generatedAlerts.push({
             id: `notif-pm-${inv.id}-${idx}`,
@@ -175,7 +255,7 @@ export default function App() {
       });
 
       // Upcoming due date warnings
-      (resInvoices || []).forEach((inv: Invoice) => {
+      resInvoices.forEach((inv: Invoice) => {
         if (inv.status === "pending") {
           generatedAlerts.push({
             id: `notif-due-${inv.id}`,

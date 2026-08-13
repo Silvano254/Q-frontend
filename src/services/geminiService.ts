@@ -1,7 +1,6 @@
 /**
  * Gemini Service for Binti Assistant
- * All API key processing is strictly handled on the backend (Render).
- * Frontend components invoke this service, which communicates directly with backend /api/ai endpoints.
+ * Communicates with zero-cold-start Supabase Edge Function & Backend REST Endpoints.
  */
 import { getApiUrl } from "../config/api";
 
@@ -21,14 +20,39 @@ export interface ChatMessage {
   timestamp?: string;
 }
 
+const SUPABASE_EDGE_FUNCTION_URL = 'https://ltinjyvcrgwcvudrnfby.supabase.co/functions/v1/ai-chat';
+
 /**
- * Send a chat message or prompt to Binti via Backend API (Render server handles GEMINI_API_KEY).
+ * Send a chat message or prompt to Binti via Supabase Edge Function (Instant) or Backend API fallback.
  */
 export async function askGeminiAssistant(
   prompt: string,
   chatHistory: ChatMessage[] = [],
   saasContext?: SaaSContext
 ): Promise<string> {
+  // 1. Try Zero-Cold-Start Supabase Edge Function first
+  try {
+    const res = await fetch(SUPABASE_EDGE_FUNCTION_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt,
+        history: chatHistory,
+        context: saasContext
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.reply) {
+        return data.reply;
+      }
+    }
+  } catch (supabaseEdgeErr) {
+    console.warn("Supabase Edge Function call initializing, trying secondary endpoint...", supabaseEdgeErr);
+  }
+
+  // 2. Try Render Backend REST API
   try {
     const backendUrl = getApiUrl("/api/ai/chat");
     const res = await fetch(backendUrl, {
@@ -47,25 +71,23 @@ export async function askGeminiAssistant(
       return data.reply;
     }
 
-    // Explicit Auth & Rate Limit Alerts
     if (res.status === 401) {
-      return `⚠️ **Authentication Required (401)**\n\nPlease ensure your \`GEMINI_API_KEY\` environment variable is configured in your Render backend settings.`;
+      return `⚠️ **Authentication Required (401)**\n\nPlease ensure your \`GEMINI_API_KEY\` environment variable is configured in your backend settings.`;
     }
 
     if (res.status === 429) {
       return `⚠️ **Rate Limit Exceeded (429)**\n\nGemini API request limit reached. Please wait a moment and try again.`;
     }
-
   } catch (backendErr) {
-    console.warn("Backend /api/ai/chat call failed, using intelligent fallback...", backendErr);
+    console.warn("Backend /api/ai/chat call failed, using intelligent local fallback...", backendErr);
   }
 
-  // Seamless fallback responder if model endpoint is updating
+  // 3. Instant local fallback responder
   return getLocalIntelligentFallback(prompt, saasContext);
 }
 
 /**
- * High-quality fallback response generator when backend service is initializing.
+ * High-quality fallback response generator when API endpoints are initializing.
  */
 function getLocalIntelligentFallback(prompt: string, context?: SaaSContext): string {
   const p = prompt.toLowerCase();
@@ -101,33 +123,6 @@ All system operations and billing ledgers are currently up to date.`;
     return `To locate a client profile:
 1. Use the **Global Search Bar** at the top header.
 2. Or click **Clients** in the left sidebar menu to view your full address directory, corporate profiles, and billing timelines.`;
-  }
-
-  // Converting Quotes
-  if (p.includes("convert") && (p.includes("quote") || p.includes("quotation"))) {
-    return `To convert a Quotation into a Tax Invoice:
-1. Navigate to the **Quotes Module** from the left sidebar.
-2. Locate the target proposal in your list.
-3. Click the **Actions** dropdown or row options and select **"Convert to Invoice"**.
-4. Review the generated Tax Invoice with pre-filled line items, tax rates, and client details, then click **Save & Issue**.`;
-  }
-
-  // Email drafting
-  if (p.includes("email") || p.includes("reminder") || p.includes("draft")) {
-    return `Here is a professional email template you can copy:
-
-**Subject:** Follow-up regarding Quotation / Invoice — ${context?.companyName || "Binti Events"}
-
-Dear Valued Client,
-
-We hope this message finds you well. 
-
-We are writing to follow up on your recent quotation with Binti Events. Please let us know if you have any questions or require any adjustments to your event setup package.
-
-We look forward to curating an extraordinary event experience for you!
-
-Warm regards,  
-**${context?.companyName || "Binti Events Team"}**`;
   }
 
   // Terms & Policies

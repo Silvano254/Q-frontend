@@ -18,7 +18,7 @@ import {
   Copy
 } from "lucide-react";
 import { jsPDF } from "jspdf";
-import { Quote, Client, ProductService, BillingItem } from "../../../shared/types.js";
+import { Quote, Client, ProductService, BillingItem } from "../types.js";
 import { buildQuoteWhatsAppMessage, openWhatsApp } from "../utils/whatsapp.js";
 import { buildQuoteEmailContent, openMailClient } from "../utils/email.js";
 

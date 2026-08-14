@@ -22,7 +22,7 @@ import {
   Copy
 } from "lucide-react";
 import { jsPDF } from "jspdf";
-import { Invoice, Client, ProductService, BillingItem, PaymentRecord } from "../../../shared/types.js";
+import { Invoice, Client, ProductService, BillingItem, PaymentRecord } from "../types.js";
 import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp.js";
 import { buildInvoiceEmailContent, openMailClient } from "../utils/email.js";
 

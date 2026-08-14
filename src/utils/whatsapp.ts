@@ -1,4 +1,4 @@
-import { Invoice, Quote, Client, CompanySettings } from "../../../shared/types.js";
+import { Invoice, Quote, Client, CompanySettings } from "../types.js";
 
 /**
  * Normalizes phone numbers to international format (e.g. 0712345678 -> 254712345678)

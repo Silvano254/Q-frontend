@@ -13,7 +13,7 @@ import SettingsModule from "./components/SettingsModule.js";
 import BintiAiAssistantModal from "./components/BintiAiAssistantModal.js";
 import { loginBiometric } from "./utils/webauthn.js";
 import { getApiUrl } from "./config/api.js";
-import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "../../shared/types.js";
+import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "./types.js";
 import { supabase, isSupabaseConfigured } from "./services/supabaseClient.js";
 
 export default function App() {

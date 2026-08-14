@@ -1,4 +1,4 @@
-import { Invoice, Quote, Client, CompanySettings } from "../../../shared/types.js";
+import { Invoice, Quote, Client, CompanySettings } from "../types.js";
 
 /**
  * Builds concise email subject and body for an Invoice

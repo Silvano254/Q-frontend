@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { CreditCard, Search, DollarSign, Calendar, Download, Eye, Receipt, FileSpreadsheet } from "lucide-react";
-import { Invoice, PaymentRecord } from "../../../shared/types.js";
+import { Invoice, PaymentRecord } from "../types.js";
 
 interface PaymentsModuleProps {
   invoices: Invoice[];

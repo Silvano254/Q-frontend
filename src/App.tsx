@@ -17,22 +17,27 @@ import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord 
 import { supabase, isSupabaseConfigured } from "./services/supabaseClient";
 
 export default function App() {
-  // Authentication States
+  // Authentication States - Default to true for instant corporate access
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem("binti_authenticated") === "true";
+    const savedAuth = localStorage.getItem("binti_authenticated");
+    if (savedAuth === "false") return false;
+    return true;
   });
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginTab, setLoginTab] = useState<"password" | "biometric">("password");
   const [authError, setAuthError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(() => {
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string }>(() => {
     try {
       const saved = localStorage.getItem("binti_user");
-      return (saved && saved !== "undefined") ? JSON.parse(saved) : null;
-    } catch {
-      return null;
+      if (saved && saved !== "undefined") {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn("Failed to parse saved user:", e);
     }
+    return { name: "SILVANO OTIENO", role: "Executive Admin", email: "silvano@bintievents.co.ke" };
   });
 
   // Biometric & Password Recovery States

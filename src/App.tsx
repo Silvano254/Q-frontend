@@ -204,47 +204,11 @@ export default function App() {
         }
       }
 
-      // Fallback to demo dataset if database returns zero records
-      if (resClients.length === 0 && resInvoices.length === 0) {
-        try {
-          const [bkC, bkP, bkQ, bkI, bkS] = await Promise.all([
-            fetch(getApiUrl("/api/clients")).then(r => r.json()).catch(() => []),
-            fetch(getApiUrl("/api/products")).then(r => r.json()).catch(() => []),
-            fetch(getApiUrl("/api/quotes")).then(r => r.json()).catch(() => []),
-            fetch(getApiUrl("/api/invoices")).then(r => r.json()).catch(() => []),
-            fetch(getApiUrl("/api/settings")).then(r => r.json()).catch(() => null)
-          ]);
-          if (Array.isArray(bkC) && bkC.length > 0) resClients = bkC;
-          if (Array.isArray(bkP) && bkP.length > 0) resProducts = bkP;
-          if (Array.isArray(bkQ) && bkQ.length > 0) resQuotes = bkQ;
-          if (Array.isArray(bkI) && bkI.length > 0) resInvoices = bkI;
-          if (bkS) resSettings = bkS;
-        } catch (bkErr) {
-          console.warn("Backend fallback skipped.");
-        }
-      }
-
-      // Default Corporate Binti Demo dataset if both Supabase and Render returned empty
-      if (resClients.length === 0 && resInvoices.length === 0) {
-        resClients = [
-          { id: "c1", name: "Safari Ventures", company: "Safari Ventures Ltd", email: "events@safariventures.com", phone: "+254 722 100 200", taxNumber: "P051112223A", address: "Westlands, Nairobi", status: "active", revenue: 450000 },
-          { id: "c2", name: "Amara & Ken", company: "Private Wedding", email: "amara.ken2026@gmail.com", phone: "+254 733 400 500", taxNumber: "", address: "Karen, Nairobi", status: "active", revenue: 320120 },
-          { id: "c3", name: "Apex Technology", company: "Apex Tech Africa", email: "finance@apextech.co.ke", phone: "+254 711 900 800", taxNumber: "P051999888B", address: "Kilimani, Nairobi", status: "active", revenue: 280000 },
-          { id: "c4", name: "Zawadi Initiative", company: "Zawadi Foundation", email: "info@zawadi.org", phone: "+254 700 333 444", taxNumber: "P051444333C", address: "Lavington, Nairobi", status: "active", revenue: 260000 }
-        ];
-        resInvoices = [
-          { id: "inv1", invoiceNumber: "INV-001", clientName: "Safari Ventures", clientId: "c1", issueDate: "2026-01-10", dueDate: "2026-01-24", grandTotal: 450000, balanceRemaining: 0, status: "paid", items: [{ id: "i1", description: "Corporate Gala Dinner & Stretch Tent", quantity: 1, unitPrice: 450000, discount: 0, tax: 16, amount: 450000 }], payments: [{ id: "p1", paymentDate: "2026-01-15", paymentMethod: "bank_transfer", amountPaid: 450000, referenceNumber: "TXN-SF8829" }] },
-          { id: "inv2", invoiceNumber: "INV-002", clientName: "Amara & Ken", clientId: "c2", issueDate: "2026-01-18", dueDate: "2026-02-01", grandTotal: 320120, balanceRemaining: 0, status: "paid", items: [{ id: "i2", description: "Traditional Wedding Pergola & Tabletop Styling", quantity: 1, unitPrice: 320120, discount: 0, tax: 16, amount: 320120 }], payments: [{ id: "p2", paymentDate: "2026-01-22", paymentMethod: "mobile_transfer", amountPaid: 320120, referenceNumber: "MP-QW7712" }] },
-          { id: "inv3", invoiceNumber: "INV-003", clientName: "Apex Technology", clientId: "c3", issueDate: "2026-02-01", dueDate: "2026-02-15", grandTotal: 280000, balanceRemaining: 0, status: "paid", items: [{ id: "i3", description: "Product Launch Lighting, Stage & Sound Rigging", quantity: 1, unitPrice: 280000, discount: 0, tax: 16, amount: 280000 }], payments: [{ id: "p3", paymentDate: "2026-02-05", paymentMethod: "bank_transfer", amountPaid: 280000, referenceNumber: "TXN-[#APX009]" }] },
-          { id: "inv4", invoiceNumber: "INV-004", clientName: "Zawadi Initiative", clientId: "c4", issueDate: "2026-02-05", dueDate: "2026-02-19", grandTotal: 260000, balanceRemaining: 0, status: "paid", items: [{ id: "i4", description: "End of Year Party Cheese Tent & Ambient Lighting", quantity: 1, unitPrice: 260000, discount: 0, tax: 16, amount: 260000 }], payments: [{ id: "p4", paymentDate: "2026-02-08", paymentMethod: "cheque", amountPaid: 260000, referenceNumber: "CHQ-001299" }] }
-        ];
-        resQuotes = [
-          { id: "q1", quoteNumber: "QT-2026-001", clientName: "Safari Ventures", clientId: "c1", quoteDate: "2026-01-05", expiryDate: "2026-01-20", grandTotal: 450000, status: "converted", items: [{ id: "qi1", description: "Corporate Gala Dinner & Stretch Tent", quantity: 1, unitPrice: 450000, discount: 0, tax: 16, amount: 450000 }] },
-          { id: "q2", quoteNumber: "QT-2026-002", clientName: "Amara & Ken", clientId: "c2", quoteDate: "2026-01-12", expiryDate: "2026-01-27", grandTotal: 320120, status: "converted", items: [{ id: "qi2", description: "Traditional Wedding Pergola & Tabletop Styling", quantity: 1, unitPrice: 320120, discount: 0, tax: 16, amount: 320120 }] },
-          { id: "q3", quoteNumber: "QT-2026-003", clientName: "Apex Technology", clientId: "c3", quoteDate: "2026-01-25", expiryDate: "2026-02-10", grandTotal: 280000, status: "converted", items: [{ id: "qi3", description: "Product Launch Lighting, Stage & Sound Rigging", quantity: 1, unitPrice: 280000, discount: 0, tax: 16, amount: 280000 }] },
-          { id: "q4", quoteNumber: "QT-2026-004", clientName: "Zawadi Initiative", clientId: "c4", quoteDate: "2026-02-01", expiryDate: "2026-02-16", grandTotal: 260000, status: "converted", items: [{ id: "qi4", description: "End of Year Party Cheese Tent & Ambient Lighting", quantity: 1, unitPrice: 260000, discount: 0, tax: 16, amount: 260000 }] }
-        ];
-      }
+      // Strictly set state directly from Supabase PostgreSQL tables (No Mock Data)
+      setClients(resClients);
+      setProducts(resProducts);
+      setQuotes(resQuotes);
+      setInvoices(resInvoices);
 
       setClients(resClients);
       if (resProducts.length > 0) setProducts(resProducts);

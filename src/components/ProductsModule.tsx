@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ShoppingBag, Plus, Search, Trash2, Edit, ChevronLeft, Layers, Percent, DollarSign } from "lucide-react";
-import { ProductService } from "../types.js";
+import { ProductService } from "../types";
 
 interface ProductsModuleProps {
   products: ProductService[];

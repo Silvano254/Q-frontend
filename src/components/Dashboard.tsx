@@ -13,7 +13,7 @@ import {
   Activity,
   ArrowRight
 } from "lucide-react";
-import { Client, Quote, Invoice } from "../types.js";
+import { Client, Quote, Invoice } from "../types";
 import { askGeminiAssistant } from "../services/geminiService";
 
 interface DashboardProps {

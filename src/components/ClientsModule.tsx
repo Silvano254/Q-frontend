@@ -18,7 +18,7 @@ import {
   UserCheck,
   Award
 } from "lucide-react";
-import { Client, Quote, Invoice } from "../types.js";
+import { Client, Quote, Invoice } from "../types";
 
 interface ClientsModuleProps {
   clients: Client[];

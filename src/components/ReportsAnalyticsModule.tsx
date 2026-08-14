@@ -29,7 +29,7 @@ import {
   AreaChart,
   Area
 } from "recharts";
-import { Invoice, Quote, Client, ProductService } from "../types.js";
+import { Invoice, Quote, Client, ProductService } from "../types";
 
 interface ReportsAnalyticsModuleProps {
   invoices: Invoice[];

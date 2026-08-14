@@ -1,20 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { Sparkles, Shield, User, Lock, ArrowRight, RefreshCw, AlertTriangle, Eye, EyeOff, Fingerprint, KeyRound, X, CheckCircle2 } from "lucide-react";
-import Sidebar from "./components/Sidebar.js";
-import TopBar from "./components/TopBar.js";
-import Dashboard from "./components/Dashboard.js";
-import QuotesModule from "./components/QuotesModule.js";
-import InvoicesModule from "./components/InvoicesModule.js";
-import ClientsModule from "./components/ClientsModule.js";
-import ProductsModule from "./components/ProductsModule.js";
-import PaymentsModule from "./components/PaymentsModule.js";
-import ReportsAnalyticsModule from "./components/ReportsAnalyticsModule.js";
-import SettingsModule from "./components/SettingsModule.js";
-import BintiAiAssistantModal from "./components/BintiAiAssistantModal.js";
-import { loginBiometric } from "./utils/webauthn.js";
-import { getApiUrl } from "./config/api.js";
-import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "./types.js";
-import { supabase, isSupabaseConfigured } from "./services/supabaseClient.js";
+import Sidebar from "./components/Sidebar";
+import TopBar from "./components/TopBar";
+import Dashboard from "./components/Dashboard";
+import QuotesModule from "./components/QuotesModule";
+import InvoicesModule from "./components/InvoicesModule";
+import ClientsModule from "./components/ClientsModule";
+import ProductsModule from "./components/ProductsModule";
+import PaymentsModule from "./components/PaymentsModule";
+import ReportsAnalyticsModule from "./components/ReportsAnalyticsModule";
+import SettingsModule from "./components/SettingsModule";
+import BintiAiAssistantModal from "./components/BintiAiAssistantModal";
+import { loginBiometric } from "./utils/webauthn";
+import { getApiUrl } from "./config/api";
+import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "./types";
+import { supabase, isSupabaseConfigured } from "./services/supabaseClient";
 
 export default function App() {
   // Authentication States

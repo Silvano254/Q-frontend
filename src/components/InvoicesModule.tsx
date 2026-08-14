@@ -22,9 +22,9 @@ import {
   Copy
 } from "lucide-react";
 import { jsPDF } from "jspdf";
-import { Invoice, Client, ProductService, BillingItem, PaymentRecord } from "../types.js";
-import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp.js";
-import { buildInvoiceEmailContent, openMailClient } from "../utils/email.js";
+import { Invoice, Client, ProductService, BillingItem, PaymentRecord } from "../types";
+import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
+import { buildInvoiceEmailContent, openMailClient } from "../utils/email";
 
 const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">

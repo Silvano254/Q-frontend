@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key } from "lucide-react";
-import { registerBiometric } from "../utils/webauthn.js";
-import { getApiUrl } from "../config/api.js";
-import { CompanySettings } from "../types.js";
+import { registerBiometric } from "../utils/webauthn";
+import { getApiUrl } from "../config/api";
+import { CompanySettings } from "../types";
 
 interface SettingsModuleProps {
   companySettings: CompanySettings;

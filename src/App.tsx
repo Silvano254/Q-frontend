@@ -27,8 +27,12 @@ export default function App() {
   const [loginTab, setLoginTab] = useState<"password" | "biometric">("password");
   const [authError, setAuthError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(() => {
-    const saved = localStorage.getItem("binti_user");
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem("binti_user");
+      return (saved && saved !== "undefined") ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
   // Biometric & Password Recovery States

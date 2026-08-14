@@ -34,7 +34,11 @@ export async function askGeminiAssistant(
   try {
     const res = await fetch(SUPABASE_EDGE_FUNCTION_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": "sb_publishable_0LaJxeEG6eXw6gs27HUd3Q__z1Dy-Xo",
+        "Authorization": "Bearer sb_publishable_0LaJxeEG6eXw6gs27HUd3Q__z1Dy-Xo"
+      },
       body: JSON.stringify({
         prompt,
         history: chatHistory,

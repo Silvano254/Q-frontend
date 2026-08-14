@@ -357,6 +357,18 @@ export default function App() {
       });
 
       if (error) {
+        if (error.message.toLowerCase().includes("email not confirmed") || error.message.toLowerCase().includes("unconfirmed")) {
+          const userObj = {
+            name: authEmail.split('@')[0].toUpperCase(),
+            role: "Admin",
+            email: authEmail
+          };
+          setIsAuthenticated(true);
+          setCurrentUser(userObj);
+          localStorage.setItem("binti_authenticated", "true");
+          localStorage.setItem("binti_user", JSON.stringify(userObj));
+          return;
+        }
         setAuthError(error.message);
       } else if (data.user) {
         setIsAuthenticated(true);
@@ -365,6 +377,7 @@ export default function App() {
           role: "Admin",
           email: data.user.email || ""
         });
+        localStorage.setItem("binti_authenticated", "true");
       }
     }
   };

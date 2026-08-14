@@ -992,7 +992,7 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  onClick={handleStartBiometricLogin}
+                  onClick={handleBiometricLoginSubmit}
                   title="Biometric Fingerprint / Passkey Login"
                   className="w-12 h-12 min-h-[48px] shrink-0 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-2xl flex items-center justify-center text-[#80237E] shadow-sm transition-all active:scale-95"
                 >

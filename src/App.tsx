@@ -17,18 +17,16 @@ import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord 
 import { supabase, isSupabaseConfigured } from "./services/supabaseClient";
 
 export default function App() {
-  // Authentication States - Default to true for instant corporate access
+  // Authentication States - Real Corporate Login Authentication Required
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    const savedAuth = localStorage.getItem("binti_authenticated");
-    if (savedAuth === "false") return false;
-    return true;
+    return localStorage.getItem("binti_authenticated") === "true";
   });
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loginTab, setLoginTab] = useState<"password" | "biometric">("password");
   const [authError, setAuthError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string }>(() => {
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(() => {
     try {
       const saved = localStorage.getItem("binti_user");
       if (saved && saved !== "undefined") {
@@ -37,7 +35,7 @@ export default function App() {
     } catch (e) {
       console.warn("Failed to parse saved user:", e);
     }
-    return { name: "SILVANO OTIENO", role: "Executive Admin", email: "silvano@bintievents.co.ke" };
+    return null;
   });
 
   // Biometric & Password Recovery States
@@ -204,35 +202,7 @@ export default function App() {
         }
       }
 
-      // Merge with local storage cache so locally created items never disappear
-      try {
-        const localC = JSON.parse(localStorage.getItem("binti_local_clients") || "[]");
-        const localP = JSON.parse(localStorage.getItem("binti_local_products") || "[]");
-        const localQ = JSON.parse(localStorage.getItem("binti_local_quotes") || "[]");
-        const localI = JSON.parse(localStorage.getItem("binti_local_invoices") || "[]");
-
-        localC.forEach((c: any) => {
-          if (!resClients.some(existing => existing.id === c.id)) resClients.push(c);
-        });
-        localP.forEach((p: any) => {
-          if (!resProducts.some(existing => existing.id === p.id)) resProducts.push(p);
-        });
-        localQ.forEach((q: any) => {
-          if (!resQuotes.some(existing => existing.id === q.id)) resQuotes.push(q);
-        });
-        localI.forEach((i: any) => {
-          if (!resInvoices.some(existing => existing.id === i.id)) resInvoices.push(i);
-        });
-      } catch (lErr) {
-        console.warn("Local storage cache merge skipped:", lErr);
-      }
-
-      // Strictly set state directly from Supabase PostgreSQL tables (No Mock Data)
-      setClients(resClients);
-      setProducts(resProducts);
-      setQuotes(resQuotes);
-      setInvoices(resInvoices);
-
+      // Strictly set state directly from Supabase PostgreSQL tables (100% Real Database)
       setClients(resClients);
       if (resProducts.length > 0) setProducts(resProducts);
       setQuotes(resQuotes);

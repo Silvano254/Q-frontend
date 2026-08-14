@@ -17,26 +17,50 @@ import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord 
 import { supabase, isSupabaseConfigured } from "./services/supabaseClient";
 
 export default function App() {
-  // Authentication States - Real Corporate Login Authentication Required
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem("binti_authenticated") === "true";
-  });
+  // 100% Real Supabase Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(null);
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loginTab, setLoginTab] = useState<"password" | "biometric">("password");
+  const [isSignUpMode, setIsSignUpMode] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(() => {
-    try {
-      const saved = localStorage.getItem("binti_user");
-      if (saved && saved !== "undefined") {
-        return JSON.parse(saved);
-      }
-    } catch (e) {
-      console.warn("Failed to parse saved user:", e);
+  const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
+
+  // Check Real Supabase Auth Session on Mount & Listen to Changes
+  useEffect(() => {
+    if (isSupabaseConfigured) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          setIsAuthenticated(true);
+          setCurrentUser({
+            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0].toUpperCase() || "ADMIN",
+            role: "Admin",
+            email: session.user.email || ""
+          });
+        } else {
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        }
+      });
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          setIsAuthenticated(true);
+          setCurrentUser({
+            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0].toUpperCase() || "ADMIN",
+            role: "Admin",
+            email: session.user.email || ""
+          });
+        } else {
+          setIsAuthenticated(false);
+          setCurrentUser(null);
+        }
+      });
+
+      return () => subscription.unsubscribe();
     }
-    return null;
-  });
+  }, []);
 
   // Biometric & Password Recovery States
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
@@ -296,63 +320,65 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
-  // LOGIN OPERATION VIA SUPABASE & DIRECT CORPORATE AUTH (No Render Dependency!)
+  // 100% REAL SUPABASE AUTHENTICATION SUBMIT HANDLER (Sign In / Sign Up)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
+    setAuthSuccessMsg(null);
 
-    // Try Supabase Auth first
-    if (isSupabaseConfigured) {
-      try {
-        const { data: sData, error: sErr } = await supabase.auth.signInWithPassword({
-          email: authEmail,
-          password: authPassword
-        });
-
-        if (!sErr && sData.user) {
-          const userObj = {
-            name: sData.user.user_metadata?.full_name || authEmail.split('@')[0] || "Binti Administrator",
-            role: "Admin",
-            email: sData.user.email || authEmail
-          };
-          setIsAuthenticated(true);
-          setCurrentUser(userObj);
-          localStorage.setItem("binti_authenticated", "true");
-          localStorage.setItem("binti_user", JSON.stringify(userObj));
-          return;
-        }
-      } catch (sAuthErr) {
-        console.warn("Supabase Auth sign-in skipped:", sAuthErr);
-      }
-    }
-
-    // Direct corporate credential validation (No cold starts!)
-    if (authEmail && authPassword && authPassword.length >= 4) {
-      const userObj = {
-        name: authEmail.split('@')[0].toUpperCase(),
-        role: "Admin",
-        email: authEmail
-      };
-      setIsAuthenticated(true);
-      setCurrentUser(userObj);
-      localStorage.setItem("binti_authenticated", "true");
-      localStorage.setItem("binti_user", JSON.stringify(userObj));
+    if (!isSupabaseConfigured) {
+      setAuthError("Supabase authentication is not configured.");
       return;
     }
 
-    setAuthError("Invalid corporate credentials. Please enter a valid email and password.");
+    if (isSignUpMode) {
+      const { data, error } = await supabase.auth.signUp({
+        email: authEmail,
+        password: authPassword
+      });
+
+      if (error) {
+        setAuthError(error.message);
+      } else if (data.user) {
+        setAuthSuccessMsg("Account created! Logging you in...");
+        if (data.session) {
+          setIsAuthenticated(true);
+          setCurrentUser({
+            name: data.user.email?.split('@')[0].toUpperCase() || "ADMIN",
+            role: "Admin",
+            email: data.user.email || ""
+          });
+        }
+      }
+    } else {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password: authPassword
+      });
+
+      if (error) {
+        setAuthError(error.message);
+      } else if (data.user) {
+        setIsAuthenticated(true);
+        setCurrentUser({
+          name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0].toUpperCase() || "ADMIN",
+          role: "Admin",
+          email: data.user.email || ""
+        });
+      }
+    }
   };
 
   // LOGOUT OPERATION
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (isSupabaseConfigured) {
+      await supabase.auth.signOut().catch(() => {});
+    }
     setIsAuthenticated(false);
     setCurrentUser(null);
     localStorage.removeItem("binti_authenticated");
     localStorage.removeItem("binti_user");
     localStorage.removeItem("binti_token");
-    if (isSupabaseConfigured) {
-      supabase.auth.signOut().catch(() => {});
-    }
   };
 
   // BIOMETRIC FINGERPRINT LOGIN HANDLER
@@ -876,12 +902,20 @@ export default function App() {
               </div>
             )}
 
-            {/* 3. Form elements stacked vertically spanning ~85-90% of available width */}
+            {/* Success Notification */}
+            {authSuccessMsg && (
+              <div className="mb-6 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start space-x-2.5 text-xs text-emerald-700 animate-fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                <span className="font-medium leading-normal">{authSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* 3. Form elements stacked vertically */}
             <form onSubmit={handleLoginSubmit} className="w-[92%] sm:w-[90%] mx-auto space-y-6">
-              {/* Field 1: Username / Email */}
+              {/* Field 1: Email */}
               <div>
                 <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-2">
-                  Username
+                  Corporate Email
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-gray-400">
@@ -890,7 +924,7 @@ export default function App() {
                   <input
                     type="email"
                     required
-                    placeholder="Enter your username"
+                    placeholder="name@bintievents.co.ke"
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-3.5 min-h-[48px] border border-gray-200 rounded-2xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] font-semibold text-gray-800 bg-gray-50/50 transition-all"
@@ -938,13 +972,31 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 4. Action Row: Main prominent button + Biometric Passkey quick access button (matching reference) */}
+              {/* Sign In vs Sign Up Mode Toggle */}
+              <div className="flex items-center justify-between text-xs pt-1">
+                <span className="text-gray-500 font-medium">
+                  {isSignUpMode ? "Already have a corporate account?" : "Need a new corporate account?"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUpMode(prev => !prev);
+                    setAuthError(null);
+                    setAuthSuccessMsg(null);
+                  }}
+                  className="font-bold text-[#80237E] hover:underline"
+                >
+                  {isSignUpMode ? "Sign In" : "Create Account"}
+                </button>
+              </div>
+
+              {/* 4. Action Row */}
               <div className="flex items-center space-x-3 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 min-h-[48px] py-3.5 bg-gradient-to-r from-[#80237E] via-[#6B46C1] to-[#55369b] hover:opacity-95 text-white rounded-2xl text-xs sm:text-sm font-extrabold tracking-wide transition-all shadow-lg shadow-[#80237E]/25 flex items-center justify-center space-x-2 active:scale-[0.99]"
+                  className="flex-1 min-h-[48px] py-3.5 bg-gradient-to-r from-[#80237E] via-[#6B46C1] to-[#55369b] hover:opacity-95 text-[#ffffff] rounded-2xl text-xs sm:text-sm font-extrabold tracking-wide transition-all shadow-lg shadow-[#80237E]/25 flex items-center justify-center space-x-2 active:scale-[0.99]"
                 >
-                  <span>Sign In</span>
+                  <span>{isSignUpMode ? "Create Account" : "Sign In"}</span>
                   <ArrowRight className="w-4 h-4 text-[#EAB308]" />
                 </button>
                 <button

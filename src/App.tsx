@@ -204,6 +204,29 @@ export default function App() {
         }
       }
 
+      // Merge with local storage cache so locally created items never disappear
+      try {
+        const localC = JSON.parse(localStorage.getItem("binti_local_clients") || "[]");
+        const localP = JSON.parse(localStorage.getItem("binti_local_products") || "[]");
+        const localQ = JSON.parse(localStorage.getItem("binti_local_quotes") || "[]");
+        const localI = JSON.parse(localStorage.getItem("binti_local_invoices") || "[]");
+
+        localC.forEach((c: any) => {
+          if (!resClients.some(existing => existing.id === c.id)) resClients.push(c);
+        });
+        localP.forEach((p: any) => {
+          if (!resProducts.some(existing => existing.id === p.id)) resProducts.push(p);
+        });
+        localQ.forEach((q: any) => {
+          if (!resQuotes.some(existing => existing.id === q.id)) resQuotes.push(q);
+        });
+        localI.forEach((i: any) => {
+          if (!resInvoices.some(existing => existing.id === i.id)) resInvoices.push(i);
+        });
+      } catch (lErr) {
+        console.warn("Local storage cache merge skipped:", lErr);
+      }
+
       // Strictly set state directly from Supabase PostgreSQL tables (No Mock Data)
       setClients(resClients);
       setProducts(resProducts);

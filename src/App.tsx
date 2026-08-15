@@ -18,8 +18,14 @@ import { supabase, isSupabaseConfigured } from "./services/supabaseClient";
 
 export default function App() {
   // 100% Real Supabase Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    return localStorage.getItem("binti_authenticated") === "true";
+  });
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(() => {
+    const saved = localStorage.getItem("binti_user");
+    return saved ? JSON.parse(saved) : null;
+  });
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -32,33 +38,52 @@ export default function App() {
     if (isSupabaseConfigured) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
-          setIsAuthenticated(true);
-          setCurrentUser({
+          const userObj = {
             name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0].toUpperCase() || "ADMIN",
             role: "Admin",
             email: session.user.email || ""
-          });
+          };
+          setIsAuthenticated(true);
+          setCurrentUser(userObj);
+          localStorage.setItem("binti_authenticated", "true");
+          localStorage.setItem("binti_user", JSON.stringify(userObj));
         } else {
-          setIsAuthenticated(false);
-          setCurrentUser(null);
+          // If no active session & local storage token isn't present
+          const customToken = localStorage.getItem("binti_token");
+          if (!customToken) {
+            setIsAuthenticated(false);
+            setCurrentUser(null);
+            localStorage.removeItem("binti_authenticated");
+            localStorage.removeItem("binti_user");
+          }
         }
+        setIsAuthChecking(false);
+      }).catch(() => {
+        setIsAuthChecking(false);
       });
 
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
-          setIsAuthenticated(true);
-          setCurrentUser({
+          const userObj = {
             name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0].toUpperCase() || "ADMIN",
             role: "Admin",
             email: session.user.email || ""
-          });
-        } else {
+          };
+          setIsAuthenticated(true);
+          setCurrentUser(userObj);
+          localStorage.setItem("binti_authenticated", "true");
+          localStorage.setItem("binti_user", JSON.stringify(userObj));
+        } else if (_event === 'SIGNED_OUT') {
           setIsAuthenticated(false);
           setCurrentUser(null);
+          localStorage.removeItem("binti_authenticated");
+          localStorage.removeItem("binti_user");
         }
       });
 
       return () => subscription.unsubscribe();
+    } else {
+      setIsAuthChecking(false);
     }
   }, []);
 
@@ -879,6 +904,23 @@ export default function App() {
         return <div className="text-sm text-gray-500">Module Workspace Under Construction</div>;
     }
   };
+
+  // ==========================================
+  // AUTH INITIALIZING SPINNER (prevents login screen flash)
+  // ==========================================
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen w-full bg-slate-900 flex flex-col items-center justify-center font-sans">
+        <div className="w-16 h-16 rounded-2xl bg-white/10 p-2.5 border border-[#D4AF37]/40 shadow-xl flex items-center justify-center mb-4 animate-pulse">
+          <img src="/logo.jpeg" alt="Binti Events" className="w-full h-full object-contain rounded-xl" />
+        </div>
+        <div className="flex items-center space-x-2 text-[#D4AF37]">
+          <RefreshCw className="w-5 h-5 animate-spin" />
+          <span className="text-sm font-medium tracking-wide">Loading workspace...</span>
+        </div>
+      </div>
+    );
+  }
 
   // ==========================================
   // LOGIN SCREEN DISPLAY

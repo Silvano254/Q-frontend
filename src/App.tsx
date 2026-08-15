@@ -223,36 +223,36 @@ export default function App() {
           clientId: q.client_id || '',
           clientName: q.client_name || 'Valued Client',
           quoteDate: q.quote_date || new Date().toISOString().split("T")[0],
-          expiryDate: q.expiry_date || '',
-          subtotal: Number(q.subtotal) || Number(q.grand_total) || 0,
-          discountTotal: Number(q.discount_total) || 0,
-          taxTotal: Number(q.tax_total) || 0,
+          expiryDate: q.valid_until || '',
+          subtotal: Number(q.grand_total) || 0,
+          discountTotal: 0,
+          taxTotal: 0,
           grandTotal: Number(q.grand_total) || 0,
           status: q.status || 'draft',
           items: q.items || [],
           notes: q.notes || '',
-          terms: q.terms || ''
+          terms: ''
         }));
 
         resInvoices = (iRes.data || []).map((inv: any) => ({
           id: inv.id,
           invoiceNumber: inv.invoice_number || `INV-${inv.id.slice(0, 6)}`,
-          quoteId: inv.quote_id || '',
-          quoteNumber: inv.quote_number || '',
+          quoteId: '',
+          quoteNumber: '',
           clientId: inv.client_id || '',
           clientName: inv.client_name || 'Valued Client',
-          issueDate: inv.issue_date || new Date().toISOString().split("T")[0],
+          issueDate: inv.created_at ? inv.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
           dueDate: inv.due_date || '',
-          subtotal: Number(inv.subtotal) || Number(inv.grand_total) || 0,
-          discountTotal: Number(inv.discount_total) || 0,
-          taxTotal: Number(inv.tax_total) || 0,
+          subtotal: Number(inv.grand_total) || 0,
+          discountTotal: 0,
+          taxTotal: 0,
           grandTotal: Number(inv.grand_total) || 0,
           balanceRemaining: Number(inv.balance_remaining) ?? Number(inv.grand_total) ?? 0,
           status: inv.status || 'pending',
           items: inv.items || [],
           notes: inv.notes || '',
-          terms: inv.terms || '',
-          payments: inv.payments || []
+          terms: '',
+          payments: []
         }));
 
         if (sRes.data) {
@@ -580,15 +580,11 @@ export default function App() {
         client_id: quotePayload.clientId || null,
         client_name: quotePayload.clientName || 'Valued Client',
         quote_date: quotePayload.quoteDate || new Date().toISOString().split("T")[0],
-        expiry_date: quotePayload.expiryDate || null,
-        subtotal: quotePayload.subtotal || quotePayload.grandTotal || 0,
-        discount_total: quotePayload.discountTotal || 0,
-        tax_total: quotePayload.taxTotal || 0,
+        valid_until: quotePayload.expiryDate || null,
         grand_total: quotePayload.grandTotal || 0,
         status: quotePayload.status || 'draft',
         items: quotePayload.items || [],
-        notes: quotePayload.notes || '',
-        terms: quotePayload.terms || ''
+        notes: quotePayload.notes || ''
       });
 
       if (error) {
@@ -607,8 +603,7 @@ export default function App() {
         status: quotePayload.status,
         grand_total: quotePayload.grandTotal,
         items: quotePayload.items,
-        notes: quotePayload.notes,
-        terms: quotePayload.terms
+        notes: quotePayload.notes
       }).eq('id', id);
     }
     showToast("Quotation updated.");
@@ -658,22 +653,14 @@ export default function App() {
     if (isSupabaseConfigured) {
       const { error } = await supabase.from('invoices').insert({
         invoice_number: invNum,
-        quote_id: invoicePayload.quoteId || null,
-        quote_number: invoicePayload.quoteNumber || null,
         client_id: invoicePayload.clientId || null,
         client_name: invoicePayload.clientName || 'Valued Client',
-        issue_date: invoicePayload.issueDate || new Date().toISOString().split("T")[0],
         due_date: invoicePayload.dueDate || null,
-        subtotal: invoicePayload.subtotal || invoicePayload.grandTotal || 0,
-        discount_total: invoicePayload.discountTotal || 0,
-        tax_total: invoicePayload.taxTotal || 0,
         grand_total: invoicePayload.grandTotal || 0,
         balance_remaining: invoicePayload.balanceRemaining ?? invoicePayload.grandTotal ?? 0,
         status: invoicePayload.status || 'pending',
         items: invoicePayload.items || [],
-        notes: invoicePayload.notes || '',
-        terms: invoicePayload.terms || '',
-        payments: invoicePayload.payments || []
+        notes: invoicePayload.notes || ''
       });
 
       if (error) {

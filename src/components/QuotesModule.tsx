@@ -557,9 +557,9 @@ export default function QuotesModule({
     const gray = [102, 102, 102];      // #666666
     const lightGray = [200, 200, 200]; // borders
 
-    const quoteDate = quote.quoteDate;
-    const expiryDate = quote.expiryDate;
-    const quoteNo = quote.quoteNumber;
+    const quoteDate = quote.quoteDate || new Date().toISOString().split("T")[0];
+    const expiryDate = quote.expiryDate || '';
+    const quoteNo = quote.quoteNumber || '';
     
     let y = margin;
 
@@ -612,15 +612,15 @@ export default function QuotesModule({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(gray[0], gray[1], gray[2]);
-    doc.text(companySettings.address, pageWidth - margin, y + 21, { align: 'right' });
+    doc.text(companySettings.address || '', pageWidth - margin, y + 21, { align: 'right' });
     
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(7);
     doc.text('Customer Care', pageWidth - margin, y + 28, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.text(companySettings.phone, pageWidth - margin, y + 32, { align: 'right' });
-    doc.text(companySettings.email, pageWidth - margin, y + 36, { align: 'right' });
+    doc.text(companySettings.phone || '', pageWidth - margin, y + 32, { align: 'right' });
+    doc.text(companySettings.email || '', pageWidth - margin, y + 36, { align: 'right' });
 
     y += 48;
 
@@ -631,10 +631,10 @@ export default function QuotesModule({
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text(quote.clientName, margin, y + 6);
+    doc.text(quote.clientName || '', margin, y + 6);
     const clientDetails = clients.find(c => c.id === quote.clientId);
     if (clientDetails) {
-      if (clientDetails.company) doc.text(clientDetails.company, margin, y + 11);
+      if (clientDetails.company) doc.text(clientDetails.company || '', margin, y + 11);
       doc.text(clientDetails.address || 'Kenya', margin, y + 16);
     }
 
@@ -767,7 +767,7 @@ export default function QuotesModule({
     doc.text('Prepared by:', pageWidth - margin, y, { align: 'right' });
     y += 5;
     doc.setFont('helvetica', 'bold');
-    doc.text(companySettings.companyName, pageWidth - margin, y, { align: 'right' });
+    doc.text(companySettings.companyName || 'Binti Events', pageWidth - margin, y, { align: 'right' });
     y += 6;
 
     if (thankYouBase64) {

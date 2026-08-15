@@ -633,9 +633,9 @@ export default function InvoicesModule({
     const gray = [102, 102, 102];      // #666666
     const lightGray = [200, 200, 200]; // borders
 
-    const invoiceDate = invoice.issueDate;
-    const dueDate = invoice.dueDate;
-    const invoiceNo = invoice.invoiceNumber;
+    const invoiceDate = invoice.issueDate || new Date().toISOString().split("T")[0];
+    const dueDate = invoice.dueDate || '';
+    const invoiceNo = invoice.invoiceNumber || '';
     
     let y = margin;
 
@@ -688,15 +688,15 @@ export default function InvoicesModule({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(gray[0], gray[1], gray[2]);
-    doc.text(companySettings.address, pageWidth - margin, y + 21, { align: 'right' });
+    doc.text(companySettings.address || '', pageWidth - margin, y + 21, { align: 'right' });
     
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(7);
     doc.text('Customer Care', pageWidth - margin, y + 28, { align: 'right' });
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.text(companySettings.phone, pageWidth - margin, y + 32, { align: 'right' });
-    doc.text(companySettings.email, pageWidth - margin, y + 36, { align: 'right' });
+    doc.text(companySettings.phone || '', pageWidth - margin, y + 32, { align: 'right' });
+    doc.text(companySettings.email || '', pageWidth - margin, y + 36, { align: 'right' });
 
     y += 48;
 
@@ -707,10 +707,10 @@ export default function InvoicesModule({
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.text(invoice.clientName, margin, y + 6);
+    doc.text(invoice.clientName || '', margin, y + 6);
     const clientDetails = clients.find(c => c.id === invoice.clientId);
     if (clientDetails) {
-      if (clientDetails.company) doc.text(clientDetails.company, margin, y + 11);
+      if (clientDetails.company) doc.text(clientDetails.company || '', margin, y + 11);
       doc.text(clientDetails.address || 'Kenya', margin, y + 16);
     }
 
@@ -732,7 +732,7 @@ export default function InvoicesModule({
     doc.text(dueDate, valueX, y + 12, { align: 'right' });
 
     doc.setTextColor(76, 175, 80);
-    doc.text(invoice.status.toUpperCase(), valueX, y + 18, { align: 'right' });
+    doc.text((invoice.status || 'pending').toUpperCase(), valueX, y + 18, { align: 'right' });
 
     y += 30;
 
@@ -860,7 +860,7 @@ export default function InvoicesModule({
     doc.text('Issued by:', pageWidth - margin, y, { align: 'right' });
     y += 5;
     doc.setFont('helvetica', 'bold');
-    doc.text(companySettings.companyName, pageWidth - margin, y, { align: 'right' });
+    doc.text(companySettings.companyName || 'Binti Events', pageWidth - margin, y, { align: 'right' });
     y += 6;
 
     if (thankYouBase64) {

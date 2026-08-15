@@ -2,7 +2,7 @@
  * Gemini Service for Binti Assistant
  * Communicates with zero-cold-start Supabase Edge Function & Backend REST Endpoints.
  */
-import { getApiUrl } from "../config/api";
+
 
 export interface SaaSContext {
   clientCount?: number;
@@ -30,8 +30,11 @@ export async function askGeminiAssistant(
   chatHistory: ChatMessage[] = [],
   saasContext?: SaaSContext
 ): Promise<string> {
-  // 1. Try Zero-Cold-Start Supabase Edge Function first
+  // 1. Try Supabase Edge Function with a strict 10-second timeout
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     const res = await fetch(SUPABASE_EDGE_FUNCTION_URL, {
       method: "POST",
       headers: {
@@ -43,8 +46,11 @@ export async function askGeminiAssistant(
         prompt,
         history: chatHistory,
         context: saasContext
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json();
@@ -52,41 +58,23 @@ export async function askGeminiAssistant(
         return data.reply;
       }
     }
-  } catch (supabaseEdgeErr) {
-    console.warn("Supabase Edge Function call initializing, trying secondary endpoint...", supabaseEdgeErr);
-  }
-
-  // 2. Try Render Backend REST API
-  try {
-    const backendUrl = getApiUrl("/api/ai/chat");
-    const res = await fetch(backendUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prompt,
-        history: chatHistory,
-        context: saasContext
-      })
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (res.ok && data.success && data.reply) {
-      return data.reply;
-    }
 
     if (res.status === 401) {
-      return `⚠️ **Authentication Required (401)**\n\nPlease ensure your \`GEMINI_API_KEY\` environment variable is configured in your backend settings.`;
+      return `⚠️ **Authentication Required (401)**\n\nPlease ensure your \`GEMINI_API_KEY\` environment variable is configured in your Supabase Edge Function settings.`;
     }
 
     if (res.status === 429) {
       return `⚠️ **Rate Limit Exceeded (429)**\n\nGemini API request limit reached. Please wait a moment and try again.`;
     }
-  } catch (backendErr) {
-    console.warn("Backend /api/ai/chat call failed, using intelligent local fallback...", backendErr);
+  } catch (edgeErr: any) {
+    if (edgeErr.name === 'AbortError') {
+      console.warn("Supabase Edge Function timed out after 10s, using local fallback.");
+    } else {
+      console.warn("Supabase Edge Function error, using local fallback:", edgeErr.message);
+    }
   }
 
-  // 3. Instant local fallback responder
+  // 2. Instant local fallback (no dead backend calls)
   return getLocalIntelligentFallback(prompt, saasContext);
 }
 

@@ -94,11 +94,12 @@ export default function ReportsAnalyticsModule({
 
   // Chart 3: Service Categories billing popularity
   const categoryBillingMap: { [key: string]: number } = {};
-  invoices.forEach(inv => {
-    inv.items.forEach(item => {
-      const matched = products.find(p => p.name.toLowerCase() === item.description.toLowerCase());
-      const catName = matched ? matched.category : "Decor Styling";
-      categoryBillingMap[catName] = (categoryBillingMap[catName] || 0) + item.amount;
+  (invoices || []).forEach(inv => {
+    (inv.items || []).forEach(item => {
+      const itemDesc = (item.description || "").toLowerCase();
+      const matched = (products || []).find(p => (p.name || "").toLowerCase() === itemDesc);
+      const catName = matched ? (matched.category || "Decor Styling") : "Decor Styling";
+      categoryBillingMap[catName] = (categoryBillingMap[catName] || 0) + (Number(item.amount) || 0);
     });
   });
 
@@ -110,9 +111,9 @@ export default function ReportsAnalyticsModule({
   }));
 
   // Overall statistics summaries
-  const totalInvoicedSum = invoices.reduce((sum, i) => sum + i.grandTotal, 0);
-  const totalPaidSum = invoices.reduce((sum, i) => sum + (i.grandTotal - i.balanceRemaining), 0);
-  const totalOutstandingSum = invoices.reduce((sum, i) => sum + i.balanceRemaining, 0);
+  const totalInvoicedSum = (invoices || []).reduce((sum, i) => sum + (Number(i.grandTotal) || 0), 0);
+  const totalPaidSum = (invoices || []).reduce((sum, i) => sum + ((Number(i.grandTotal) || 0) - (Number(i.balanceRemaining) || 0)), 0);
+  const totalOutstandingSum = (invoices || []).reduce((sum, i) => sum + (Number(i.balanceRemaining) || 0), 0);
 
   // ==========================================
   // CSV SPREADSHEET GENERATORS

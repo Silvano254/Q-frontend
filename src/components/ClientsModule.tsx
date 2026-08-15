@@ -418,9 +418,9 @@ export default function ClientsModule({
                       <tbody className="divide-y divide-gray-50">
                         {clientInvoices.map(inv => (
                           <tr key={inv.id}>
-                            <td className="py-2.5 font-semibold text-[#6B46C1]">{inv.invoiceNumber}</td>
-                            <td className="py-2.5">{inv.issueDate}</td>
-                            <td className="py-2.5">{inv.dueDate}</td>
+                            <td className="py-2.5 font-semibold text-[#6B46C1]">{inv.invoiceNumber || 'INV'}</td>
+                            <td className="py-2.5">{inv.issueDate || '-'}</td>
+                            <td className="py-2.5">{inv.dueDate || '-'}</td>
                             <td className="py-2.5">
                               <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
                                 inv.status === "paid" ? "bg-green-100 text-green-700" :
@@ -428,11 +428,11 @@ export default function ClientsModule({
                                 inv.status === "overdue" ? "bg-red-100 text-red-700" :
                                 "bg-blue-100 text-blue-700"
                               }`}>
-                                {inv.status.replace("_", " ")}
+                                {(inv.status || 'draft').replace(/_/g, " ")}
                               </span>
                             </td>
-                            <td className="py-2.5 text-right font-medium text-amber-600">{currency} {inv.balanceRemaining.toLocaleString()}</td>
-                            <td className="py-2.5 text-right font-bold text-gray-800">{currency} {inv.grandTotal.toLocaleString()}</td>
+                            <td className="py-2.5 text-right font-medium text-amber-600">{currency} {(Number(inv.balanceRemaining) || 0).toLocaleString()}</td>
+                            <td className="py-2.5 text-right font-bold text-gray-800">{currency} {(Number(inv.grandTotal) || 0).toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -460,11 +460,11 @@ export default function ClientsModule({
                       <tbody className="divide-y divide-gray-50">
                         {clientPayments.map((p, idx) => (
                           <tr key={idx}>
-                            <td className="py-2.5 font-semibold text-gray-700">{p.invoiceNumber}</td>
-                            <td className="py-2.5">{p.paymentDate}</td>
-                            <td className="py-2.5 capitalize">{p.paymentMethod.replace("_", " ")}</td>
+                            <td className="py-2.5 font-semibold text-gray-700">{p.invoiceNumber || 'INV'}</td>
+                            <td className="py-2.5">{p.paymentDate || '-'}</td>
+                            <td className="py-2.5 capitalize">{(p.paymentMethod || "other").replace(/_/g, " ")}</td>
                             <td className="py-2.5 font-mono text-[10px] text-[#6B46C1]">{p.referenceNumber || "N/A"}</td>
-                            <td className="py-2.5 text-right font-bold text-emerald-600">+{currency} {p.amountPaid.toLocaleString()}</td>
+                            <td className="py-2.5 text-right font-bold text-emerald-600">+{currency} {(Number(p.amountPaid) || 0).toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>

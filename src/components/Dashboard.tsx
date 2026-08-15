@@ -560,7 +560,7 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
                         inv.status === "pending" ? "bg-blue-100 text-blue-700" :
                         "bg-gray-100 text-gray-600"
                       }`}>
-                        {inv.status.replace("_", " ")}
+                        {(inv.status || 'draft').replace(/_/g, " ")}
                       </span>
                     </td>
                   </tr>

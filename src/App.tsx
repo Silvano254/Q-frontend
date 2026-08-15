@@ -171,9 +171,9 @@ export default function App() {
           generatedAlerts.push({
             id: `notif-pm-${inv.id}-${idx}`,
             type: "payment",
-            title: `Payment Received - ${inv.invoiceNumber}`,
-            description: `Manual receipt registered for ${inv.clientName}: KES ${(p.amountPaid || 0).toLocaleString()} paid via ${(p.paymentMethod || "").replace("_", " ")}.`,
-            time: p.paymentDate,
+            title: `Payment Received - ${inv.invoiceNumber || 'INV'}`,
+            description: `Manual receipt registered for ${inv.clientName || 'Client'}: KES ${(Number(p.amountPaid) || 0).toLocaleString()} paid via ${(p.paymentMethod || "other").replace(/_/g, " ")}.`,
+            time: p.paymentDate || new Date().toISOString().split("T")[0],
             unread: false
           });
         });

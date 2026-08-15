@@ -380,16 +380,18 @@ export default function InvoicesModule({
 
   const loadImgBase64 = (url: string): Promise<string> => {
     return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(""), 2000);
       const img = new Image();
       img.crossOrigin = "Anonymous";
       img.onload = () => {
+        clearTimeout(timer);
         const canvas = document.createElement("canvas");
         canvas.width = img.width;
         canvas.height = img.height;
         const ctx = canvas.getContext("2d");
         if (ctx) {
-          ctx.drawImage(img, 0, 0);
           try {
+            ctx.drawImage(img, 0, 0);
             resolve(canvas.toDataURL("image/png"));
           } catch (e) {
             resolve("");
@@ -398,7 +400,10 @@ export default function InvoicesModule({
           resolve("");
         }
       };
-      img.onerror = () => resolve("");
+      img.onerror = () => {
+        clearTimeout(timer);
+        resolve("");
+      };
       img.src = url;
     });
   };

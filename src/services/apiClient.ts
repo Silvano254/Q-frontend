@@ -39,12 +39,19 @@ export async function apiRequest<T>(
       const headers = new Headers(init.headers);
       headers.set('Content-Type', 'application/json');
 
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+      if (supabaseAnonKey) {
+        headers.set('apikey', supabaseAnonKey);
+      }
+
       const token = getAuthToken();
       if (requireAuth) {
         if (!token) {
           throw new Error('Your session has expired. Please sign in again.');
         }
         headers.set('Authorization', `Bearer ${token}`);
+      } else if (!headers.has('Authorization') && supabaseAnonKey) {
+        headers.set('Authorization', `Bearer ${supabaseAnonKey}`);
       }
 
       const controller = new AbortController();

@@ -19,6 +19,7 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   public static getDerivedStateFromError(error: Error): State {
+    console.error("CRITICAL ERROR BOUNDARY TRIGGERED:", error);
     return { hasError: true, error };
   }
 
@@ -66,8 +67,8 @@ class ErrorBoundary extends Component<Props, State> {
           <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>
             Binti Events Suite Session Recovery
           </h1>
-          <p style={{ color: '#9ca3af', maxWidth: '420px', marginBottom: '1.5rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
-            A temporary session state issue was detected. Click below to clear your local session cache and restore Binti Events Suite instantly.
+          <p style={{ color: '#9ca3af', maxWidth: '500px', marginBottom: '1rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
+            A session state error occurred: <code style={{ color: '#f87171', wordBreak: 'break-all' }}>{this.state.error?.message || "Unknown Error"}</code>
           </p>
           <button
             onClick={this.handleReset}

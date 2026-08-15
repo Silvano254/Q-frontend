@@ -143,13 +143,27 @@ export default function SettingsModule({
     }
   };
   
-  // Fields state
+  // Fields state synced with companySettings prop
   const [companyName, setCompanyName] = useState(companySettings.companyName || "Binti Events");
   const [email, setEmail] = useState(companySettings.email || "");
   const [phone, setPhone] = useState(companySettings.phone || "+254 700 111 222");
   const [address, setAddress] = useState(companySettings.address || "Warehouse Block B, Ngong Road, Nairobi");
   const [taxNumber, setTaxNumber] = useState(companySettings.taxNumber || "P051234567A");
+  const [bankDetails, setBankDetails] = useState(companySettings.bankDetails || "");
+  const [currency, setCurrency] = useState(companySettings.currency || "KES");
   const [termsTemplate, setTermsTemplate] = useState(companySettings.termsTemplate || "");
+
+  // Synchronize internal state whenever parent companySettings updates
+  React.useEffect(() => {
+    setCompanyName(companySettings.companyName || "Binti Events");
+    setEmail(companySettings.email || "");
+    setPhone(companySettings.phone || "+254 700 111 222");
+    setAddress(companySettings.address || "Warehouse Block B, Ngong Road, Nairobi");
+    setTaxNumber(companySettings.taxNumber || "P051234567A");
+    setBankDetails(companySettings.bankDetails || "");
+    setCurrency(companySettings.currency || "KES");
+    setTermsTemplate(companySettings.termsTemplate || "");
+  }, [companySettings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,6 +176,8 @@ export default function SettingsModule({
         phone,
         address,
         taxNumber,
+        bankDetails,
+        currency,
         termsTemplate
       };
       await onUpdateSettings(payload);
@@ -273,6 +289,38 @@ export default function SettingsModule({
                 onChange={(e) => setAddress(e.target.value)}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs"
               />
+            </div>
+
+            {/* Bank Details & Currency */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 flex items-center space-x-1">
+                  <CreditCard className="w-3.5 h-3.5" />
+                  <span>Official Bank Account / Payment Instructions (Appears on PDFs)</span>
+                </label>
+                <textarea
+                  value={bankDetails}
+                  onChange={(e) => setBankDetails(e.target.value)}
+                  rows={3}
+                  placeholder="Equity Bank — A/C 1160274628991..."
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 flex items-center space-x-1">
+                  <DollarSign className="w-3.5 h-3.5" />
+                  <span>Default Currency Code</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value)}
+                  placeholder="KES"
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-bold"
+                />
+              </div>
             </div>
 
             {/* Terms and conditions default template */}

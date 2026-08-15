@@ -67,9 +67,14 @@ class ErrorBoundary extends Component<Props, State> {
           <h1 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '0.5rem' }}>
             Binti Events Suite Session Recovery
           </h1>
-          <p style={{ color: '#9ca3af', maxWidth: '500px', marginBottom: '1rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
+          <p style={{ color: '#9ca3af', maxWidth: '600px', marginBottom: '1rem', fontSize: '0.9rem', lineHeight: '1.5' }}>
             A session state error occurred: <code style={{ color: '#f87171', wordBreak: 'break-all' }}>{this.state.error?.message || "Unknown Error"}</code>
           </p>
+          {this.state.error?.stack && (
+            <pre style={{ color: '#fbbf24', backgroundColor: 'rgba(0,0,0,0.5)', padding: '1rem', borderRadius: '0.5rem', maxWidth: '700px', overflowX: 'auto', textAlign: 'left', fontSize: '0.75rem', marginBottom: '1.5rem' }}>
+              {this.state.error.stack}
+            </pre>
+          )}
           <button
             onClick={this.handleReset}
             style={{

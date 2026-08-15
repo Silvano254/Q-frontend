@@ -143,26 +143,28 @@ export default function SettingsModule({
     }
   };
   
-  // Fields state synced with companySettings prop
-  const [companyName, setCompanyName] = useState(companySettings.companyName || "Binti Events");
-  const [email, setEmail] = useState(companySettings.email || "");
-  const [phone, setPhone] = useState(companySettings.phone || "+254 700 111 222");
-  const [address, setAddress] = useState(companySettings.address || "Warehouse Block B, Ngong Road, Nairobi");
-  const [taxNumber, setTaxNumber] = useState(companySettings.taxNumber || "P051234567A");
-  const [bankDetails, setBankDetails] = useState(companySettings.bankDetails || "");
-  const [currency, setCurrency] = useState(companySettings.currency || "KES");
-  const [termsTemplate, setTermsTemplate] = useState(companySettings.termsTemplate || "");
+  // Fields state synced safely with companySettings prop
+  const [companyName, setCompanyName] = useState(companySettings?.companyName || "Binti Events");
+  const [email, setEmail] = useState(companySettings?.email || "");
+  const [phone, setPhone] = useState(companySettings?.phone || "+254 700 111 222");
+  const [address, setAddress] = useState(companySettings?.address || "Warehouse Block B, Ngong Road, Nairobi");
+  const [taxNumber, setTaxNumber] = useState(companySettings?.taxNumber || "P051234567A");
+  const [bankDetails, setBankDetails] = useState(companySettings?.bankDetails || "");
+  const [currency, setCurrency] = useState(companySettings?.currency || "KES");
+  const [termsTemplate, setTermsTemplate] = useState(companySettings?.termsTemplate || "");
 
   // Synchronize internal state whenever parent companySettings updates
   React.useEffect(() => {
-    setCompanyName(companySettings.companyName || "Binti Events");
-    setEmail(companySettings.email || "");
-    setPhone(companySettings.phone || "+254 700 111 222");
-    setAddress(companySettings.address || "Warehouse Block B, Ngong Road, Nairobi");
-    setTaxNumber(companySettings.taxNumber || "P051234567A");
-    setBankDetails(companySettings.bankDetails || "");
-    setCurrency(companySettings.currency || "KES");
-    setTermsTemplate(companySettings.termsTemplate || "");
+    if (companySettings) {
+      setCompanyName(companySettings.companyName || "Binti Events");
+      setEmail(companySettings.email || "");
+      setPhone(companySettings.phone || "+254 700 111 222");
+      setAddress(companySettings.address || "Warehouse Block B, Ngong Road, Nairobi");
+      setTaxNumber(companySettings.taxNumber || "P051234567A");
+      setBankDetails(companySettings.bankDetails || "");
+      setCurrency(companySettings.currency || "KES");
+      setTermsTemplate(companySettings.termsTemplate || "");
+    }
   }, [companySettings]);
 
   const handleSubmit = async (e: React.FormEvent) => {

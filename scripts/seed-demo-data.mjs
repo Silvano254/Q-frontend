@@ -103,33 +103,33 @@ function calcTotals(items) {
 }
 
 const quoteData = [
-  // Q1 – Sarah Wanjiku's wedding
-  { client: 1, items: [{ product: products[2], qty: 1, discount: 0 }, { product: products[4], qty: 200, discount: 5 }, { product: products[6], qty: 20, discount: 0 }, { product: products[10], qty: 4, discount: 0 }, { product: products[14], qty: 20, discount: 10 }, { product: products[19], qty: 1, discount: 0 }], status: 'sent', daysAgo: 12 },
-  // Q2 – Safaricom product launch
-  { client: 2, items: [{ product: products[2], qty: 1, discount: 0 }, { product: products[8], qty: 4, discount: 0 }, { product: products[11], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[13], qty: 2, discount: 0 }, { product: products[16], qty: 1, discount: 0 }, { product: products[17], qty: 1, discount: 0 }], status: 'converted', daysAgo: 45 },
-  // Q3 – Kenya Breweries gala dinner
-  { client: 3, items: [{ product: products[0], qty: 2, discount: 5 }, { product: products[4], qty: 300, discount: 10 }, { product: products[6], qty: 30, discount: 5 }, { product: products[9], qty: 1, discount: 0 }, { product: products[11], qty: 3, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[15], qty: 1, discount: 0 }, { product: products[19], qty: 1, discount: 0 }], status: 'converted', daysAgo: 60 },
-  // Q4 – Grace Otieno dowry ceremony
-  { client: 4, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 100, discount: 0 }, { product: products[6], qty: 10, discount: 0 }, { product: products[10], qty: 2, discount: 0 }, { product: products[14], qty: 10, discount: 0 }], status: 'sent', daysAgo: 5 },
-  // Q5 – Radisson Blu year-end party
-  { client: 5, items: [{ product: products[2], qty: 1, discount: 10 }, { product: products[5], qty: 250, discount: 8 }, { product: products[7], qty: 15, discount: 0 }, { product: products[11], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[16], qty: 1, discount: 0 }], status: 'draft', daysAgo: 2 },
-  // Q6 – Nation Media awards gala
-  { client: 7, items: [{ product: products[0], qty: 1, discount: 0 }, { product: products[4], qty: 150, discount: 5 }, { product: products[6], qty: 15, discount: 0 }, { product: products[9], qty: 1, discount: 0 }, { product: products[11], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[13], qty: 1, discount: 0 }, { product: products[16], qty: 1, discount: 0 }], status: 'sent', daysAgo: 8 },
-  // Q7 – Wangari Foundation tree planting ceremony
-  { client: 8, items: [{ product: products[3], qty: 2, discount: 0 }, { product: products[4], qty: 80, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[19], qty: 1, discount: 0 }], status: 'converted', daysAgo: 30 },
-  // Q8 – Equity Bank CSR event
-  { client: 9, items: [{ product: products[2], qty: 1, discount: 5 }, { product: products[4], qty: 400, discount: 10 }, { product: products[6], qty: 40, discount: 5 }, { product: products[8], qty: 6, discount: 0 }, { product: products[11], qty: 4, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[13], qty: 2, discount: 0 }, { product: products[16], qty: 1, discount: 0 }, { product: products[17], qty: 2, discount: 0 }, { product: products[18], qty: 2, discount: 0 }, { product: products[19], qty: 1, discount: 0 }], status: 'converted', daysAgo: 90 },
-  // Q9 – Fatuma's Swahili wedding
-  { client: 10, items: [{ product: products[1], qty: 2, discount: 0 }, { product: products[4], qty: 150, discount: 5 }, { product: products[6], qty: 15, discount: 0 }, { product: products[10], qty: 3, discount: 0 }, { product: products[14], qty: 15, discount: 0 }, { product: products[15], qty: 1, discount: 0 }], status: 'sent', daysAgo: 15 },
-  // Q10 – Mt. Kenya Safari Club retreat
-  { client: 11, items: [{ product: products[3], qty: 4, discount: 0 }, { product: products[7], qty: 10, discount: 0 }, { product: products[8], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[17], qty: 1, discount: 0 }], status: 'draft', daysAgo: 1 },
-  // Q11 – Nairobi School graduation
-  { client: 12, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 500, discount: 15 }, { product: products[6], qty: 50, discount: 10 }, { product: products[12], qty: 1, discount: 0 }, { product: products[16], qty: 1, discount: 0 }], status: 'sent', daysAgo: 20 },
-  // Q12 – James Mwangi's ruracio
-  { client: 6, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 80, discount: 0 }, { product: products[6], qty: 8, discount: 0 }, { product: products[10], qty: 2, discount: 0 }], status: 'converted', daysAgo: 40 },
-  // Q13 – Chandaria corporate event
-  { client: 14, items: [{ product: products[0], qty: 1, discount: 0 }, { product: products[5], qty: 120, discount: 5 }, { product: products[7], qty: 8, discount: 0 }, { product: products[8], qty: 3, discount: 0 }, { product: products[11], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[13], qty: 1, discount: 0 }], status: 'sent', daysAgo: 10 },
-  // Q14 – Amani Gardens Christmas party
+  // Q1 – Sarah Wanjiku's wedding (10 months ago)
+  { client: 1, items: [{ product: products[2], qty: 1, discount: 0 }, { product: products[4], qty: 200, discount: 5 }, { product: products[6], qty: 20, discount: 0 }, { product: products[10], qty: 4, discount: 0 }, { product: products[14], qty: 20, discount: 10 }, { product: products[19], qty: 1, discount: 0 }], status: 'sent', daysAgo: 310 },
+  // Q2 – Safaricom product launch (11 months ago)
+  { client: 2, items: [{ product: products[2], qty: 1, discount: 0 }, { product: products[8], qty: 4, discount: 0 }, { product: products[11], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[13], qty: 2, discount: 0 }, { product: products[16], qty: 1, discount: 0 }, { product: products[17], qty: 1, discount: 0 }], status: 'converted', daysAgo: 340 },
+  // Q3 – Kenya Breweries gala dinner (8 months ago)
+  { client: 3, items: [{ product: products[0], qty: 2, discount: 5 }, { product: products[4], qty: 300, discount: 10 }, { product: products[6], qty: 30, discount: 5 }, { product: products[9], qty: 1, discount: 0 }, { product: products[11], qty: 3, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[15], qty: 1, discount: 0 }, { product: products[19], qty: 1, discount: 0 }], status: 'converted', daysAgo: 240 },
+  // Q4 – Grace Otieno dowry ceremony (7 months ago)
+  { client: 4, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 100, discount: 0 }, { product: products[6], qty: 10, discount: 0 }, { product: products[10], qty: 2, discount: 0 }, { product: products[14], qty: 10, discount: 0 }], status: 'sent', daysAgo: 210 },
+  // Q5 – Radisson Blu year-end party (6 months ago)
+  { client: 5, items: [{ product: products[2], qty: 1, discount: 10 }, { product: products[5], qty: 250, discount: 8 }, { product: products[7], qty: 15, discount: 0 }, { product: products[11], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[16], qty: 1, discount: 0 }], status: 'draft', daysAgo: 180 },
+  // Q6 – Nation Media awards gala (5 months ago)
+  { client: 7, items: [{ product: products[0], qty: 1, discount: 0 }, { product: products[4], qty: 150, discount: 5 }, { product: products[6], qty: 15, discount: 0 }, { product: products[9], qty: 1, discount: 0 }, { product: products[11], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[13], qty: 1, discount: 0 }, { product: products[16], qty: 1, discount: 0 }], status: 'sent', daysAgo: 150 },
+  // Q7 – Wangari Foundation tree planting ceremony (4 months ago)
+  { client: 8, items: [{ product: products[3], qty: 2, discount: 0 }, { product: products[4], qty: 80, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[19], qty: 1, discount: 0 }], status: 'converted', daysAgo: 120 },
+  // Q8 – Equity Bank CSR event (9 months ago)
+  { client: 9, items: [{ product: products[2], qty: 1, discount: 5 }, { product: products[4], qty: 400, discount: 10 }, { product: products[6], qty: 40, discount: 5 }, { product: products[8], qty: 6, discount: 0 }, { product: products[11], qty: 4, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[13], qty: 2, discount: 0 }, { product: products[16], qty: 1, discount: 0 }, { product: products[17], qty: 2, discount: 0 }, { product: products[18], qty: 2, discount: 0 }, { product: products[19], qty: 1, discount: 0 }], status: 'converted', daysAgo: 270 },
+  // Q9 – Fatuma's Swahili wedding (3 months ago)
+  { client: 10, items: [{ product: products[1], qty: 2, discount: 0 }, { product: products[4], qty: 150, discount: 5 }, { product: products[6], qty: 15, discount: 0 }, { product: products[10], qty: 3, discount: 0 }, { product: products[14], qty: 15, discount: 0 }, { product: products[15], qty: 1, discount: 0 }], status: 'sent', daysAgo: 90 },
+  // Q10 – Mt. Kenya Safari Club retreat (2 months ago)
+  { client: 11, items: [{ product: products[3], qty: 4, discount: 0 }, { product: products[7], qty: 10, discount: 0 }, { product: products[8], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[17], qty: 1, discount: 0 }], status: 'draft', daysAgo: 60 },
+  // Q11 – Nairobi School graduation (1 month ago)
+  { client: 12, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 500, discount: 15 }, { product: products[6], qty: 50, discount: 10 }, { product: products[12], qty: 1, discount: 0 }, { product: products[16], qty: 1, discount: 0 }], status: 'sent', daysAgo: 30 },
+  // Q12 – James Mwangi's ruracio (11.5 months ago)
+  { client: 6, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 80, discount: 0 }, { product: products[6], qty: 8, discount: 0 }, { product: products[10], qty: 2, discount: 0 }], status: 'converted', daysAgo: 350 },
+  // Q13 – Chandaria corporate event (15 days ago)
+  { client: 14, items: [{ product: products[0], qty: 1, discount: 0 }, { product: products[5], qty: 120, discount: 5 }, { product: products[7], qty: 8, discount: 0 }, { product: products[8], qty: 3, discount: 0 }, { product: products[11], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }, { product: products[13], qty: 1, discount: 0 }], status: 'sent', daysAgo: 15 },
+  // Q14 – Amani Gardens Christmas party (3 days ago)
   { client: 0, items: [{ product: products[2], qty: 1, discount: 5 }, { product: products[4], qty: 180, discount: 8 }, { product: products[6], qty: 18, discount: 0 }, { product: products[10], qty: 6, discount: 0 }, { product: products[11], qty: 2, discount: 0 }, { product: products[15], qty: 2, discount: 0 }], status: 'draft', daysAgo: 3 },
 ];
 
@@ -212,12 +212,12 @@ convertedQuotes.forEach((q, idx) => {
 
 // Standalone invoices (not from quotes)
 const standaloneInvoices = [
-  { clientIdx: 0, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 60, discount: 0 }, { product: products[6], qty: 6, discount: 0 }], status: 'paid', daysAgo: 70 },
-  { clientIdx: 5, items: [{ product: products[3], qty: 3, discount: 0 }, { product: products[7], qty: 12, discount: 0 }, { product: products[12], qty: 1, discount: 0 }], status: 'paid', daysAgo: 55 },
-  { clientIdx: 7, items: [{ product: products[0], qty: 1, discount: 5 }, { product: products[4], qty: 100, discount: 8 }, { product: products[12], qty: 1, discount: 0 }, { product: products[11], qty: 2, discount: 0 }], status: 'pending', daysAgo: 7 },
-  { clientIdx: 9, items: [{ product: products[2], qty: 1, discount: 0 }, { product: products[8], qty: 2, discount: 0 }, { product: products[17], qty: 1, discount: 0 }], status: 'overdue', daysAgo: 35 },
-  { clientIdx: 12, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 250, discount: 12 }, { product: products[6], qty: 25, discount: 5 }, { product: products[19], qty: 1, discount: 0 }], status: 'pending', daysAgo: 4 },
-  { clientIdx: 14, items: [{ product: products[0], qty: 1, discount: 0 }, { product: products[4], qty: 100, discount: 0 }, { product: products[6], qty: 10, discount: 0 }, { product: products[8], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }], status: 'paid', daysAgo: 50 },
+  { clientIdx: 0, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 60, discount: 0 }, { product: products[6], qty: 6, discount: 0 }], status: 'paid', daysAgo: 320 },
+  { clientIdx: 5, items: [{ product: products[3], qty: 3, discount: 0 }, { product: products[7], qty: 12, discount: 0 }, { product: products[12], qty: 1, discount: 0 }], status: 'paid', daysAgo: 280 },
+  { clientIdx: 7, items: [{ product: products[0], qty: 1, discount: 5 }, { product: products[4], qty: 100, discount: 8 }, { product: products[12], qty: 1, discount: 0 }, { product: products[11], qty: 2, discount: 0 }], status: 'pending', daysAgo: 45 },
+  { clientIdx: 9, items: [{ product: products[2], qty: 1, discount: 0 }, { product: products[8], qty: 2, discount: 0 }, { product: products[17], qty: 1, discount: 0 }], status: 'overdue', daysAgo: 160 },
+  { clientIdx: 12, items: [{ product: products[1], qty: 1, discount: 0 }, { product: products[4], qty: 250, discount: 12 }, { product: products[6], qty: 25, discount: 5 }, { product: products[19], qty: 1, discount: 0 }], status: 'pending', daysAgo: 14 },
+  { clientIdx: 14, items: [{ product: products[0], qty: 1, discount: 0 }, { product: products[4], qty: 100, discount: 0 }, { product: products[6], qty: 10, discount: 0 }, { product: products[8], qty: 2, discount: 0 }, { product: products[12], qty: 1, discount: 0 }], status: 'paid', daysAgo: 220 },
 ];
 
 standaloneInvoices.forEach((si, idx) => {
@@ -247,11 +247,7 @@ standaloneInvoices.forEach((si, idx) => {
     balance_remaining: isPaid ? 0 : totals.grand_total,
     status: si.status,
     items,
-    notes: pick([
-      'Direct invoice — no quote reference. Payment terms: NET 14.',
-      'Urgent booking. Delivery confirmed for 2 days before event.',
-      'Client account in good standing. Previous 3 invoices paid on time.',
-    ]),
+    notes: `Direct invoice — no quote reference. Payment terms: NET 14. Payments: ${JSON.stringify(payments)}`,
   });
 });
 

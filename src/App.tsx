@@ -234,26 +234,38 @@ export default function App() {
           terms: ''
         }));
 
-        resInvoices = (iRes.data || []).map((inv: any) => ({
-          id: inv.id,
-          invoiceNumber: inv.invoice_number || `INV-${inv.id.slice(0, 6)}`,
-          quoteId: '',
-          quoteNumber: '',
-          clientId: inv.client_id || '',
-          clientName: inv.client_name || 'Valued Client',
-          issueDate: inv.created_at ? inv.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-          dueDate: inv.due_date || '',
-          subtotal: Number(inv.grand_total) || 0,
-          discountTotal: 0,
-          taxTotal: 0,
-          grandTotal: Number(inv.grand_total) || 0,
-          balanceRemaining: Number(inv.balance_remaining) ?? Number(inv.grand_total) ?? 0,
-          status: inv.status || 'pending',
-          items: inv.items || [],
-          notes: inv.notes || '',
-          terms: '',
-          payments: []
-        }));
+        resInvoices = (iRes.data || []).map((inv: any) => {
+          let parsedPayments = [];
+          if (Array.isArray(inv.payments) && inv.payments.length > 0) {
+            parsedPayments = inv.payments;
+          } else if (inv.notes && inv.notes.includes('Payments: [')) {
+            try {
+              const jsonStr = inv.notes.substring(inv.notes.indexOf('Payments: [') + 10);
+              parsedPayments = JSON.parse(jsonStr);
+            } catch (e) {}
+          }
+
+          return {
+            id: inv.id,
+            invoiceNumber: inv.invoice_number || `INV-${inv.id.slice(0, 6)}`,
+            quoteId: '',
+            quoteNumber: '',
+            clientId: inv.client_id || '',
+            clientName: inv.client_name || 'Valued Client',
+            issueDate: inv.created_at ? inv.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
+            dueDate: inv.due_date || '',
+            subtotal: Number(inv.grand_total) || 0,
+            discountTotal: 0,
+            taxTotal: 0,
+            grandTotal: Number(inv.grand_total) || 0,
+            balanceRemaining: Number(inv.balance_remaining) ?? Number(inv.grand_total) ?? 0,
+            status: inv.status || 'pending',
+            items: inv.items || [],
+            notes: inv.notes ? inv.notes.split('Payments: [')[0].trim() : '',
+            terms: '',
+            payments: parsedPayments
+          };
+        });
 
         if (sRes.data) {
           resSettings = {

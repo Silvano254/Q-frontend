@@ -949,7 +949,16 @@ export default function App() {
       case "settings":
         return (
           <SettingsModule 
-            companySettings={companySettings}
+            companySettings={companySettings || {
+              companyName: "Binti Events",
+              taxNumber: "",
+              address: "",
+              bankDetails: "",
+              currency: "KES",
+              termsTemplate: "",
+              email: "",
+              phone: ""
+            }}
             onUpdateSettings={handleUpdateSettings}
             onResetDatabase={handleResetDatabase}
             currentUser={currentUser}

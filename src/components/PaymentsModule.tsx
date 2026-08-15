@@ -19,30 +19,34 @@ export default function PaymentsModule({
   const [methodFilter, setMethodFilter] = useState("all");
 
   // Flat map all payments with invoice info
-  const allPayments = invoices.flatMap(inv => 
+  const allPayments = (invoices || []).flatMap(inv => 
     (inv.payments || []).map(p => ({
       ...p,
       invoiceId: inv.id,
-      invoiceNumber: inv.invoiceNumber,
-      clientName: inv.clientName
+      invoiceNumber: inv.invoiceNumber || "N/A",
+      clientName: inv.clientName || "Unknown Client",
+      paymentMethod: p.paymentMethod || "other",
+      paymentDate: p.paymentDate || new Date().toISOString().split("T")[0],
+      amountPaid: Number(p.amountPaid) || 0
     }))
-  ).sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime());
+  ).sort((a, b) => new Date(b.paymentDate || 0).getTime() - new Date(a.paymentDate || 0).getTime());
 
   // Filter payments
   const filteredPayments = allPayments.filter(p => {
-    const matchesSearch = p.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          p.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          (p.referenceNumber && p.referenceNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                          (p.notes && p.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+    const search = (searchQuery || "").toLowerCase();
+    const matchesSearch = (p.clientName || "").toLowerCase().includes(search) ||
+                          (p.invoiceNumber || "").toLowerCase().includes(search) ||
+                          (p.referenceNumber && p.referenceNumber.toLowerCase().includes(search)) ||
+                          (p.notes && p.notes.toLowerCase().includes(search));
     const matchesMethod = methodFilter === "all" || p.paymentMethod === methodFilter;
     return matchesSearch && matchesMethod;
   });
 
   // Calculate quick totals
-  const totalReceived = filteredPayments.reduce((sum, p) => sum + p.amountPaid, 0);
-  const totalBank = filteredPayments.filter(p => p.paymentMethod === "bank_transfer").reduce((sum, p) => sum + p.amountPaid, 0);
-  const totalMobile = filteredPayments.filter(p => p.paymentMethod === "mobile_transfer").reduce((sum, p) => sum + p.amountPaid, 0);
-  const totalCash = filteredPayments.filter(p => p.paymentMethod === "cash").reduce((sum, p) => sum + p.amountPaid, 0);
+  const totalReceived = filteredPayments.reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+  const totalBank = filteredPayments.filter(p => p.paymentMethod === "bank_transfer").reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+  const totalMobile = filteredPayments.filter(p => p.paymentMethod === "mobile_transfer").reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+  const totalCash = filteredPayments.filter(p => p.paymentMethod === "cash").reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
 
   // Export payments list to CSV
   const exportPaymentsCSV = () => {
@@ -51,13 +55,13 @@ export default function PaymentsModule({
     
     filteredPayments.forEach(p => {
       const row = [
-        p.id,
-        p.paymentDate,
-        p.invoiceNumber,
-        `"${p.clientName.replace(/"/g, '""')}"`,
-        p.paymentMethod,
+        p.id || "N/A",
+        p.paymentDate || "",
+        p.invoiceNumber || "",
+        `"${(p.clientName || "").replace(/"/g, '""')}"`,
+        (p.paymentMethod || "other").replace(/_/g, " "),
         p.referenceNumber || "N/A",
-        p.amountPaid,
+        p.amountPaid || 0,
         `"${(p.notes || "").replace(/"/g, '""')}"`
       ].join(",");
       csvContent += row + "\n";
@@ -208,12 +212,12 @@ export default function PaymentsModule({
                           p.paymentMethod === "cash" ? "bg-amber-50 text-amber-700 border-amber-100" :
                           "bg-gray-50 text-gray-600 border-gray-200"
                         }`}>
-                          {p.paymentMethod.replace("_", " ")}
+                          {(p.paymentMethod || "other").replace(/_/g, " ")}
                         </span>
                       </td>
                       <td className="p-4 font-mono font-bold text-gray-600 text-[11px]">{p.referenceNumber || "N/A"}</td>
                       <td className="p-4 text-gray-500 truncate max-w-xs">{p.notes || "-"}</td>
-                      <td className="p-4 text-right font-bold text-emerald-600">+{currency} {p.amountPaid.toLocaleString()}</td>
+                      <td className="p-4 text-right font-bold text-emerald-600">+{currency} {(Number(p.amountPaid) || 0).toLocaleString()}</td>
                       <td className="p-4 text-right">
                         {correlatedInvoice ? (
                           <button

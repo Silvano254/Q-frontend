@@ -3,10 +3,12 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
 # Build outputs
 dist/
 build/
+.vite/
 
 # Local configuration and credentials
 .env
@@ -18,9 +20,19 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+*.log
 
 # IDEs/Editors
 .vscode/
 .idea/
 *.swp
-node_modules/
+*.swo
+.vscode-test/
+.history/
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDE workspace settings
+*.code-workspace

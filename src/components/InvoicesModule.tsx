@@ -24,6 +24,7 @@ import {
 import { jsPDF } from "jspdf";
 import { Invoice, Client, ProductService, BillingItem, PaymentRecord } from "../types";
 import { generateEmailDraft } from "../services/geminiService";
+import { apiRequest } from "../services/apiClient";
 import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildInvoiceEmailContent, openMailClient } from "../utils/email";
 
@@ -45,6 +46,7 @@ interface InvoicesModuleProps {
     address: string;
     taxNumber: string;
     termsTemplate: string;
+    bankDetails?: string;
   };
   onCreateInvoice: (invoice: Partial<Invoice>) => Promise<void>;
   onUpdateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
@@ -176,16 +178,14 @@ export default function InvoicesModule({
 
     setIsSendingEmail(true);
     try {
-      const response = await fetch("/api/email/send", {
+      const data = await apiRequest<{ success: boolean; simulated?: boolean; message?: string }>("/api/email/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: emailTo,
           subject: emailSubject,
           body: emailBody
         })
       });
-      const data = await response.json();
       if (data.success) {
         showToast(data.simulated ? "Email dispatch simulated! Check server console logs." : "Email sent successfully to " + emailTo);
         setEmailModalOpen(false);
@@ -948,16 +948,14 @@ export default function InvoicesModule({
     
     setIsSendingEmail(true);
     try {
-      const response = await fetch("/api/email/send", {
+      const data = await apiRequest<{ success: boolean; simulated?: boolean; message?: string }>("/api/email/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: clientEmail,
           subject: `Invoice ${invoice.invoiceNumber} - ${companySettings.companyName || 'Binti Events'}`,
           body: aiEmailDraft
         })
       });
-      const data = await response.json();
       if (data.success) {
         showToast(data.simulated ? "Email simulation success: check server console logs." : "Email sent successfully to " + clientEmail);
       } else {

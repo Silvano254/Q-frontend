@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key, CreditCard, DollarSign } from "lucide-react";
-import { registerBiometric } from "../utils/webauthn";
-import { getApiUrl } from "../config/api";
 import { CompanySettings } from "../types";
 
 interface SettingsModuleProps {
@@ -45,102 +43,16 @@ export default function SettingsModule({
   }, [currentUser?.email, companySettings.email]);
 
   const handleRequestProfileOtp = async () => {
-    setIsRequestingOtp(true);
-    const activeEmail = currentUser?.email || companySettings.email || "";
-    if (!activeEmail) {
-      showToast("No active account email found.", "warning");
-      setIsRequestingOtp(false);
-      return;
-    }
-    try {
-      const response = await fetch(getApiUrl("/api/auth/request-profile-update-otp"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentEmail: activeEmail })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setOtpRequested(true);
-        showToast("Verification PIN sent to email: " + activeEmail);
-      } else {
-        showToast(data.message || "Failed to send verification PIN.", "warning");
-      }
-    } catch (err) {
-      // Offline fallback: set OTP requested, advise user
-      setOtpRequested(true);
-      showToast("Verification request initiated. Please check your email inbox: " + activeEmail);
-    } finally {
-      setIsRequestingOtp(false);
-    }
+    showToast('Profile changes are managed by the system administrator.', 'warning');
   };
 
   const handleApplyProfileUpdates = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profileOtp) {
-      showToast("Verification PIN is required.", "warning");
-      return;
-    }
-
-    setIsApplyingProfileUpdate(true);
-    const activeEmail = currentUser?.email || companySettings.email || "";
-    try {
-      const response = await fetch(getApiUrl("/api/auth/verify-profile-update"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          currentEmail: activeEmail,
-          otp: profileOtp,
-          newEmail: newAccessEmail,
-          newPasscode: newPasscode || undefined
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        showToast("Security credentials updated successfully!");
-        setNewPasscode("");
-        setProfileOtp("");
-        setOtpRequested(false);
-        if (onUpdateCurrentUser && data.user) {
-          onUpdateCurrentUser(data.user);
-        }
-      } else {
-        showToast(data.message || "Invalid or expired verification PIN.", "warning");
-      }
-    } catch (err) {
-      // Fallback local update if network is unavailable
-      const updatedUser = {
-        ...(currentUser || { id: "admin", name: "System Admin", role: "admin" }),
-        email: newAccessEmail || activeEmail
-      };
-      if (onUpdateCurrentUser) onUpdateCurrentUser(updatedUser);
-      showToast("Security credentials updated!");
-      setNewPasscode("");
-      setProfileOtp("");
-      setOtpRequested(false);
-    } finally {
-      setIsApplyingProfileUpdate(false);
-    }
+    showToast('Profile changes are managed by the system administrator.', 'warning');
   };
 
   const handleRegisterBiometric = async () => {
-    try {
-      const userEmail = currentUser?.email || email || companySettings.email || "";
-      const credentialId = await registerBiometric(userEmail);
-      const res = await fetch(getApiUrl("/api/auth/register-biometric"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail, credentialId })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setBiometricRegistered(true);
-        showToast("Fingerprint & Biometric Passkey registered successfully!");
-      } else {
-        showToast("Failed to register biometric credential: " + (data.message || "Unknown error"), "warning");
-      }
-    } catch (err: any) {
-      showToast("Failed to register biometric credential: " + err.message, "warning");
-    }
+    showToast('Biometric authentication is not configured.', 'warning');
   };
   
   // Fields state synced safely with companySettings prop

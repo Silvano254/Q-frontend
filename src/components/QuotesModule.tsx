@@ -20,6 +20,7 @@ import {
 import { jsPDF } from "jspdf";
 import { Quote, Client, ProductService, BillingItem } from "../types";
 import { generateEmailDraft, recommendTerms } from "../services/geminiService";
+import { apiRequest } from "../services/apiClient";
 import { buildQuoteWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildQuoteEmailContent, openMailClient } from "../utils/email";
 
@@ -41,6 +42,7 @@ interface QuotesModuleProps {
     address: string;
     taxNumber: string;
     termsTemplate: string;
+    bankDetails?: string;
   };
   onCreateQuote: (quote: Partial<Quote>) => Promise<void>;
   onUpdateQuote: (id: string, quote: Partial<Quote>) => Promise<void>;
@@ -165,16 +167,14 @@ export default function QuotesModule({
 
     setIsSendingEmail(true);
     try {
-      const response = await fetch("/api/email/send", {
+      const data = await apiRequest<{ success: boolean; simulated?: boolean; message?: string }>("/api/email/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: emailTo,
           subject: emailSubject,
           body: emailBody
         })
       });
-      const data = await response.json();
       if (data.success) {
         showToast(data.simulated ? "Email dispatch simulated! Check server console logs." : "Email sent successfully to " + emailTo);
         setEmailModalOpen(false);
@@ -873,7 +873,10 @@ export default function QuotesModule({
     setRecommendingTerms(true);
     try {
       const clientName = clients.find(c => c.id === clientId)?.name || "Valued Client";
-      const rec = await recommendTerms(clientName, items);
+      const mappedItems = items
+        .filter(item => item.description)
+        .map(item => ({ description: item.description || "" }));
+      const rec = await recommendTerms(clientName, mappedItems);
       setTerms(rec);
       showToast("AI-recommended terms applied.");
     } catch (err) {

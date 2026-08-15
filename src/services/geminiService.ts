@@ -20,7 +20,7 @@ export interface ChatMessage {
   timestamp?: string;
 }
 
-const SUPABASE_EDGE_FUNCTION_URL = 'https://ltinjyvcrgwcvudrnfby.supabase.co/functions/v1/ai-chat';
+import { apiRequest } from './apiClient';
 
 /**
  * Send a chat message or prompt to Binti via Supabase Edge Function (Instant) or Backend API fallback.
@@ -30,48 +30,18 @@ export async function askGeminiAssistant(
   chatHistory: ChatMessage[] = [],
   saasContext?: SaaSContext
 ): Promise<string> {
-  // 1. Try Supabase Edge Function with a strict 10-second timeout
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const res = await fetch(SUPABASE_EDGE_FUNCTION_URL, {
+    const data = await apiRequest<{ success: boolean; reply?: string }>('/api/ai/chat', {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "apikey": "sb_publishable_0LaJxeEG6eXw6gs27HUd3Q__z1Dy-Xo",
-        "Authorization": "Bearer sb_publishable_0LaJxeEG6eXw6gs27HUd3Q__z1Dy-Xo"
-      },
       body: JSON.stringify({
         prompt,
         history: chatHistory,
         context: saasContext
-      }),
-      signal: controller.signal
+      })
     });
-
-    clearTimeout(timeoutId);
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && data.reply) {
-        return data.reply;
-      }
-    }
-
-    if (res.status === 401) {
-      return `⚠️ **Authentication Required (401)**\n\nPlease ensure your \`GEMINI_API_KEY\` environment variable is configured in your Supabase Edge Function settings.`;
-    }
-
-    if (res.status === 429) {
-      return `⚠️ **Rate Limit Exceeded (429)**\n\nGemini API request limit reached. Please wait a moment and try again.`;
-    }
-  } catch (edgeErr: any) {
-    if (edgeErr.name === 'AbortError') {
-      console.warn("Supabase Edge Function timed out after 10s, using local fallback.");
-    } else {
-      console.warn("Supabase Edge Function error, using local fallback:", edgeErr.message);
-    }
+    if (data.success && data.reply) return data.reply;
+  } catch (error) {
+    console.warn('AI API unavailable, using local fallback:', error);
   }
 
   // 2. Instant local fallback (no dead backend calls)
@@ -145,6 +115,14 @@ export async function generateEmailDraft(params: {
   companyName?: string;
   currency?: string;
 }): Promise<string> {
+  try {
+    const data = await apiRequest<{ success: boolean; email: string }>('/api/ai/draft-email', {
+      method: 'POST', body: JSON.stringify(params)
+    });
+    if (data.success) return data.email;
+  } catch (error) {
+    console.warn('Email drafting API unavailable:', error);
+  }
   const comp = params.companyName || "Binti Tents & Events";
   const curr = params.currency || "KES";
   const amtStr = `${curr} ${(params.amount || 0).toLocaleString()}`;
@@ -199,6 +177,14 @@ ${comp}`;
  * AI Terms Recommendation Generator for Quotes
  */
 export async function recommendTerms(clientName?: string, items?: Array<{ description: string }>): Promise<string> {
+  try {
+    const data = await apiRequest<{ success: boolean; terms: string }>('/api/ai/recommend-terms', {
+      method: 'POST', body: JSON.stringify({ clientName, items })
+    });
+    if (data.success) return data.terms;
+  } catch (error) {
+    console.warn('Terms recommendation API unavailable:', error);
+  }
   return `1. 50% commitment fee required upon booking to lock event dates, equipment, and logistics crew.
 2. 50% final balance clearance due 7 days prior to installation and setup day.
 3. Client is responsible for site security and providing clear, level ground access with 15A electrical power within 30 metres.

@@ -11,16 +11,14 @@ import PaymentsModule from "./components/PaymentsModule";
 import ReportsAnalyticsModule from "./components/ReportsAnalyticsModule";
 import SettingsModule from "./components/SettingsModule";
 import BintiAiAssistantModal from "./components/BintiAiAssistantModal";
-import { loginBiometric } from "./utils/webauthn";
-import { getApiUrl } from "./config/api";
+import { apiRequest, clearAuthToken, setAuthToken } from "./services/apiClient";
 import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "./types";
-import { supabase, isSupabaseConfigured } from "./services/supabaseClient";
 
 export default function App() {
   // 100% Real Supabase Authentication State
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem("binti_authenticated") === "true";
+    return false;
   });
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(() => {
     const saved = localStorage.getItem("binti_user");
@@ -29,63 +27,8 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isSignUpMode, setIsSignUpMode] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
-
-  // Check Real Supabase Auth Session on Mount & Listen to Changes
-  useEffect(() => {
-    if (isSupabaseConfigured) {
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          const userObj = {
-            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0].toUpperCase() || "ADMIN",
-            role: "Admin",
-            email: session.user.email || ""
-          };
-          setIsAuthenticated(true);
-          setCurrentUser(userObj);
-          localStorage.setItem("binti_authenticated", "true");
-          localStorage.setItem("binti_user", JSON.stringify(userObj));
-        } else {
-          // If no active session & local storage token isn't present
-          const customToken = localStorage.getItem("binti_token");
-          if (!customToken) {
-            setIsAuthenticated(false);
-            setCurrentUser(null);
-            localStorage.removeItem("binti_authenticated");
-            localStorage.removeItem("binti_user");
-          }
-        }
-        setIsAuthChecking(false);
-      }).catch(() => {
-        setIsAuthChecking(false);
-      });
-
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        if (session?.user) {
-          const userObj = {
-            name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0].toUpperCase() || "ADMIN",
-            role: "Admin",
-            email: session.user.email || ""
-          };
-          setIsAuthenticated(true);
-          setCurrentUser(userObj);
-          localStorage.setItem("binti_authenticated", "true");
-          localStorage.setItem("binti_user", JSON.stringify(userObj));
-        } else if (_event === 'SIGNED_OUT') {
-          setIsAuthenticated(false);
-          setCurrentUser(null);
-          localStorage.removeItem("binti_authenticated");
-          localStorage.removeItem("binti_user");
-        }
-      });
-
-      return () => subscription.unsubscribe();
-    } else {
-      setIsAuthChecking(false);
-    }
-  }, []);
 
   // Biometric & Password Recovery States
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
@@ -95,7 +38,6 @@ export default function App() {
   const [resetStep, setResetStep] = useState<"request" | "verify">("request");
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
-  const [demoGeneratedOtp, setDemoGeneratedOtp] = useState<string | null>(null);
 
   // Custom Toast State
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" } | null>(null);
@@ -175,7 +117,7 @@ export default function App() {
     unread: boolean;
   }>>([]);
 
-  // Fetch all data directly from Supabase PostgreSQL (Zero Cold Start!)
+  // Load all persisted data through the authenticated backend.
   const fetchAllData = async () => {
     setLoading(true);
     try {
@@ -185,106 +127,24 @@ export default function App() {
       let resInvoices: any[] = [];
       let resSettings: any = null;
 
-      if (isSupabaseConfigured) {
-        const [cRes, pRes, qRes, iRes, sRes] = await Promise.all([
-          supabase.from('clients').select('*'),
-          supabase.from('products').select('*'),
-          supabase.from('quotes').select('*'),
-          supabase.from('invoices').select('*'),
-          supabase.from('company_settings').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle()
-        ]);
+      const [apiClients, apiProducts, apiQuotes, apiInvoices, apiSettings] = await Promise.all([
+        apiRequest<Client[]>('/api/clients'),
+        apiRequest<ProductService[]>('/api/products'),
+        apiRequest<Quote[]>('/api/quotes'),
+        apiRequest<Invoice[]>('/api/invoices'),
+        apiRequest<CompanySettings>('/api/settings')
+      ]);
+      resClients = apiClients;
+      resProducts = apiProducts;
+      resQuotes = apiQuotes;
+      resInvoices = apiInvoices;
+      resSettings = apiSettings;
 
-        resClients = (cRes.data || []).map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          email: c.email || '',
-          phone: c.phone || '',
-          company: c.company_name || '',
-          taxNumber: c.tax_number || '',
-          address: c.address || '',
-          status: c.status || 'active',
-          revenue: Number(c.revenue) || 0
-        }));
-
-        resProducts = (pRes.data || []).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          category: p.category || 'Decor & Event Hire',
-          description: p.description || '',
-          unitPrice: Number(p.price) || 0,
-          unitType: p.unit || 'day',
-          taxRate: 16,
-          status: p.status || 'active'
-        }));
-
-        resQuotes = (qRes.data || []).map((q: any) => ({
-          id: q.id,
-          quoteNumber: q.quote_number || `QT-${q.id.slice(0, 6)}`,
-          clientId: q.client_id || '',
-          clientName: q.client_name || 'Valued Client',
-          quoteDate: q.quote_date || new Date().toISOString().split("T")[0],
-          expiryDate: q.valid_until || '',
-          subtotal: Number(q.grand_total) || 0,
-          discountTotal: 0,
-          taxTotal: 0,
-          grandTotal: Number(q.grand_total) || 0,
-          status: q.status || 'draft',
-          items: q.items || [],
-          notes: q.notes || '',
-          terms: ''
-        }));
-
-        resInvoices = (iRes.data || []).map((inv: any) => {
-          let parsedPayments = [];
-          if (Array.isArray(inv.payments) && inv.payments.length > 0) {
-            parsedPayments = inv.payments;
-          } else if (inv.notes && inv.notes.includes('Payments: [')) {
-            try {
-              const jsonStr = inv.notes.substring(inv.notes.indexOf('Payments: [') + 10);
-              parsedPayments = JSON.parse(jsonStr);
-            } catch (e) {}
-          }
-
-          return {
-            id: inv.id,
-            invoiceNumber: inv.invoice_number || `INV-${inv.id.slice(0, 6)}`,
-            quoteId: '',
-            quoteNumber: '',
-            clientId: inv.client_id || '',
-            clientName: inv.client_name || 'Valued Client',
-            issueDate: inv.created_at ? inv.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-            dueDate: inv.due_date || '',
-            subtotal: Number(inv.grand_total) || 0,
-            discountTotal: 0,
-            taxTotal: 0,
-            grandTotal: Number(inv.grand_total) || 0,
-            balanceRemaining: Number(inv.balance_remaining) ?? Number(inv.grand_total) ?? 0,
-            status: inv.status || 'pending',
-            items: inv.items || [],
-            notes: inv.notes ? inv.notes.split('Payments: [')[0].trim() : '',
-            terms: '',
-            payments: parsedPayments
-          };
-        });
-
-        if (sRes.data) {
-          resSettings = {
-            companyName: sRes.data.company_name || companySettings.companyName,
-            taxNumber: sRes.data.tax_number || companySettings.taxNumber,
-            address: sRes.data.address || companySettings.address,
-            bankDetails: sRes.data.bank_details || companySettings.bankDetails,
-            currency: sRes.data.currency || companySettings.currency,
-            termsTemplate: sRes.data.terms_template || companySettings.termsTemplate
-          };
-        }
-      }
-
-      // Strictly set state directly from Supabase PostgreSQL tables (100% Real Database)
       setClients(resClients);
       if (resProducts.length > 0) setProducts(resProducts);
       setQuotes(resQuotes);
       setInvoices(resInvoices);
-      if (resSettings && resSettings.currency) {
+      if (resSettings) {
         setCompanySettings(resSettings);
       }
 
@@ -345,12 +205,9 @@ export default function App() {
   useEffect(() => {
     const token = localStorage.getItem("binti_token");
     if (token) {
-      fetch(getApiUrl("/api/auth/verify"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token })
-      })
-        .then(r => r.json())
+      apiRequest<{ success: boolean; user: { name: string; role: string; email: string } }>("/api/auth/verify", {
+        method: "POST", body: JSON.stringify({ token })
+      }, false)
         .then(data => {
           if (data.success) {
             setIsAuthenticated(true);
@@ -361,9 +218,10 @@ export default function App() {
             handleLogout();
           }
         })
-        .catch(() => {
-          // Keep offline state if server is momentarily unreachable
-        });
+        .catch(() => handleLogout())
+        .finally(() => setIsAuthChecking(false));
+    } else {
+      setIsAuthChecking(false);
     }
   }, []);
 
@@ -373,78 +231,32 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
-  // 100% REAL SUPABASE AUTHENTICATION SUBMIT HANDLER (Sign In / Sign Up)
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
     setAuthSuccessMsg(null);
 
-    if (!isSupabaseConfigured) {
-      setAuthError("Supabase authentication is not configured.");
-      return;
-    }
-
-    if (isSignUpMode) {
-      const { data, error } = await supabase.auth.signUp({
-        email: authEmail,
-        password: authPassword
-      });
-
-      if (error) {
-        setAuthError(error.message);
-      } else if (data.user) {
-        setAuthSuccessMsg("Account created! Logging you in...");
-        if (data.session) {
-          setIsAuthenticated(true);
-          setCurrentUser({
-            name: data.user.email?.split('@')[0].toUpperCase() || "ADMIN",
-            role: "Admin",
-            email: data.user.email || ""
-          });
-        }
-      }
-    } else {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: authEmail,
-        password: authPassword
-      });
-
-      if (error) {
-        if (error.message.toLowerCase().includes("email not confirmed") || error.message.toLowerCase().includes("unconfirmed")) {
-          const userObj = {
-            name: authEmail.split('@')[0].toUpperCase(),
-            role: "Admin",
-            email: authEmail
-          };
-          setIsAuthenticated(true);
-          setCurrentUser(userObj);
-          localStorage.setItem("binti_authenticated", "true");
-          localStorage.setItem("binti_user", JSON.stringify(userObj));
-          return;
-        }
-        setAuthError(error.message);
-      } else if (data.user) {
-        setIsAuthenticated(true);
-        setCurrentUser({
-          name: data.user.user_metadata?.full_name || data.user.email?.split('@')[0].toUpperCase() || "ADMIN",
-          role: "Admin",
-          email: data.user.email || ""
-        });
-        localStorage.setItem("binti_authenticated", "true");
-      }
+    try {
+      const data = await apiRequest<{ success: boolean; token: string; user: { name: string; role: string; email: string } }>(
+        '/api/auth/login', { method: 'POST', body: JSON.stringify({ email: authEmail, password: authPassword }) }, false
+      );
+      setAuthToken(data.token);
+      setIsAuthenticated(true);
+      setCurrentUser(data.user);
+      localStorage.setItem('binti_authenticated', 'true');
+      localStorage.setItem('binti_user', JSON.stringify(data.user));
+    } catch (error: any) {
+      setAuthError(error.message || 'Unable to sign in.');
     }
   };
 
   // LOGOUT OPERATION
   const handleLogout = async () => {
-    if (isSupabaseConfigured) {
-      await supabase.auth.signOut().catch(() => {});
-    }
     setIsAuthenticated(false);
     setCurrentUser(null);
     localStorage.removeItem("binti_authenticated");
     localStorage.removeItem("binti_user");
-    localStorage.removeItem("binti_token");
+    clearAuthToken();
   };
 
   // BIOMETRIC FINGERPRINT LOGIN HANDLER
@@ -452,21 +264,8 @@ export default function App() {
     e.preventDefault();
     setAuthError(null);
     try {
-      const credentialId = await loginBiometric();
-      if (credentialId) {
-        const userObj = {
-          name: authEmail ? authEmail.split('@')[0].toUpperCase() : "BINTI ADMIN",
-          role: "Admin",
-          email: authEmail || "admin@bintievents.co.ke"
-        };
-        setIsAuthenticated(true);
-        setCurrentUser(userObj);
-        localStorage.setItem("binti_authenticated", "true");
-        localStorage.setItem("binti_user", JSON.stringify(userObj));
-      }
-    } catch (err: any) {
-      setAuthError(err.message || "Failed to process biometric fingerprint login.");
-    }
+      setAuthError('Biometric sign-in is not configured. Use your administrator credentials.');
+    } catch {}
   };
 
   // REQUEST PASSWORD RESET PIN HANDLER
@@ -474,9 +273,7 @@ export default function App() {
     e.preventDefault();
     setResetMessage(null);
     setResetError(null);
-    setResetStep("verify");
-    setResetMessage("Security reset PIN sent to your corporate email.");
-    setDemoGeneratedOtp("8829");
+    setResetError('Password reset is not configured. Contact an administrator.');
   };
 
   // RESET PASSWORD SUBMIT HANDLER
@@ -484,18 +281,7 @@ export default function App() {
     e.preventDefault();
     setResetMessage(null);
     setResetError(null);
-    if (resetOtp === demoGeneratedOtp || resetOtp === "8829") {
-      setAuthEmail(resetEmail);
-      setAuthPassword(newPassword);
-      showToast("Passcode reset successfully. You can now log in.");
-      setShowForgotPasswordModal(false);
-      setResetStep("request");
-      setResetEmail("");
-      setResetOtp("");
-      setNewPassword("");
-    } else {
-      setResetError("Invalid security PIN. Please try again.");
-    }
+    setResetError('Password reset is not configured. Contact an administrator.');
   };
 
   // ==========================================
@@ -504,81 +290,38 @@ export default function App() {
 
   // Clients CRUD Sync
   const handleCreateClient = async (clientPayload: Partial<Client>) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('clients').insert({
-        name: clientPayload.name,
-        email: clientPayload.email || '',
-        phone: clientPayload.phone || '',
-        company_name: clientPayload.company || '',
-        tax_number: clientPayload.taxNumber || '',
-        address: clientPayload.address || '',
-        status: clientPayload.status || 'active',
-        revenue: clientPayload.revenue || 0
-      });
-    }
+    await apiRequest('/api/clients', { method: 'POST', body: JSON.stringify(clientPayload) });
     showToast(`Client ${clientPayload.name} created successfully.`);
     fetchAllData();
   };
 
   const handleUpdateClient = async (id: string, clientPayload: Partial<Client>) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('clients').update({
-        name: clientPayload.name,
-        email: clientPayload.email,
-        phone: clientPayload.phone,
-        company_name: clientPayload.company,
-        tax_number: clientPayload.taxNumber,
-        address: clientPayload.address,
-        status: clientPayload.status
-      }).eq('id', id);
-    }
+    await apiRequest(`/api/clients/${id}`, { method: 'PUT', body: JSON.stringify(clientPayload) });
     showToast("Client profile updated successfully.");
     fetchAllData();
   };
 
   const handleDeleteClient = async (id: string) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('clients').delete().eq('id', id);
-    }
+    await apiRequest(`/api/clients/${id}`, { method: 'DELETE' });
     showToast("Client profile deleted.", "warning");
     fetchAllData();
   };
 
   // Products CRUD Sync
   const handleCreateProduct = async (prodPayload: Partial<ProductService>) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('products').insert({
-        name: prodPayload.name,
-        category: prodPayload.category || 'Decor & Event Hire',
-        description: prodPayload.description || '',
-        price: prodPayload.unitPrice || 0,
-        unit: prodPayload.unitType || 'day',
-        status: prodPayload.status || 'active'
-      });
-    }
+    await apiRequest('/api/products', { method: 'POST', body: JSON.stringify(prodPayload) });
     showToast(`Catalog item ${prodPayload.name} added.`);
     fetchAllData();
   };
 
   const handleUpdateProduct = async (id: string, prodPayload: Partial<ProductService>) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('products').update({
-        name: prodPayload.name,
-        category: prodPayload.category,
-        description: prodPayload.description,
-        price: prodPayload.unitPrice,
-        unit: prodPayload.unitType,
-        status: prodPayload.status
-      }).eq('id', id);
-    }
+    await apiRequest(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(prodPayload) });
     showToast("Catalog item updated.");
     fetchAllData();
   };
 
   const handleDeleteProduct = async (id: string) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('products').delete().eq('id', id);
-    }
+    await apiRequest(`/api/products/${id}`, { method: 'DELETE' });
     showToast("Catalog item removed.", "warning");
     fetchAllData();
   };
@@ -586,46 +329,19 @@ export default function App() {
   // Quotes CRUD Sync
   const handleCreateQuote = async (quotePayload: Partial<Quote>) => {
     const qNum = quotePayload.quoteNumber || `QT-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    if (isSupabaseConfigured) {
-      const { error } = await supabase.from('quotes').insert({
-        quote_number: qNum,
-        client_id: quotePayload.clientId || null,
-        client_name: quotePayload.clientName || 'Valued Client',
-        quote_date: quotePayload.quoteDate || new Date().toISOString().split("T")[0],
-        valid_until: quotePayload.expiryDate || null,
-        grand_total: quotePayload.grandTotal || 0,
-        status: quotePayload.status || 'draft',
-        items: quotePayload.items || [],
-        notes: quotePayload.notes || ''
-      });
-
-      if (error) {
-        console.error("Supabase create quote error:", error);
-        showToast(`Error saving quote: ${error.message}`, "warning");
-        return;
-      }
-    }
+    await apiRequest('/api/quotes', { method: 'POST', body: JSON.stringify({ ...quotePayload, quoteNumber: qNum }) });
     showToast(`Quotation ${qNum} issued successfully.`);
     fetchAllData();
   };
 
   const handleUpdateQuote = async (id: string, quotePayload: Partial<Quote>) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('quotes').update({
-        status: quotePayload.status,
-        grand_total: quotePayload.grandTotal,
-        items: quotePayload.items,
-        notes: quotePayload.notes
-      }).eq('id', id);
-    }
+    await apiRequest(`/api/quotes/${id}`, { method: 'PUT', body: JSON.stringify(quotePayload) });
     showToast("Quotation updated.");
     fetchAllData();
   };
 
   const handleDeleteQuote = async (id: string) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('quotes').delete().eq('id', id);
-    }
+    await apiRequest(`/api/quotes/${id}`, { method: 'DELETE' });
     showToast("Quotation deleted.", "warning");
     fetchAllData();
   };
@@ -662,110 +378,40 @@ export default function App() {
   // Invoices CRUD Sync
   const handleCreateInvoice = async (invoicePayload: Partial<Invoice>) => {
     const invNum = invoicePayload.invoiceNumber || `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    if (isSupabaseConfigured) {
-      const { error } = await supabase.from('invoices').insert({
-        invoice_number: invNum,
-        client_id: invoicePayload.clientId || null,
-        client_name: invoicePayload.clientName || 'Valued Client',
-        due_date: invoicePayload.dueDate || null,
-        grand_total: invoicePayload.grandTotal || 0,
-        balance_remaining: invoicePayload.balanceRemaining ?? invoicePayload.grandTotal ?? 0,
-        status: invoicePayload.status || 'pending',
-        items: invoicePayload.items || [],
-        notes: invoicePayload.notes || ''
-      });
-
-      if (error) {
-        console.error("Supabase create invoice error:", error);
-        showToast(`Error saving invoice: ${error.message}`, "warning");
-        return;
-      }
-    }
+    await apiRequest('/api/invoices', { method: 'POST', body: JSON.stringify({ ...invoicePayload, invoiceNumber: invNum }) });
     showToast(`Tax Invoice ${invNum} created.`);
     fetchAllData();
   };
 
   const handleUpdateInvoice = async (id: string, invoicePayload: Partial<Invoice>) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('invoices').update({
-        status: invoicePayload.status,
-        balance_remaining: invoicePayload.balanceRemaining,
-        items: invoicePayload.items,
-        notes: invoicePayload.notes
-      }).eq('id', id);
-    }
+    await apiRequest(`/api/invoices/${id}`, { method: 'PUT', body: JSON.stringify(invoicePayload) });
     showToast("Invoice updated.");
     fetchAllData();
   };
 
   const handleDeleteInvoice = async (id: string) => {
-    if (isSupabaseConfigured) {
-      await supabase.from('invoices').delete().eq('id', id);
-    }
+    await apiRequest(`/api/invoices/${id}`, { method: 'DELETE' });
     showToast("Invoice deleted.", "warning");
     fetchAllData();
   };
 
   // Record manual cash payment
   const handleRecordPayment = async (invoiceId: string, paymentPayload: Partial<PaymentRecord>) => {
-    if (isSupabaseConfigured) {
-      const inv = invoices.find(i => i.id === invoiceId);
-      const newPaid = (paymentPayload.amountPaid || 0);
-      const newBal = Math.max(0, (inv?.balanceRemaining || 0) - newPaid);
-      const newStatus = newBal === 0 ? 'paid' : 'partially_paid';
-
-      await supabase.from('invoices').update({
-        balance_remaining: newBal,
-        status: newStatus
-      }).eq('id', invoiceId);
-
-      await supabase.from('payments').insert({
-        invoice_id: invoiceId,
-        invoice_number: inv?.invoiceNumber || '',
-        client_name: inv?.clientName || '',
-        amount_paid: newPaid,
-        payment_method: paymentPayload.paymentMethod || 'Bank Transfer',
-        reference: paymentPayload.referenceNumber || '',
-        notes: paymentPayload.notes || ''
-      });
-    }
+    await apiRequest(`/api/invoices/${invoiceId}/payments`, { method: 'POST', body: JSON.stringify(paymentPayload) });
     showToast("Manual payment registered, ledger statistics updated.");
     fetchAllData();
   };
 
   // Settings Configuration Update
   const handleUpdateSettings = async (settingsPayload: CompanySettings) => {
-    if (isSupabaseConfigured) {
-      // Get existing settings row ID if present
-      const { data: existing } = await supabase.from('company_settings').select('id').order('updated_at', { ascending: false }).limit(1).maybeSingle();
-      
-      const payload: any = {
-        company_name: settingsPayload.companyName,
-        tax_number: settingsPayload.taxNumber,
-        address: settingsPayload.address,
-        bank_details: settingsPayload.bankDetails,
-        currency: settingsPayload.currency,
-        terms_template: settingsPayload.termsTemplate,
-        updated_at: new Date().toISOString()
-      };
-
-      if (existing?.id) {
-        payload.id = existing.id;
-      }
-
-      const { error } = await supabase.from('company_settings').upsert(payload);
-      if (error) {
-        console.error("Failed to update settings:", error);
-        showToast(`Failed to save settings: ${error.message}`, "warning");
-        return;
-      }
-    }
+    await apiRequest('/api/settings', { method: 'PUT', body: JSON.stringify(settingsPayload) });
     showToast("System settings updated successfully.");
     fetchAllData();
   };
 
   // Database Hard Wiping and Presets seed
   const handleResetDatabase = async () => {
+    await apiRequest('/api/settings/reset', { method: 'POST' });
     showToast("Database reset successfully.");
     fetchAllData();
   };
@@ -867,6 +513,7 @@ export default function App() {
               phone: companySettings.phone,
               address: companySettings.address,
               taxNumber: companySettings.taxNumber,
+              bankDetails: companySettings.bankDetails,
               termsTemplate: companySettings.termsTemplate
             }}
             onCreateQuote={handleCreateQuote}
@@ -891,6 +538,7 @@ export default function App() {
               phone: companySettings.phone,
               address: companySettings.address,
               taxNumber: companySettings.taxNumber,
+              bankDetails: companySettings.bankDetails,
               termsTemplate: companySettings.termsTemplate
             }}
             onCreateInvoice={handleCreateInvoice}
@@ -1101,23 +749,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Sign In vs Sign Up Mode Toggle */}
-              <div className="flex items-center justify-between text-xs pt-1">
-                <span className="text-gray-500 font-medium">
-                  {isSignUpMode ? "Already have a corporate account?" : "Need a new corporate account?"}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSignUpMode(prev => !prev);
-                    setAuthError(null);
-                    setAuthSuccessMsg(null);
-                  }}
-                  className="font-bold text-[#80237E] hover:underline"
-                >
-                  {isSignUpMode ? "Sign In" : "Create Account"}
-                </button>
-              </div>
+              <p className="text-xs pt-1 text-gray-500 font-medium">Administrator accounts are provisioned by the system owner.</p>
 
               {/* 4. Action Row */}
               <div className="flex items-center space-x-3 pt-2">
@@ -1125,7 +757,7 @@ export default function App() {
                   type="submit"
                   className="flex-1 min-h-[48px] py-3.5 bg-gradient-to-r from-[#80237E] via-[#6B46C1] to-[#55369b] hover:opacity-95 text-[#ffffff] rounded-2xl text-xs sm:text-sm font-extrabold tracking-wide transition-all shadow-lg shadow-[#80237E]/25 flex items-center justify-center space-x-2 active:scale-[0.99]"
                 >
-                  <span>{isSignUpMode ? "Create Account" : "Sign In"}</span>
+                  <span>Sign In</span>
                   <ArrowRight className="w-4 h-4 text-[#EAB308]" />
                 </button>
                 <button

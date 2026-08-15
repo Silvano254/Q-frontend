@@ -51,8 +51,29 @@ export async function apiRequest<T>(
       const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
       try {
+        let requestBody = init.body;
+        const method = (init.method || 'GET').toUpperCase();
+
+        // If path has an ID component (e.g. /api/clients/c_123), ensure id is in body for Edge Functions
+        const pathSegments = path.replace(/^\/api\//, '').split('/');
+        if (pathSegments.length >= 2 && (method === 'PUT' || method === 'DELETE' || method === 'POST')) {
+          const resourceId = pathSegments[1];
+          if (resourceId && resourceId !== 'payments' && resourceId !== 'reset' && resourceId !== 'login' && resourceId !== 'verify') {
+            try {
+              const existingBody = typeof requestBody === 'string' ? JSON.parse(requestBody) : (requestBody || {});
+              if (!existingBody.id) {
+                existingBody.id = resourceId;
+                requestBody = JSON.stringify(existingBody);
+              }
+            } catch {
+              // Body wasn't JSON
+            }
+          }
+        }
+
         const response = await fetch(getApiUrl(path), {
           ...init,
+          body: requestBody,
           headers,
           signal: controller.signal,
         });
@@ -67,6 +88,18 @@ export async function apiRequest<T>(
             payload?.error ||
             `Request failed (${response.status}).`;
           throw new Error(errorMessage);
+        }
+
+        // Handle both raw payloads (Express) and wrapped { success: true, data: [...] } payloads (Edge Functions)
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          'success' in payload &&
+          'data' in payload &&
+          payload.data !== undefined &&
+          !('token' in payload)
+        ) {
+          return payload.data as T;
         }
 
         return payload as T;

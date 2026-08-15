@@ -760,7 +760,26 @@ export default function QuotesModule({
 
     y += 8;
 
-    ensurePageSpace(35);
+    // Registered Bank / Billing Details Block
+    if (companySettings.bankDetails) {
+      ensurePageSpace(25);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(black[0], black[1], black[2]);
+      doc.text('PAYMENT DETAILS / BANK ACCOUNT:', margin, y);
+      y += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(gray[0], gray[1], gray[2]);
+      const bankLines = companySettings.bankDetails.split('\n');
+      bankLines.forEach(line => {
+        doc.text(line, margin, y);
+        y += 3.5;
+      });
+      y += 4;
+    }
+
+    ensurePageSpace(30);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(black[0], black[1], black[2]);
@@ -770,10 +789,11 @@ export default function QuotesModule({
     doc.text(companySettings.companyName || 'Binti Events', pageWidth - margin, y, { align: 'right' });
     y += 6;
 
-    if (thankYouBase64) {
+    // Check remaining space for thank you note image to prevent extra page creation
+    if (thankYouBase64 && (y + 25 <= bottomLimit)) {
       try {
         const imageProps = doc.getImageProperties(thankYouBase64);
-        const baseScale = Math.min(90 / imageProps.width, 45 / imageProps.height);
+        const baseScale = Math.min(90 / imageProps.width, 35 / imageProps.height);
         const width = imageProps.width * baseScale;
         const height = imageProps.height * baseScale;
         doc.addImage(thankYouBase64, 'PNG', (pageWidth - width) / 2, y, width, height);
@@ -781,18 +801,18 @@ export default function QuotesModule({
         y += 4;
         doc.setTextColor(255, 130, 171);
         doc.setFont('helvetica', 'bolditalic');
-        doc.setFontSize(18);
+        doc.setFontSize(16);
         doc.text('thank you', pageWidth / 2, y, { align: 'center' });
       }
     } else {
-      y += 4;
+      y += 2;
       doc.setTextColor(255, 130, 171);
       doc.setFont('helvetica', 'bolditalic');
-      doc.setFontSize(18);
+      doc.setFontSize(16);
       doc.text('thank you', pageWidth / 2, y, { align: 'center' });
     }
 
-    doc.save(`${quote.quoteNumber}-${quote.clientName.replace(/\s+/g, "_")}.pdf`);
+    doc.save(`${quote.quoteNumber}-${(quote.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
   };
 
   // Generate AI Email draft (calls local template engine backend)

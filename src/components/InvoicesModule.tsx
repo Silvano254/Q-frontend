@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { Invoice, Client, ProductService, BillingItem, PaymentRecord } from "../types";
+import { generateEmailDraft } from "../services/geminiService";
 import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildInvoiceEmailContent, openMailClient } from "../utils/email";
 
@@ -908,31 +909,24 @@ export default function InvoicesModule({
     doc.save(`${invoice.invoiceNumber}-${(invoice.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
   };
 
-  // Generate AI Email draft (calls local template engine backend)
+  // Generate AI Email draft
   const handleDraftEmail = async (invoice: Invoice) => {
     setDraftingEmail(true);
     setAiEmailDraft(null);
     try {
-      const response = await fetch("/api/ai/draft-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "Invoice",
-          number: invoice.invoiceNumber,
-          clientName: invoice.clientName,
-          amount: invoice.balanceRemaining,
-          dueDate: invoice.dueDate,
-          notes: invoice.notes
-        })
+      const draft = await generateEmailDraft({
+        type: "Invoice",
+        number: invoice.invoiceNumber,
+        clientName: invoice.clientName,
+        amount: invoice.balanceRemaining ?? invoice.grandTotal,
+        dueDate: invoice.dueDate,
+        notes: invoice.notes,
+        companyName: companySettings.companyName,
+        currency
       });
-      const data = await response.json();
-      if (data.success) {
-        setAiEmailDraft(data.email);
-      } else {
-        setAiEmailDraft("AI drafting failed: " + data.message);
-      }
+      setAiEmailDraft(draft);
     } catch (err) {
-      setAiEmailDraft("Failed to connect to AI writing assistant.");
+      setAiEmailDraft("Failed to generate AI email draft. Please try again.");
     } finally {
       setDraftingEmail(false);
     }

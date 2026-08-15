@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { Quote, Client, ProductService, BillingItem } from "../types";
+import { generateEmailDraft, recommendTerms } from "../services/geminiService";
 import { buildQuoteWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildQuoteEmailContent, openMailClient } from "../utils/email";
 
@@ -815,31 +816,24 @@ export default function QuotesModule({
     doc.save(`${quote.quoteNumber}-${(quote.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
   };
 
-  // Generate AI Email draft (calls local template engine backend)
+  // Generate AI Email draft
   const handleDraftEmail = async (quote: Quote) => {
     setDraftingEmail(true);
     setAiEmailDraft(null);
     try {
-      const response = await fetch("/api/ai/draft-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "Quote",
-          number: quote.quoteNumber,
-          clientName: quote.clientName,
-          amount: quote.grandTotal,
-          dueDate: quote.expiryDate,
-          notes: quote.notes
-        })
+      const draft = await generateEmailDraft({
+        type: "Quote",
+        number: quote.quoteNumber,
+        clientName: quote.clientName,
+        amount: quote.grandTotal,
+        dueDate: quote.expiryDate,
+        notes: quote.notes,
+        companyName: companySettings.companyName,
+        currency
       });
-      const data = await response.json();
-      if (data.success) {
-        setAiEmailDraft(data.email);
-      } else {
-        setAiEmailDraft("AI drafting failed: " + data.message);
-      }
+      setAiEmailDraft(draft);
     } catch (err) {
-      setAiEmailDraft("Failed to connect to AI writing assistant.");
+      setAiEmailDraft("Failed to generate AI email draft. Please try again.");
     } finally {
       setDraftingEmail(false);
     }
@@ -861,48 +855,29 @@ export default function QuotesModule({
     
     setIsSendingEmail(true);
     try {
-      const response = await fetch("/api/email/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: clientEmail,
-          subject: `Quotation Proposal ${quote.quoteNumber} - ${companySettings.companyName || 'Binti Events'}`,
-          body: aiEmailDraft
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        showToast(data.simulated ? "Email simulation success: check server console logs." : "Email sent successfully to " + clientEmail);
-      } else {
-        showToast("Failed to send email: " + (data.message || "Unknown error"), "warning");
-      }
+      openMailClient(
+        clientEmail,
+        `Quotation Proposal ${quote.quoteNumber} - ${companySettings.companyName || 'Binti Events'}`,
+        aiEmailDraft
+      );
+      showToast("Opened draft in email client!");
     } catch (err) {
-      showToast("Error sending email: " + err, "warning");
+      showToast("Error opening email client: " + err, "warning");
     } finally {
       setIsSendingEmail(false);
     }
   };
 
-  // Recommend Terms (calls local template engine backend)
+  // Recommend Terms via AI Service
   const handleRecommendTerms = async () => {
     setRecommendingTerms(true);
     try {
-      const response = await fetch("/api/ai/recommend-terms", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientName: clients.find(c => c.id === clientId)?.name || "Valued Client",
-          items: items.map(i => ({ description: i.description }))
-        })
-      });
-      const data = await response.json();
-      if (data.success) {
-        setTerms(data.terms);
-      } else {
-        showToast("Could not load recommended terms from AI: " + data.message, "warning");
-      }
+      const clientName = clients.find(c => c.id === clientId)?.name || "Valued Client";
+      const rec = await recommendTerms(clientName, items);
+      setTerms(rec);
+      showToast("AI-recommended terms applied.");
     } catch (err) {
-      showToast("Error connecting to AI advisor.", "warning");
+      showToast("Error loading recommended terms.", "warning");
     } finally {
       setRecommendingTerms(false);
     }

@@ -541,7 +541,7 @@ export default function QuotesModule({
     doc.setTextColor(150, 150, 150);
     doc.text("Thank you for partnering with Binti Events to design your landmark occasions.", 20, 275);
     
-    doc.save(`${quote.quoteNumber}-${quote.clientName.replace(/\s+/g, "_")}.pdf`);
+    doc.save(`${quote.quoteNumber || 'QT'}-${(quote.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
   };
 
   const generatePDFBinti = async (quote: Quote) => {

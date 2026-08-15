@@ -596,7 +596,7 @@ export default function InvoicesModule({
       invoice.payments.forEach(p => {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7.5);
-        doc.text(`* ${p.paymentDate} - ${p.paymentMethod.replace("_", " ")} (${p.referenceNumber}): ${currency} ${p.amountPaid.toLocaleString()} paid.`, 20, currentY);
+        doc.text(`* ${p.paymentDate || ''} - ${(p.paymentMethod || 'other').replace(/_/g, " ")} (${p.referenceNumber || 'N/A'}): ${currency} ${(Number(p.amountPaid) || 0).toLocaleString()} paid.`, 20, currentY);
         currentY += 4;
       });
     }
@@ -617,7 +617,7 @@ export default function InvoicesModule({
     doc.setTextColor(150, 150, 150);
     doc.text("Thank you for your valuable corporate event business with Binti Events.", 20, 275);
     
-    doc.save(`${invoice.invoiceNumber}-${invoice.clientName.replace(/\s+/g, "_")}.pdf`);
+    doc.save(`${invoice.invoiceNumber || 'INV'}-${(invoice.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
   };
 
   const generatePDFBinti = async (invoice: Invoice) => {
@@ -1293,7 +1293,7 @@ export default function InvoicesModule({
                   selectedInvoice.status === "pending" ? "bg-blue-100 text-blue-700 border border-blue-200" :
                   "bg-gray-100 text-gray-600 border border-gray-200"
                 }`}>
-                  {selectedInvoice.status.replace("_", " ")}
+                  {(selectedInvoice.status || 'draft').replace(/_/g, " ")}
                 </span>
               </div>
 
@@ -1301,13 +1301,13 @@ export default function InvoicesModule({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-2xl">
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Billed Client</p>
-                  <p className="text-sm font-semibold text-gray-800 mt-1">{selectedInvoice.clientName}</p>
+                  <p className="text-sm font-semibold text-gray-800 mt-1">{selectedInvoice.clientName || 'Unknown'}</p>
                   <p className="text-xs text-gray-500 mt-1">Client ID: {selectedInvoice.clientId}</p>
                 </div>
                 <div className="md:border-l md:border-gray-200 md:pl-4">
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Billing Timeline</p>
-                  <p className="text-xs text-gray-700 mt-1">Issue Date: <span className="font-semibold">{selectedInvoice.issueDate}</span></p>
-                  <p className="text-xs text-gray-700 mt-0.5">Due Date: <span className="font-semibold">{selectedInvoice.dueDate}</span></p>
+                  <p className="text-xs text-gray-700 mt-1">Issue Date: <span className="font-semibold">{selectedInvoice.issueDate || ''}</span></p>
+                  <p className="text-xs text-gray-700 mt-0.5">Due Date: <span className="font-semibold">{selectedInvoice.dueDate || ''}</span></p>
                 </div>
               </div>
 
@@ -1327,14 +1327,14 @@ export default function InvoicesModule({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 text-gray-700">
-                      {selectedInvoice.items.map((item) => (
+                      {(selectedInvoice.items || []).map((item) => (
                         <tr key={item.id} className="hover:bg-gray-50/50">
                           <td className="p-3 font-medium text-gray-800">{item.description}</td>
                           <td className="p-3 text-center font-bold text-gray-500">{item.quantity}</td>
-                          <td className="p-3 text-right font-medium">{item.unitPrice.toLocaleString()}</td>
-                          <td className="p-3 text-center text-emerald-600 font-bold">{item.discount}%</td>
-                          {selectedInvoice.taxTotal > 0 && <td className="p-3 text-center text-gray-500">{item.tax}%</td>}
-                          <td className="p-3 text-right font-bold text-gray-800">{item.amount.toLocaleString()}</td>
+                          <td className="p-3 text-right font-medium">{(Number(item.unitPrice) || 0).toLocaleString()}</td>
+                          <td className="p-3 text-center text-emerald-600 font-bold">{item.discount || 0}%</td>
+                          {selectedInvoice.taxTotal > 0 && <td className="p-3 text-center text-gray-500">{item.tax || 0}%</td>}
+                          <td className="p-3 text-right font-bold text-gray-800">{(Number(item.amount) || 0).toLocaleString()}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1352,7 +1352,7 @@ export default function InvoicesModule({
                   {selectedInvoice.status !== "paid" && (
                     <button
                       onClick={() => {
-                        setPAmount(selectedInvoice.balanceRemaining.toString());
+                        setPAmount((selectedInvoice.balanceRemaining || 0).toString());
                         setIsLoggingPayment(true);
                       }}
                       className="text-[10px] text-emerald-600 hover:text-emerald-700 font-bold bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-lg"
@@ -1377,11 +1377,11 @@ export default function InvoicesModule({
                       <tbody className="divide-y divide-emerald-50/30 text-gray-700">
                         {selectedInvoice.payments.map((p) => (
                           <tr key={p.id}>
-                            <td className="py-2.5 font-medium">{p.paymentDate}</td>
-                            <td className="py-2.5 capitalize">{p.paymentMethod.replace("_", " ")}</td>
+                            <td className="py-2.5 font-medium">{p.paymentDate || ''}</td>
+                            <td className="py-2.5 capitalize">{(p.paymentMethod || "other").replace(/_/g, " ")}</td>
                             <td className="py-2.5 font-mono text-[10px] text-[#6B46C1]">{p.referenceNumber || "N/A"}</td>
                             <td className="py-2.5 text-gray-500 truncate max-w-[150px]">{p.notes || "-"}</td>
-                            <td className="py-2.5 text-right font-bold text-emerald-600">+{currency} {p.amountPaid.toLocaleString()}</td>
+                            <td className="py-2.5 text-right font-bold text-emerald-600">+{currency} {(Number(p.amountPaid) || 0).toLocaleString()}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1654,7 +1654,7 @@ export default function InvoicesModule({
                       : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                   }`}
                 >
-                  {status.replace("_", " ")}
+                  {(status || '').replace(/_/g, " ")}
                 </button>
               ))}
             </div>
@@ -1690,16 +1690,16 @@ export default function InvoicesModule({
                           onClick={() => setSelectedInvoice(inv)}
                           className="hover:underline text-left text-xs"
                         >
-                          {inv.invoiceNumber}
+                          {inv.invoiceNumber || 'INV'}
                         </button>
                       </td>
-                      <td className="p-4 font-semibold text-gray-800">{inv.clientName}</td>
-                      <td className="p-4 text-gray-500">{inv.issueDate}</td>
-                      <td className="p-4 text-gray-500">{inv.dueDate}</td>
-                      <td className="p-4 font-bold text-gray-900 text-right">{currency} {inv.grandTotal.toLocaleString()}</td>
+                      <td className="p-4 font-semibold text-gray-800">{inv.clientName || 'Unknown'}</td>
+                      <td className="p-4 text-gray-500">{inv.issueDate || '-'}</td>
+                      <td className="p-4 text-gray-500">{inv.dueDate || '-'}</td>
+                      <td className="p-4 font-bold text-gray-900 text-right">{currency} {(Number(inv.grandTotal) || 0).toLocaleString()}</td>
                       <td className="p-4 text-right">
-                        <span className={`font-semibold ${inv.balanceRemaining > 0 ? "text-amber-600" : "text-green-600"}`}>
-                          {currency} {inv.balanceRemaining.toLocaleString()}
+                        <span className={`font-semibold ${(Number(inv.balanceRemaining) || 0) > 0 ? "text-amber-600" : "text-green-600"}`}>
+                          {currency} {(Number(inv.balanceRemaining) || 0).toLocaleString()}
                         </span>
                       </td>
                       <td className="p-4 text-center">
@@ -1710,7 +1710,7 @@ export default function InvoicesModule({
                           inv.status === "pending" ? "bg-blue-100 text-blue-700" :
                           "bg-gray-100 text-gray-600"
                         }`}>
-                          {inv.status.replace("_", " ")}
+                          {(inv.status || 'draft').replace(/_/g, " ")}
                         </span>
                       </td>
                       <td className="p-4 text-right">

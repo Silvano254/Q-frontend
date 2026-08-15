@@ -191,7 +191,7 @@ export default function App() {
           supabase.from('products').select('*'),
           supabase.from('quotes').select('*'),
           supabase.from('invoices').select('*'),
-          supabase.from('company_settings').select('*').limit(1).maybeSingle()
+          supabase.from('company_settings').select('*').order('updated_at', { ascending: false }).limit(1).maybeSingle()
         ]);
 
         resClients = (cRes.data || []).map((c: any) => ({
@@ -736,14 +736,29 @@ export default function App() {
   // Settings Configuration Update
   const handleUpdateSettings = async (settingsPayload: CompanySettings) => {
     if (isSupabaseConfigured) {
-      await supabase.from('company_settings').upsert({
+      // Get existing settings row ID if present
+      const { data: existing } = await supabase.from('company_settings').select('id').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+      
+      const payload: any = {
         company_name: settingsPayload.companyName,
         tax_number: settingsPayload.taxNumber,
         address: settingsPayload.address,
         bank_details: settingsPayload.bankDetails,
         currency: settingsPayload.currency,
-        terms_template: settingsPayload.termsTemplate
-      });
+        terms_template: settingsPayload.termsTemplate,
+        updated_at: new Date().toISOString()
+      };
+
+      if (existing?.id) {
+        payload.id = existing.id;
+      }
+
+      const { error } = await supabase.from('company_settings').upsert(payload);
+      if (error) {
+        console.error("Failed to update settings:", error);
+        showToast(`Failed to save settings: ${error.message}`, "warning");
+        return;
+      }
     }
     showToast("System settings updated successfully.");
     fetchAllData();

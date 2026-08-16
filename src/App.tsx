@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Shield, User, Lock, ArrowRight, RefreshCw, AlertTriangle, Eye, EyeOff, Fingerprint, KeyRound, X, CheckCircle2, Loader2 } from "lucide-react";
+import { Sparkles, Shield, User, Lock, ArrowRight, RefreshCw, AlertTriangle, Eye, EyeOff, Fingerprint, KeyRound, X, CheckCircle2, Loader2, Clock } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import Dashboard from "./components/Dashboard";
@@ -30,6 +30,9 @@ export default function App() {
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
+  const [sessionTimeoutMsg, setSessionTimeoutMsg] = useState<string | null>(() => {
+    return localStorage.getItem("binti_session_timeout_msg");
+  });
 
   // Biometric & Password Recovery States
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
@@ -173,9 +176,23 @@ export default function App() {
       resSettings = apiSettings;
 
       setClients(resClients);
-      if (resProducts.length > 0) setProducts(resProducts);
       setQuotes(resQuotes);
       setInvoices(normalizedInvoices);
+
+      // Restore selected quote or invoice from saved session timeout state
+      const restoreQuoteId = sessionStorage.getItem("binti_restore_quote_id");
+      if (restoreQuoteId) {
+        const found = resQuotes.find((q: Quote) => q.id === restoreQuoteId);
+        if (found) setSelectedQuote(found);
+        sessionStorage.removeItem("binti_restore_quote_id");
+      }
+
+      const restoreInvoiceId = sessionStorage.getItem("binti_restore_invoice_id");
+      if (restoreInvoiceId) {
+        const found = normalizedInvoices.find((inv: Invoice) => inv.id === restoreInvoiceId);
+        if (found) setSelectedInvoice(found);
+        sessionStorage.removeItem("binti_restore_invoice_id");
+      }
       if (resSettings) {
         setCompanySettings(prev => {
           const merged: CompanySettings = {
@@ -315,6 +332,62 @@ export default function App() {
     }
   }, [isAuthenticated]);
 
+  // Session Inactivity Timeout (15 minutes) with Workspace State Preservation
+  const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Initialize/refresh user activity timestamp
+    localStorage.setItem("binti_last_activity", Date.now().toString());
+
+    let lastRecorded = Date.now();
+    const handleUserActivity = () => {
+      const now = Date.now();
+      if (now - lastRecorded > 5000) {
+        lastRecorded = now;
+        localStorage.setItem("binti_last_activity", now.toString());
+      }
+    };
+
+    const events = ["mousedown", "mousemove", "keydown", "touchstart", "scroll", "click"];
+    events.forEach(event => window.addEventListener(event, handleUserActivity, { passive: true }));
+
+    // Periodic check for inactivity every 10 seconds
+    const interval = setInterval(() => {
+      const lastActStr = localStorage.getItem("binti_last_activity");
+      const lastAct = lastActStr ? parseInt(lastActStr, 10) : Date.now();
+      
+      if (Date.now() - lastAct >= INACTIVITY_TIMEOUT_MS) {
+        // Save current workspace state before logging out
+        const sessionState = {
+          activeTab,
+          selectedQuoteId: selectedQuote?.id || null,
+          selectedInvoiceId: selectedInvoice?.id || null,
+          globalSearch,
+          timestamp: Date.now()
+        };
+        localStorage.setItem("binti_saved_session_state", JSON.stringify(sessionState));
+        
+        const timeoutMsg = "You were automatically signed out after 15 minutes of inactivity for security. Sign in to resume where you left off.";
+        localStorage.setItem("binti_session_timeout_msg", timeoutMsg);
+        setSessionTimeoutMsg(timeoutMsg);
+
+        // Perform session timeout logout
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        localStorage.removeItem("binti_authenticated");
+        localStorage.removeItem("binti_user");
+        clearAuthToken();
+      }
+    }, 10000);
+
+    return () => {
+      events.forEach(event => window.removeEventListener(event, handleUserActivity));
+      clearInterval(interval);
+    };
+  }, [isAuthenticated, activeTab, selectedQuote, selectedInvoice, globalSearch]);
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError(null);
@@ -330,6 +403,35 @@ export default function App() {
       setCurrentUser(data.user);
       localStorage.setItem('binti_authenticated', 'true');
       localStorage.setItem('binti_user', JSON.stringify(data.user));
+
+      // Restore previous workspace state if user timed out
+      const savedStateRaw = localStorage.getItem("binti_saved_session_state");
+      if (savedStateRaw) {
+        try {
+          const savedState = JSON.parse(savedStateRaw);
+          if (savedState.activeTab) {
+            setActiveTab(savedState.activeTab);
+          }
+          if (savedState.globalSearch) {
+            setGlobalSearch(savedState.globalSearch);
+          }
+          if (savedState.selectedQuoteId) {
+            sessionStorage.setItem("binti_restore_quote_id", savedState.selectedQuoteId);
+          }
+          if (savedState.selectedInvoiceId) {
+            sessionStorage.setItem("binti_restore_invoice_id", savedState.selectedInvoiceId);
+          }
+          localStorage.removeItem("binti_saved_session_state");
+          localStorage.removeItem("binti_session_timeout_msg");
+          setSessionTimeoutMsg(null);
+          showToast("Welcome back! Your previous workspace state has been restored.");
+        } catch (e) {
+          console.error("Failed to restore session state", e);
+        }
+      } else {
+        localStorage.removeItem("binti_session_timeout_msg");
+        setSessionTimeoutMsg(null);
+      }
     } catch (error: any) {
       setAuthError(error.message || 'Unable to sign in.');
     } finally {
@@ -343,6 +445,11 @@ export default function App() {
     setCurrentUser(null);
     localStorage.removeItem("binti_authenticated");
     localStorage.removeItem("binti_user");
+    localStorage.removeItem("binti_saved_session_state");
+    localStorage.removeItem("binti_session_timeout_msg");
+    sessionStorage.removeItem("binti_restore_quote_id");
+    sessionStorage.removeItem("binti_restore_invoice_id");
+    setSessionTimeoutMsg(null);
     clearAuthToken();
   };
 
@@ -798,6 +905,17 @@ export default function App() {
                 </span>
               </h1>
             </div>
+
+            {/* Session Inactivity Timeout Banner */}
+            {sessionTimeoutMsg && (
+              <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-start space-x-3 text-xs text-amber-900 animate-fade-in shadow-xs">
+                <Clock className="w-5 h-5 text-[#D4AF37] shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-amber-950">Session Timed Out</p>
+                  <p className="leading-relaxed text-amber-800">{sessionTimeoutMsg}</p>
+                </div>
+              </div>
+            )}
 
             {/* Error Notification */}
             {authError && (

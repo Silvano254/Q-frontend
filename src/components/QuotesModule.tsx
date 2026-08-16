@@ -549,27 +549,6 @@ export default function QuotesModule({
     const splitTerms = doc.splitTextToSize(quote.terms || companySettings.termsTemplate, 170);
     doc.text(splitTerms, 20, currentY + 5);
 
-    // Official Bank Details & Payment Instructions
-    if (companySettings.bankDetails && companySettings.bankDetails.trim()) {
-      currentY += (splitTerms.length * 4) + 8;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.5);
-      doc.setTextColor(purple[0], purple[1], purple[2]);
-      doc.text("OFFICIAL PAYMENT INSTRUCTIONS & BANK DETAILS:", 20, currentY);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.5);
-      doc.setTextColor(110, 110, 110);
-      const bankLines = companySettings.bankDetails.split(/\r?\n/);
-      currentY += 4;
-      bankLines.forEach(line => {
-        if (line.trim()) {
-          doc.text(line.trim(), 20, currentY);
-          currentY += 3.5;
-        }
-      });
-    }
-
     // Signature Area
     const sigY = 250;
     doc.setDrawColor(200, 200, 200);
@@ -805,28 +784,6 @@ export default function QuotesModule({
     });
 
     y += 8;
-
-    // Registered Bank / Billing Details Block
-    if (companySettings.bankDetails && companySettings.bankDetails.trim()) {
-      ensurePageSpace(25);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(black[0], black[1], black[2]);
-      doc.text('OFFICIAL PAYMENT INSTRUCTIONS & BANK DETAILS:', margin, y);
-      y += 4;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(gray[0], gray[1], gray[2]);
-      const bankLines = companySettings.bankDetails.split(/\r?\n/);
-      bankLines.forEach(line => {
-        if (line.trim()) {
-          doc.text(line.trim(), margin, y);
-          y += 3.5;
-        }
-      });
-      y += 4;
-    }
-
     ensurePageSpace(30);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -1353,17 +1310,6 @@ export default function QuotesModule({
                   <p className="text-xs text-gray-600 leading-relaxed font-mono whitespace-pre-wrap">{selectedQuote.terms || companySettings.termsTemplate}</p>
                 </div>
               </div>
-
-              {/* Official Payment Instructions & Bank Details */}
-              {companySettings.bankDetails && companySettings.bankDetails.trim() && (
-                <div className="bg-emerald-50/20 p-4 border border-emerald-100 rounded-2xl space-y-1.5">
-                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center space-x-1.5">
-                    <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Official Payment Instructions & Bank Details (On Quote PDFs)</span>
-                  </span>
-                  <p className="text-xs text-gray-700 leading-relaxed font-mono whitespace-pre-wrap pl-5">{companySettings.bankDetails}</p>
-                </div>
-              )}
             </div>
 
             {/* Right Col: Totals + Actions & AI Mail Draft */}

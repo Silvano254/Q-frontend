@@ -27,10 +27,10 @@ export function buildInvoiceWhatsAppMessage(
   const clientName = client?.name || invoice.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
   const dateFormatted = invoice.issueDate ? invoice.issueDate.split("T")[0] : "N/A";
-  const dueDateFormatted = invoice.dueDate ? invoice.dueDate.split("T")[0] : "N/A";
-  const balanceText = invoice.balanceRemaining !== undefined 
-    ? `${currency} ${invoice.balanceRemaining.toLocaleString()}` 
-    : `${currency} ${invoice.grandTotal.toLocaleString()}`;
+  const isPaid = invoice.status === 'paid' || (invoice.balanceRemaining !== undefined && invoice.balanceRemaining <= 0);
+  const balanceText = isPaid 
+    ? `${currency} 0 (Fully Paid)` 
+    : (invoice.balanceRemaining !== undefined ? `${currency} ${invoice.balanceRemaining.toLocaleString()}` : `${currency} ${invoice.grandTotal.toLocaleString()}`);
   const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Corporate';
 
   return `📄 *INVOICE: #${invoice.invoiceNumber}*
@@ -43,6 +43,7 @@ Please find attached your Tax Invoice (*#${invoice.invoiceNumber}*) from *${comp
 • *Due Date:* ${dueDateFormatted}
 • *Total Billed:* ${currency} ${invoice.grandTotal.toLocaleString()}
 • *Balance Due:* ${balanceText}
+• *Status:* ${isPaid ? 'Fully Paid / Settled' : (invoice.status || 'Pending').toUpperCase()}
 • *PDF Document Template:* ${templateName}
 
 The official itemized PDF invoice document has been generated for your record.

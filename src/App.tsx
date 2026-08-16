@@ -148,13 +148,34 @@ export default function App() {
       resClients = apiClients;
       resProducts = apiProducts;
       resQuotes = apiQuotes;
-      resInvoices = apiInvoices;
+      
+      const normalizedInvoices: Invoice[] = (apiInvoices || []).map((inv: any) => {
+        const grandTotal = Number(inv.grandTotal ?? inv.grandtotal ?? inv.grand_total ?? 0);
+        const payments = inv.payments || [];
+        const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amountPaid) || 0), 0);
+        const balanceRemaining = Math.max(0, grandTotal - totalPaid);
+        let status = inv.status || 'draft';
+        if (balanceRemaining <= 0 && grandTotal > 0 && payments.length > 0) {
+          status = 'paid';
+        } else if (totalPaid > 0 && balanceRemaining > 0) {
+          status = 'partially_paid';
+        }
+        return {
+          ...inv,
+          grandTotal,
+          balanceRemaining,
+          status,
+          payments
+        };
+      });
+
+      resInvoices = normalizedInvoices;
       resSettings = apiSettings;
 
       setClients(resClients);
       if (resProducts.length > 0) setProducts(resProducts);
       setQuotes(resQuotes);
-      setInvoices(resInvoices);
+      setInvoices(normalizedInvoices);
       if (resSettings) {
         setCompanySettings(prev => {
           const merged: CompanySettings = {

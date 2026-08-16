@@ -18,9 +18,10 @@ export function buildInvoiceEmailContent(
 
   const dateFormatted = invoice.issueDate ? invoice.issueDate.split("T")[0] : "N/A";
   const dueDateFormatted = invoice.dueDate ? invoice.dueDate.split("T")[0] : "N/A";
-  const balanceText = invoice.balanceRemaining !== undefined 
-    ? `${currency} ${invoice.balanceRemaining.toLocaleString()}` 
-    : `${currency} ${invoice.grandTotal.toLocaleString()}`;
+  const isPaid = invoice.status === 'paid' || (invoice.balanceRemaining !== undefined && invoice.balanceRemaining <= 0);
+  const balanceText = isPaid 
+    ? `${currency} 0 (Fully Paid)` 
+    : (invoice.balanceRemaining !== undefined ? `${currency} ${invoice.balanceRemaining.toLocaleString()}` : `${currency} ${invoice.grandTotal.toLocaleString()}`);
 
   const body = `Dear ${clientName},
 
@@ -33,6 +34,7 @@ Invoice Summary:
 • Payment Due Date: ${dueDateFormatted}
 • Total Billed: ${currency} ${invoice.grandTotal.toLocaleString()}
 • Balance Due: ${balanceText}
+• Payment Status: ${isPaid ? 'Fully Paid / Settled' : (invoice.status || 'Pending').toUpperCase()}
 • Document Style: ${templateName}
 ----------------------------------------
 

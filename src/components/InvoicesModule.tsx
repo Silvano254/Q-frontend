@@ -616,8 +616,12 @@ export default function InvoicesModule({
     currentY += 5;
     doc.text(splitTerms, 20, currentY);
 
-    // Official Payment Instructions & Bank Details Block
-    if (companySettings.bankDetails && companySettings.bankDetails.trim()) {
+    // Official Payment Instructions & Bank Details Block (Only displayed if invoice has an outstanding balance)
+    const paidTotal = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+    const balanceRemaining = invoice.balanceRemaining !== undefined ? Number(invoice.balanceRemaining) : Math.max(0, (Number(invoice.grandTotal) || 0) - paidTotal);
+    const hasDueBalance = invoice.status !== 'paid' && balanceRemaining > 0;
+
+    if (hasDueBalance && companySettings.bankDetails && companySettings.bankDetails.trim()) {
       currentY += (splitTerms.length * 4) + 6;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8.5);
@@ -906,8 +910,12 @@ export default function InvoicesModule({
 
     y += 8;
 
-    // Registered Bank / Billing Details Block
-    if (companySettings.bankDetails && companySettings.bankDetails.trim()) {
+    // Registered Bank / Billing Details Block (Only for invoices with an active due balance)
+    const paidTotalBinti = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+    const balanceRemainingBinti = invoice.balanceRemaining !== undefined ? Number(invoice.balanceRemaining) : Math.max(0, (Number(invoice.grandTotal) || 0) - paidTotalBinti);
+    const hasDueBalanceBinti = invoice.status !== 'paid' && balanceRemainingBinti > 0;
+
+    if (hasDueBalanceBinti && companySettings.bankDetails && companySettings.bankDetails.trim()) {
       ensurePageSpace(25);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
@@ -1466,12 +1474,12 @@ export default function InvoicesModule({
                 )}
               </div>
 
-              {/* Official Bank Account & Payment Instructions Preview */}
-              {companySettings.bankDetails && companySettings.bankDetails.trim() && (
+              {/* Official Bank Account & Payment Instructions Preview (Only for Invoices with active due balance) */}
+              {selectedInvoice.status !== 'paid' && (Number(selectedInvoice.balanceRemaining) > 0) && companySettings.bankDetails && companySettings.bankDetails.trim() && (
                 <div className="bg-emerald-50/20 p-4 border border-emerald-100 rounded-2xl space-y-1.5">
                   <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center space-x-1.5">
                     <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Official Payment Instructions & Bank Details (On Invoice PDFs)</span>
+                    <span>Official Payment Instructions & Bank Details (On Due Invoices)</span>
                   </span>
                   <p className="text-xs text-gray-700 leading-relaxed font-mono whitespace-pre-wrap pl-5">{companySettings.bankDetails}</p>
                 </div>

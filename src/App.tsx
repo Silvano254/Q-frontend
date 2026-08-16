@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Sparkles, Shield, User, Lock, ArrowRight, RefreshCw, AlertTriangle, Eye, EyeOff, Fingerprint, KeyRound, X, CheckCircle2 } from "lucide-react";
+import { Sparkles, Shield, User, Lock, ArrowRight, RefreshCw, AlertTriangle, Eye, EyeOff, Fingerprint, KeyRound, X, CheckCircle2, Loader2 } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import Dashboard from "./components/Dashboard";
@@ -27,6 +27,7 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
 
@@ -235,6 +236,7 @@ export default function App() {
     e.preventDefault();
     setAuthError(null);
     setAuthSuccessMsg(null);
+    setIsSigningIn(true);
 
     try {
       const data = await apiRequest<{ success: boolean; token: string; user: { name: string; role: string; email: string } }>(
@@ -247,6 +249,8 @@ export default function App() {
       localStorage.setItem('binti_user', JSON.stringify(data.user));
     } catch (error: any) {
       setAuthError(error.message || 'Unable to sign in.');
+    } finally {
+      setIsSigningIn(false);
     }
   };
 
@@ -755,16 +759,27 @@ export default function App() {
               <div className="flex items-center space-x-3 pt-2">
                 <button
                   type="submit"
-                  className="flex-1 min-h-[48px] py-3.5 bg-gradient-to-r from-[#80237E] via-[#6B46C1] to-[#55369b] hover:opacity-95 text-[#ffffff] rounded-2xl text-xs sm:text-sm font-extrabold tracking-wide transition-all shadow-lg shadow-[#80237E]/25 flex items-center justify-center space-x-2 active:scale-[0.99]"
+                  disabled={isSigningIn}
+                  className="flex-1 min-h-[48px] py-3.5 bg-gradient-to-r from-[#80237E] via-[#6B46C1] to-[#55369b] hover:opacity-95 text-[#ffffff] rounded-2xl text-xs sm:text-sm font-extrabold tracking-wide transition-all shadow-lg shadow-[#80237E]/25 flex items-center justify-center space-x-2 active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed"
                 >
-                  <span>Sign In</span>
-                  <ArrowRight className="w-4 h-4 text-[#EAB308]" />
+                  {isSigningIn ? (
+                    <>
+                      <Loader2 className="w-4 h-4 text-[#EAB308] animate-spin" />
+                      <span>Signing in...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Sign In</span>
+                      <ArrowRight className="w-4 h-4 text-[#EAB308]" />
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
+                  disabled={isSigningIn}
                   onClick={handleBiometricLoginSubmit}
                   title="Biometric Fingerprint / Passkey Login"
-                  className="w-12 h-12 min-h-[48px] shrink-0 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-2xl flex items-center justify-center text-[#80237E] shadow-sm transition-all active:scale-95"
+                  className="w-12 h-12 min-h-[48px] shrink-0 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-2xl flex items-center justify-center text-[#80237E] shadow-sm transition-all active:scale-95 disabled:opacity-50"
                 >
                   <Fingerprint className="w-5 h-5 text-[#EC4899]" />
                 </button>

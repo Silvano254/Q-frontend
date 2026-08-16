@@ -1094,7 +1094,7 @@ export default function App() {
         <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
           {/* Global search overlay results portal */}
           {globalSearch ? (
-            <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-xl space-y-4 animate-fade-in absolute inset-x-8 top-8 z-40">
+            <div className="bg-white border border-gray-100 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-xl space-y-4 animate-fade-in absolute inset-x-3 sm:inset-x-8 top-4 md:top-8 z-40">
               <div className="flex items-center justify-between border-b border-gray-50 pb-3">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
                   Cross-Search Portal Results for "{globalSearch}"

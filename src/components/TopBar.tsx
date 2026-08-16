@@ -167,7 +167,7 @@ export default function TopBar({
 
           {/* Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-3 w-84 md:w-96 bg-white rounded-2xl border border-gray-200/80 shadow-2xl shadow-purple-900/10 overflow-hidden z-50 animate-fade-in">
+            <div className="absolute right-0 mt-3 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white rounded-2xl border border-gray-200/80 shadow-2xl shadow-purple-900/10 overflow-hidden z-50 animate-fade-in">
               {/* Dropdown Header */}
               <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50/80 via-purple-50/30 to-white">
                 <div className="flex items-center space-x-2">

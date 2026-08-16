@@ -21,7 +21,8 @@ import {
   X,
   Copy,
   Check,
-  Loader2
+  Loader2,
+  Truck
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { Invoice, Client, ProductService, BillingItem, PaymentRecord, CompanySettings } from "../types";
@@ -74,6 +75,9 @@ export default function InvoicesModule({
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
   const [applyTax, setApplyTax] = useState(true);
+  const [includeTransport, setIncludeTransport] = useState(false);
+  const [transportCost, setTransportCost] = useState<number | string>("");
+  const [transportDescription, setTransportDescription] = useState("Transport & Logistics / Site Rigging Transit");
   const [items, setItems] = useState<Partial<BillingItem>[]>([
     { id: "ii_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }
   ]);
@@ -293,6 +297,15 @@ export default function InvoicesModule({
       taxTotal += taxAmount;
     });
 
+    // Add transport cost if included
+    const tCost = includeTransport ? (Number(transportCost) || 0) : 0;
+    if (tCost > 0) {
+      subtotal += tCost;
+      if (applyTax) {
+        taxTotal += tCost * 0.16;
+      }
+    }
+
     const netSubtotal = subtotal - discountTotal;
     const grandTotal = Math.round(netSubtotal + taxTotal);
     return {
@@ -315,20 +328,37 @@ export default function InvoicesModule({
       const totals = getTotals();
       const selectedCli = clients.find(c => c.id === clientId);
       
+      const baseItems: BillingItem[] = items.map(i => ({
+        id: i.id || "ii_" + Math.random().toString(),
+        description: i.description || "Custom Event Asset Setup",
+        quantity: Number(i.quantity) || 1,
+        unitPrice: Number(i.unitPrice) || 0,
+        discount: Number(i.discount) || 0,
+        tax: Number(i.tax) || (applyTax ? 16 : 0),
+        amount: Number(i.amount) || 0
+      }));
+
+      // Append transport as a dedicated line item if enabled
+      const finalItems = [...baseItems];
+      const tCost = includeTransport ? (Number(transportCost) || 0) : 0;
+      if (includeTransport && tCost > 0) {
+        finalItems.push({
+          id: "transport_line_" + Date.now().toString(),
+          description: transportDescription.trim() || "Logistics & Transport / Crew Transit",
+          quantity: 1,
+          unitPrice: tCost,
+          discount: 0,
+          tax: applyTax ? 16 : 0,
+          amount: tCost
+        });
+      }
+
       const invoicePayload: Partial<Invoice> = {
         clientId,
         clientName: selectedCli ? selectedCli.name : "Unknown",
         issueDate,
         dueDate,
-        items: items.map(i => ({
-          id: i.id || "ii_" + Math.random().toString(),
-          description: i.description || "Custom Event Asset Setup",
-          quantity: Number(i.quantity) || 1,
-          unitPrice: Number(i.unitPrice) || 0,
-          discount: Number(i.discount) || 0,
-          tax: Number(i.tax) || 16,
-          amount: Number(i.amount) || 0
-        })),
+        items: finalItems,
         ...totals,
         notes,
         terms,
@@ -350,6 +380,9 @@ export default function InvoicesModule({
     setClientId("");
     setIssueDate(new Date().toISOString().split("T")[0]);
     setItems([{ id: "ii_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }]);
+    setIncludeTransport(false);
+    setTransportCost("");
+    setTransportDescription("Transport & Logistics / Site Rigging Transit");
     setNotes("");
     setTerms("");
     setAiEmailDraft(null);
@@ -1117,18 +1150,69 @@ export default function InvoicesModule({
             </div>
           </div>
  
-          {/* Tax Settings Toggle */}
-          <div className="flex items-center space-x-3 bg-purple-50/30 border border-purple-100/50 rounded-xl p-3">
-            <input
-              type="checkbox"
-              id="applyTax"
-              checked={applyTax}
-              onChange={(e) => setApplyTax(e.target.checked)}
-              className="w-4 h-4 text-[#6B46C1] border-gray-300 rounded focus:ring-[#6B46C1]"
-            />
-            <label htmlFor="applyTax" className="text-xs font-semibold text-gray-700 select-none cursor-pointer">
-              Apply VAT (16%) and generate Tax Invoice
-            </label>
+          {/* Options: Tax & Transport Settings */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Tax Settings Toggle */}
+            <div className="flex items-center space-x-3 bg-purple-50/30 border border-purple-100/50 rounded-xl p-3.5">
+              <input
+                type="checkbox"
+                id="applyTax"
+                checked={applyTax}
+                onChange={(e) => setApplyTax(e.target.checked)}
+                className="w-4 h-4 text-[#6B46C1] border-gray-300 rounded focus:ring-[#6B46C1]"
+              />
+              <label htmlFor="applyTax" className="text-xs font-semibold text-gray-700 select-none cursor-pointer">
+                Apply VAT (16%) and generate Tax Invoice
+              </label>
+            </div>
+
+            {/* Transport Cost Toggle & Input */}
+            <div className={`border rounded-xl p-3.5 transition-all ${
+              includeTransport ? "bg-amber-50/40 border-amber-200" : "bg-gray-50/50 border-gray-100"
+            }`}>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="includeTransport"
+                  checked={includeTransport}
+                  onChange={(e) => {
+                    setIncludeTransport(e.target.checked);
+                    if (!e.target.checked) setTransportCost("");
+                  }}
+                  className="w-4 h-4 text-[#D4AF37] border-gray-300 rounded focus:ring-[#D4AF37]"
+                />
+                <label htmlFor="includeTransport" className="text-xs font-bold text-gray-800 select-none cursor-pointer flex items-center space-x-1.5">
+                  <Truck className="w-4 h-4 text-[#D4AF37]" />
+                  <span>Include Transport & Logistics Cost</span>
+                </label>
+              </div>
+
+              {includeTransport && (
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-amber-200/60 animate-fade-in">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Transport Amount ({currency})</label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="e.g. 15000"
+                      value={transportCost}
+                      onChange={(e) => setTransportCost(e.target.value === "" ? "" : Number(e.target.value))}
+                      className="w-full px-3 py-1.5 border border-amber-300 bg-white rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Line Item Description</label>
+                    <input
+                      type="text"
+                      value={transportDescription}
+                      onChange={(e) => setTransportDescription(e.target.value)}
+                      placeholder="e.g. Transport & Logistics / Site Transit"
+                      className="w-full px-3 py-1.5 border border-amber-300 bg-white rounded-lg text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Items Table Section */}
@@ -1284,6 +1368,15 @@ export default function InvoicesModule({
                   <span className="text-gray-500">Discount Amount Deducted</span>
                   <span className="font-semibold text-emerald-600">({currency} {getTotals().discountTotal.toLocaleString()})</span>
                 </div>
+                {includeTransport && (Number(transportCost) || 0) > 0 && (
+                  <div className="flex justify-between py-2 text-amber-700 font-semibold bg-amber-50/50 px-2 rounded-lg">
+                    <span className="flex items-center space-x-1.5">
+                      <Truck className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      <span>Transport & Logistics</span>
+                    </span>
+                    <span>+{currency} {(Number(transportCost) || 0).toLocaleString()}</span>
+                  </div>
+                )}
                 {applyTax && (
                   <div className="flex justify-between py-2">
                     <span className="text-gray-500">VAT Payable (16%)</span>

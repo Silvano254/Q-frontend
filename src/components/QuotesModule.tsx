@@ -15,7 +15,9 @@ import {
   FileCheck2,
   ListRestart,
   X,
-  Copy
+  Copy,
+  Check,
+  Loader2
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { Quote, Client, ProductService, BillingItem } from "../types";
@@ -103,6 +105,15 @@ export default function QuotesModule({
   const [pdfTemplate, setPdfTemplate] = useState<'corporate' | 'binti'>(() => {
     return (localStorage.getItem('pdf_template_preference') as 'corporate' | 'binti') || 'corporate';
   });
+
+  // Action states for button transitions
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [savingStatus, setSavingStatus] = useState<'draft' | 'sent' | null>(null);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [copiedWhatsApp, setCopiedWhatsApp] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [copiedAiDraft, setCopiedAiDraft] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // AI Email
   const [aiEmailDraft, setAiEmailDraft] = useState<string | null>(null);
@@ -295,32 +306,39 @@ export default function QuotesModule({
       showToast("Please select a client before saving.", "warning");
       return;
     }
-    const totals = getTotals();
-    const selectedCli = clients.find(c => c.id === clientId);
-    
-    const quotePayload: Partial<Quote> = {
-      clientId,
-      clientName: selectedCli ? selectedCli.name : "Unknown",
-      quoteDate,
-      expiryDate,
-      items: items.map(i => ({
-        id: i.id || "qi_" + Math.random().toString(),
-        description: i.description || "Custom Service",
-        quantity: Number(i.quantity) || 1,
-        unitPrice: Number(i.unitPrice) || 0,
-        discount: Number(i.discount) || 0,
-        tax: Number(i.tax) || 16,
-        amount: Number(i.amount) || 0
-      })),
-      ...totals,
-      notes,
-      terms,
-      status
-    };
+    setSavingStatus(status);
+    try {
+      const totals = getTotals();
+      const selectedCli = clients.find(c => c.id === clientId);
+      
+      const quotePayload: Partial<Quote> = {
+        clientId,
+        clientName: selectedCli ? selectedCli.name : "Unknown",
+        quoteDate,
+        expiryDate,
+        items: items.map(i => ({
+          id: i.id || "qi_" + Math.random().toString(),
+          description: i.description || "Custom Service",
+          quantity: Number(i.quantity) || 1,
+          unitPrice: Number(i.unitPrice) || 0,
+          discount: Number(i.discount) || 0,
+          tax: Number(i.tax) || 16,
+          amount: Number(i.amount) || 0
+        })),
+        ...totals,
+        notes,
+        terms,
+        status
+      };
 
-    await onCreateQuote(quotePayload);
-    setIsCreating(false);
-    resetForm();
+      await onCreateQuote(quotePayload);
+      setIsCreating(false);
+      resetForm();
+    } catch (err) {
+      console.error("Save quote error:", err);
+    } finally {
+      setSavingStatus(null);
+    }
   };
 
   const resetForm = () => {
@@ -362,12 +380,25 @@ export default function QuotesModule({
     });
   };
 
-  // Generate PDF (jsPDF)
+  // Generate PDF (jsPDF) with visual active state
   const generatePDF = async (quote: Quote) => {
-    if (pdfTemplate === 'binti') {
-      await generatePDFBinti(quote);
-    } else {
-      generatePDFCorporate(quote);
+    if (!quote) return;
+    setDownloadingPdf(true);
+    showToast("Generating and preparing PDF quotation...");
+    try {
+      // Small pause to ensure UI displays the spinner state
+      await new Promise(r => setTimeout(r, 60));
+      if (pdfTemplate === 'binti') {
+        await generatePDFBinti(quote);
+      } else {
+        generatePDFCorporate(quote);
+      }
+      showToast("Quotation PDF downloaded successfully!");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      showToast("Failed to generate PDF quotation.", "warning");
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -602,7 +633,7 @@ export default function QuotesModule({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(28);
     doc.setTextColor(black[0], black[1], black[2]);
-    const documentTitle = quote.taxTotal > 0 ? 'TAX PROPOSAL' : 'PROPOSAL';
+    const documentTitle = quote.taxTotal > 0 ? 'TAX QUOTATION' : 'QUOTATION';
     doc.text(documentTitle, pageWidth - margin, y + 8, { align: 'right' });
 
     doc.setFont('helvetica', 'bold');
@@ -645,7 +676,7 @@ export default function QuotesModule({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(gray[0], gray[1], gray[2]);
-    doc.text('Proposal No.:', labelX, y, { align: 'right' });
+    doc.text('Quote No.:', labelX, y, { align: 'right' });
     doc.text('Issue date:', labelX, y + 6, { align: 'right' });
     doc.text('Expiry date:', labelX, y + 12, { align: 'right' });
 
@@ -857,7 +888,7 @@ export default function QuotesModule({
     try {
       openMailClient(
         clientEmail,
-        `Quotation Proposal ${quote.quoteNumber} - ${companySettings.companyName || 'Binti Events'}`,
+        `Quotation ${quote.quoteNumber} - ${companySettings.companyName || 'Binti Events'}`,
         aiEmailDraft
       );
       showToast("Opened draft in email client!");
@@ -904,7 +935,7 @@ export default function QuotesModule({
             <FileText className="w-5 h-5 text-[#6B46C1]" />
             <span>Event Quotations</span>
           </h2>
-          <p className="text-xs text-gray-500 mt-1">Configure luxury packages and generate PDF proposals.</p>
+          <p className="text-xs text-gray-500 mt-1">Configure luxury packages and generate PDF quotations.</p>
         </div>
         {!isCreating && !selectedQuote && (
           <button
@@ -1174,18 +1205,36 @@ export default function QuotesModule({
               <div className="flex items-center space-x-4 pt-4 border-t border-gray-200/60">
                 <button
                   type="button"
+                  disabled={savingStatus !== null}
                   onClick={() => handleSaveQuote("draft")}
-                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
+                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center space-x-1.5"
                 >
-                  Save Draft
+                  {savingStatus === 'draft' ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Draft...</span>
+                    </>
+                  ) : (
+                    <span>Save Draft</span>
+                  )}
                 </button>
                 <button
                   type="button"
+                  disabled={savingStatus !== null}
                   onClick={() => handleSaveQuote("sent")}
-                  className="flex-1 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md shadow-[#6B46C1]/20 transition-all flex items-center justify-center space-x-1"
+                  className="flex-1 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md shadow-[#6B46C1]/20 transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50"
                 >
-                  <FileCheck2 className="w-4 h-4 text-[#D4AF37]" />
-                  <span>Finalize & Issue</span>
+                  {savingStatus === 'sent' ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Issuing Quote...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileCheck2 className="w-4 h-4 text-[#D4AF37]" />
+                      <span>Finalize & Issue</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -1219,7 +1268,7 @@ export default function QuotesModule({
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-base text-gray-800">Binti Events Corporate Proposal</h4>
+                  <h4 className="font-bold text-base text-gray-800">Binti Events Official Quotation</h4>
                   <p className="text-xs text-gray-400 mt-0.5">Quote ID: {selectedQuote.id}</p>
                 </div>
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
@@ -1248,7 +1297,7 @@ export default function QuotesModule({
 
               {/* Items Table Display */}
               <div className="space-y-2">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Proposal Items & Pricing List</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Quote Items & Pricing List</span>
                 <div className="overflow-x-auto border border-gray-100 rounded-xl">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
@@ -1294,7 +1343,7 @@ export default function QuotesModule({
             <div className="space-y-6">
               {/* Financial Summary card */}
               <div className="bg-[#1F2937] text-white p-6 rounded-2xl border border-[#6B46C1]/20 space-y-4">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Total Proposal Pricing</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Total Quotation Amount</span>
                 
                 <div className="space-y-2 text-xs divide-y divide-gray-800">
                   <div className="flex justify-between py-1.5">
@@ -1336,11 +1385,21 @@ export default function QuotesModule({
                   </div>
 
                   <button
+                    disabled={downloadingPdf}
                     onClick={() => generatePDF(selectedQuote)}
-                    className="w-full py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all shadow-md shadow-[#6B46C1]/10"
+                    className="w-full py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all shadow-md shadow-[#6B46C1]/10 disabled:opacity-75"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download PDF Document</span>
+                    {downloadingPdf ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Generating PDF Document...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download PDF Document</span>
+                      </>
+                    )}
                   </button>
 
                   <button
@@ -1362,10 +1421,13 @@ export default function QuotesModule({
                   <button
                     onClick={() => handleDraftEmail(selectedQuote)}
                     disabled={draftingEmail}
-                    className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all"
+                    className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-50"
                   >
                     {draftingEmail ? (
-                      <span>Drafting email...</span>
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D4AF37]" />
+                        <span>Drafting AI Email...</span>
+                      </>
                     ) : (
                       <>
                         <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
@@ -1376,11 +1438,28 @@ export default function QuotesModule({
 
                   {selectedQuote.status !== "converted" && (
                     <button
-                      onClick={() => onConvertToInvoice(selectedQuote)}
-                      className="w-full py-2.5 bg-gradient-to-r from-[#D4AF37] to-amber-500 hover:from-amber-500 hover:to-[#D4AF37] text-[#1F2937] rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all"
+                      disabled={convertingId === selectedQuote.id}
+                      onClick={async () => {
+                        setConvertingId(selectedQuote.id);
+                        try {
+                          await onConvertToInvoice(selectedQuote);
+                        } finally {
+                          setConvertingId(null);
+                        }
+                      }}
+                      className="w-full py-2.5 bg-gradient-to-r from-[#D4AF37] to-amber-500 hover:from-amber-500 hover:to-[#D4AF37] text-[#1F2937] rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all disabled:opacity-60"
                     >
-                      <ArrowRightLeft className="w-3.5 h-3.5" />
-                      <span>Convert to live Invoice</span>
+                      {convertingId === selectedQuote.id ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Converting to Live Invoice...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                          <span>Convert to live Invoice</span>
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
@@ -1398,18 +1477,22 @@ export default function QuotesModule({
                       <button 
                         onClick={() => handleSendEmail(selectedQuote!)}
                         disabled={isSendingEmail}
-                        className="text-[10px] text-[#6B46C1] hover:underline font-bold disabled:opacity-50"
+                        className="text-[10px] text-[#6B46C1] hover:underline font-bold disabled:opacity-50 flex items-center space-x-1"
                       >
-                        {isSendingEmail ? "Sending..." : "Send via Resend"}
+                        {isSendingEmail && <Loader2 className="w-3 h-3 animate-spin" />}
+                        <span>{isSendingEmail ? "Sending..." : "Send via Resend"}</span>
                       </button>
                       <button 
                         onClick={() => {
                           navigator.clipboard.writeText(aiEmailDraft);
+                          setCopiedAiDraft(true);
                           showToast("Draft email copied to clipboard!");
+                          setTimeout(() => setCopiedAiDraft(false), 2000);
                         }}
-                        className="text-[10px] text-[#6B46C1] hover:underline font-bold"
+                        className="text-[10px] text-[#6B46C1] hover:underline font-bold flex items-center space-x-1"
                       >
-                        Copy
+                        {copiedAiDraft ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedAiDraft ? "Copied!" : "Copy"}</span>
                       </button>
                     </div>
                   </div>
@@ -1534,24 +1617,46 @@ export default function QuotesModule({
                           
                           {quote.status !== "converted" && (
                             <button
-                              onClick={() => onConvertToInvoice(quote)}
-                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+                              disabled={convertingId === quote.id}
+                              onClick={async () => {
+                                setConvertingId(quote.id);
+                                try {
+                                  await onConvertToInvoice(quote);
+                                } finally {
+                                  setConvertingId(null);
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all disabled:opacity-50"
                               title="Convert directly to Invoice"
                             >
-                              <ArrowRightLeft className="w-4 h-4" />
+                              {convertingId === quote.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+                              ) : (
+                                <ArrowRightLeft className="w-4 h-4" />
+                              )}
                             </button>
                           )}
                           
                           <button
-                            onClick={() => {
+                            disabled={deletingId === quote.id}
+                            onClick={async () => {
                               if (confirm("Are you sure you want to delete this quote?")) {
-                                onDeleteQuote(quote.id);
+                                setDeletingId(quote.id);
+                                try {
+                                  await onDeleteQuote(quote.id);
+                                } finally {
+                                  setDeletingId(null);
+                                }
                               }
                             }}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
                             title="Delete Quote Permanently"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {deletingId === quote.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -1596,11 +1701,21 @@ export default function QuotesModule({
                 </div>
                 <button
                   type="button"
+                  disabled={downloadingPdf}
                   onClick={() => generatePDF(whatsAppQuote)}
-                  className="px-2.5 py-1 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1"
+                  className="px-3 py-1.5 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1.5 disabled:opacity-75 transition-all"
                 >
-                  <Download className="w-3 h-3" />
-                  <span>Get PDF</span>
+                  {downloadingPdf ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3 h-3" />
+                      <span>Get PDF</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -1632,12 +1747,23 @@ export default function QuotesModule({
                 type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(whatsAppMessage);
+                  setCopiedWhatsApp(true);
                   showToast("WhatsApp text copied to clipboard!");
+                  setTimeout(() => setCopiedWhatsApp(false), 2000);
                 }}
                 className="w-1/3 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy Text</span>
+                {copiedWhatsApp ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-600">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Text</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -1684,11 +1810,21 @@ export default function QuotesModule({
                 </div>
                 <button
                   type="button"
+                  disabled={downloadingPdf}
                   onClick={() => generatePDF(emailQuote)}
-                  className="px-2.5 py-1 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1"
+                  className="px-3 py-1.5 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1.5 disabled:opacity-75 transition-all"
                 >
-                  <Download className="w-3 h-3" />
-                  <span>Get PDF</span>
+                  {downloadingPdf ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3 h-3" />
+                      <span>Get PDF</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -1721,10 +1857,19 @@ export default function QuotesModule({
                     type="button"
                     onClick={() => handleDraftEmail(emailQuote)}
                     disabled={draftingEmail}
-                    className="text-[10px] font-bold text-[#6B46C1] hover:underline flex items-center space-x-1"
+                    className="text-[10px] font-bold text-[#6B46C1] hover:underline flex items-center space-x-1 disabled:opacity-50"
                   >
-                    <Sparkles className="w-3 h-3 text-[#D4AF37]" />
-                    <span>{draftingEmail ? "Drafting..." : "Generate AI Copy"}</span>
+                    {draftingEmail ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin text-[#D4AF37]" />
+                        <span>Drafting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+                        <span>Generate AI Copy</span>
+                      </>
+                    )}
                   </button>
                 </div>
                 <textarea
@@ -1741,12 +1886,23 @@ export default function QuotesModule({
                 type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(`Subject: ${emailSubject}\n\n${emailBody}`);
+                  setCopiedEmail(true);
                   showToast("Email text copied to clipboard!");
+                  setTimeout(() => setCopiedEmail(false), 2000);
                 }}
                 className="w-1/3 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy</span>
+                {copiedEmail ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-600">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy</span>
+                  </>
+                )}
               </button>
 
               <button
@@ -1762,10 +1918,19 @@ export default function QuotesModule({
                 type="button"
                 onClick={handleSendModalEmail}
                 disabled={isSendingEmail}
-                className="w-1/3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center space-x-1"
+                className="w-1/3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center space-x-1 disabled:opacity-50"
               >
-                <Mail className="w-3.5 h-3.5" />
-                <span>{isSendingEmail ? "Sending..." : "Send API"}</span>
+                {isSendingEmail ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Send API</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -1,5 +1,19 @@
-import React, { useState } from "react";
-import { Search, Bell, Clock, AlertTriangle, CheckCircle2, User, ChevronDown, Menu, Sparkles } from "lucide-react";
+import React, { useState, useRef, useEffect } from "react";
+import { 
+  Search, 
+  Bell, 
+  BellRing, 
+  Clock, 
+  AlertTriangle, 
+  CheckCircle2, 
+  User, 
+  Menu, 
+  Sparkles, 
+  Trash2, 
+  X, 
+  BellOff, 
+  ArrowRight 
+} from "lucide-react";
 
 interface TopBarProps {
   globalSearch: string;
@@ -14,6 +28,8 @@ interface TopBarProps {
     unread: boolean;
   }>;
   onNotificationClick: (id: string) => void;
+  onClearNotifications?: () => void;
+  onDismissNotification?: (id: string) => void;
   onToggleMobileMenu?: () => void;
   onOpenAiAssistant?: () => void;
 }
@@ -24,11 +40,44 @@ export default function TopBar({
   currency, 
   notifications, 
   onNotificationClick,
+  onClearNotifications,
+  onDismissNotification,
   onToggleMobileMenu,
   onOpenAiAssistant
 }: TopBarProps) {
   const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
   const unreadCount = notifications.filter(n => n.unread).length;
+
+  // Handle clicking outside the notification dropdown to close it
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+
+    if (showNotifications) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showNotifications]);
+
+  const handleClearAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onClearNotifications) {
+      onClearNotifications();
+    }
+  };
+
+  const handleDismissSingle = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (onDismissNotification) {
+      onDismissNotification(id);
+    }
+  };
 
   return (
     <header className="h-16 bg-white border-b border-gray-100 px-4 md:px-8 flex items-center justify-between sticky top-0 z-40 shadow-sm shadow-gray-100/50">
@@ -47,26 +96,26 @@ export default function TopBar({
           <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
             <Search className="h-4 w-4 text-gray-400" />
           </div>
-        <input
-          type="text"
-          value={globalSearch}
-          onChange={(e) => setGlobalSearch(e.target.value)}
-          placeholder="Global search by client, inv #, quote #, email..."
-          className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] transition-all bg-[#F8F9FA]/70"
-        />
-        {globalSearch && (
-          <button 
-            onClick={() => setGlobalSearch("")}
-            className="absolute right-3 inset-y-0 flex items-center text-xs text-gray-400 hover:text-gray-600"
-          >
-            Clear
-          </button>
-        )}
+          <input
+            type="text"
+            value={globalSearch}
+            onChange={(e) => setGlobalSearch(e.target.value)}
+            placeholder="Global search by client, inv #, quote #, email..."
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] transition-all bg-[#F8F9FA]/70"
+          />
+          {globalSearch && (
+            <button 
+              onClick={() => setGlobalSearch("")}
+              className="absolute right-3 inset-y-0 flex items-center text-xs text-gray-400 hover:text-gray-600"
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
       {/* Right Side Tools */}
-      <div className="flex items-center space-x-4 md:space-x-6">
+      <div className="flex items-center space-x-3 md:space-x-5">
         {/* Ask Binti Button */}
         {onOpenAiAssistant && (
           <button
@@ -79,45 +128,84 @@ export default function TopBar({
         )}
 
         {/* Currency Status Indicator */}
-        <div className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 bg-[#80237E]/5 border border-[#80237E]/10 rounded-lg">
-          <span className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">Standard Currency:</span>
+        <div className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 bg-[#80237E]/5 border border-[#80237E]/10 rounded-xl">
+          <span className="text-[11px] uppercase tracking-wider text-gray-400 font-medium">Currency:</span>
           <span className="text-xs font-bold text-[#80237E]">{currency}</span>
         </div>
 
         {/* Notifications Icon with popover */}
-        <div className="relative">
+        <div className="relative" ref={notificationRef}>
           <button 
             onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-colors"
+            aria-label="Notifications"
+            className={`group relative p-2.5 rounded-xl border transition-all duration-200 flex items-center justify-center ${
+              showNotifications
+                ? "bg-[#80237E]/10 border-[#80237E]/40 text-[#80237E] shadow-sm ring-2 ring-[#80237E]/20"
+                : unreadCount > 0
+                  ? "bg-purple-50/60 border-purple-200/80 text-[#80237E] hover:bg-[#80237E]/10 hover:border-[#80237E]/40 shadow-xs"
+                  : "bg-gray-50/80 border-gray-200/80 text-gray-500 hover:text-[#80237E] hover:bg-gray-100/80 hover:border-gray-300"
+            }`}
           >
-            <Bell className="w-5 h-5" />
+            {unreadCount > 0 ? (
+              <BellRing className="w-4.5 h-4.5 text-[#80237E] group-hover:rotate-12 transition-transform duration-300" />
+            ) : (
+              <Bell className="w-4.5 h-4.5 text-current group-hover:scale-105 transition-transform duration-200" />
+            )}
+
+            {/* Glowing Unread Badge */}
             {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center animate-pulse">
-                {unreadCount}
-              </span>
+              <>
+                <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-4 w-4 bg-gradient-to-r from-red-500 to-rose-600 text-white text-[9px] font-extrabold items-center justify-center shadow-sm">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                </span>
+              </>
             )}
           </button>
 
           {/* Notifications Dropdown */}
           {showNotifications && (
-            <div className="absolute right-0 mt-3 w-80 bg-white rounded-2xl border border-gray-100 shadow-xl overflow-hidden z-50">
-              <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-gradient-to-r from-gray-50 to-white">
-                <h3 className="font-semibold text-sm text-gray-800 flex items-center space-x-1.5">
-                  <Bell className="w-4 h-4 text-[#6B46C1]" />
-                  <span>Notifications</span>
-                </h3>
-                {unreadCount > 0 && (
-                  <span className="text-[10px] bg-red-50 text-red-500 px-2 py-0.5 rounded-full font-medium">
-                    {unreadCount} pending
-                  </span>
+            <div className="absolute right-0 mt-3 w-84 md:w-96 bg-white rounded-2xl border border-gray-200/80 shadow-2xl shadow-purple-900/10 overflow-hidden z-50 animate-fade-in">
+              {/* Dropdown Header */}
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-gray-50/80 via-purple-50/30 to-white">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-[#80237E]/10 flex items-center justify-center text-[#80237E]">
+                    <Bell className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm text-gray-800">Notifications</h3>
+                    <p className="text-[10px] text-gray-500 font-medium">
+                      {notifications.length === 0 
+                        ? "No new alerts" 
+                        : `${notifications.length} total • ${unreadCount} unread`}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Clear All Button - Visible after clicking the icon */}
+                {notifications.length > 0 && onClearNotifications && (
+                  <button
+                    onClick={handleClearAll}
+                    className="flex items-center space-x-1.5 px-2.5 py-1 text-xs font-semibold text-gray-500 hover:text-red-600 bg-white hover:bg-red-50 border border-gray-200/80 hover:border-red-200 rounded-lg transition-all shadow-2xs group"
+                    title="Clear all notifications"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-gray-400 group-hover:text-red-500 transition-colors" />
+                    <span>Clear all</span>
+                  </button>
                 )}
               </div>
 
-              <div className="max-h-72 overflow-y-auto divide-y divide-gray-50">
+              {/* Notifications List */}
+              <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
                 {notifications.length === 0 ? (
-                  <div className="p-8 text-center text-gray-400">
-                    <CheckCircle2 className="w-8 h-8 text-green-300 mx-auto mb-2" />
-                    <p className="text-xs">All caught up! No recent alerts.</p>
+                  <div className="p-8 text-center">
+                    <div className="w-12 h-12 bg-purple-50 text-[#80237E] rounded-2xl flex items-center justify-center mx-auto mb-3 border border-purple-100">
+                      <BellOff className="w-6 h-6 text-[#80237E]/70" />
+                    </div>
+                    <p className="text-xs font-semibold text-gray-700">All caught up!</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">No notifications or pending alerts at this time.</p>
                   </div>
                 ) : (
                   notifications.map((notif) => (
@@ -127,32 +215,92 @@ export default function TopBar({
                         onNotificationClick(notif.id);
                         setShowNotifications(false);
                       }}
-                      className={`p-4 hover:bg-gray-50/70 transition-colors cursor-pointer flex space-x-3 ${notif.unread ? 'bg-purple-50/10' : ''}`}
+                      className={`p-3.5 md:p-4 hover:bg-purple-50/30 transition-all cursor-pointer flex items-start space-x-3 group relative ${
+                        notif.unread ? 'bg-purple-50/20' : 'bg-white'
+                      }`}
                     >
-                      <div className="mt-0.5">
-                        {notif.type === "overdue" && <AlertTriangle className="w-4 h-4 text-red-500" />}
-                        {notif.type === "upcoming" && <Clock className="w-4 h-4 text-amber-500" />}
-                        {notif.type === "unpaid" && <AlertTriangle className="w-4 h-4 text-[#D4AF37]" />}
-                        {notif.type === "payment" && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                        {notif.type === "client" && <User className="w-4 h-4 text-blue-500" />}
+                      {/* Icon per notification type */}
+                      <div className="mt-0.5 shrink-0">
+                        {notif.type === "overdue" && (
+                          <div className="w-7 h-7 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-100">
+                            <AlertTriangle className="w-4 h-4" />
+                          </div>
+                        )}
+                        {notif.type === "upcoming" && (
+                          <div className="w-7 h-7 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+                            <Clock className="w-4 h-4" />
+                          </div>
+                        )}
+                        {notif.type === "unpaid" && (
+                          <div className="w-7 h-7 rounded-xl bg-yellow-50 text-[#D4AF37] flex items-center justify-center border border-yellow-100">
+                            <AlertTriangle className="w-4 h-4" />
+                          </div>
+                        )}
+                        {notif.type === "payment" && (
+                          <div className="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                            <CheckCircle2 className="w-4 h-4" />
+                          </div>
+                        )}
+                        {notif.type === "client" && (
+                          <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                            <User className="w-4 h-4" />
+                          </div>
+                        )}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs ${notif.unread ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
-                          {notif.title}
+
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 pr-6">
+                        <div className="flex items-center space-x-1.5">
+                          <p className={`text-xs ${notif.unread ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>
+                            {notif.title}
+                          </p>
+                          {notif.unread && (
+                            <span className="w-1.5 h-1.5 bg-[#80237E] rounded-full shrink-0"></span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-0.5 leading-snug line-clamp-2">{notif.description}</p>
+                        <p className="text-[10px] text-gray-400 mt-1 font-medium flex items-center space-x-1">
+                          <Clock className="w-3 h-3 text-gray-300" />
+                          <span>{notif.time}</span>
                         </p>
-                        <p className="text-[11px] text-gray-500 mt-0.5 leading-normal truncate">{notif.description}</p>
-                        <p className="text-[9px] text-gray-400 mt-1">{notif.time}</p>
                       </div>
+
+                      {/* Individual Dismiss Button */}
+                      {onDismissNotification && (
+                        <button
+                          onClick={(e) => handleDismissSingle(e, notif.id)}
+                          className="opacity-0 group-hover:opacity-100 absolute top-3.5 right-3.5 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="Dismiss notification"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
               </div>
+
+              {/* Footer with Clear Notifications action */}
+              {notifications.length > 0 && onClearNotifications && (
+                <div className="p-2.5 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between">
+                  <span className="text-[11px] text-gray-500 pl-2">
+                    {unreadCount > 0 ? `${unreadCount} unread` : "All read"}
+                  </span>
+                  <button
+                    onClick={handleClearAll}
+                    className="text-xs font-semibold text-[#80237E] hover:text-[#6A1B69] hover:underline flex items-center space-x-1 px-2 py-1"
+                  >
+                    <span>Clear all notifications</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
-
 
       </div>
     </header>
   );
 }
+

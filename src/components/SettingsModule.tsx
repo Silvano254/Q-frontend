@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key, CreditCard, DollarSign } from "lucide-react";
+import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key, CreditCard, DollarSign, Loader2 } from "lucide-react";
 import { CompanySettings } from "../types";
 
 interface SettingsModuleProps {
@@ -24,6 +24,7 @@ export default function SettingsModule({
   showToast
 }: SettingsModuleProps) {
   const [isSaving, setIsSaving] = useState(false);
+  const [isResettingData, setIsResettingData] = useState(false);
   const [biometricRegistered, setBiometricRegistered] = useState(true);
 
   // Security Credentials Updates states
@@ -105,7 +106,12 @@ export default function SettingsModule({
 
   const handleResetData = async () => {
     if (confirm("CRITICAL WARNING: This will completely wipe all quotes, invoices, payment records, and custom clients, and seed default luxury presets. Are you sure you wish to format the local database?")) {
-      await onResetDatabase();
+      setIsResettingData(true);
+      try {
+        await onResetDatabase();
+      } finally {
+        setIsResettingData(false);
+      }
     }
   };
 
@@ -254,10 +260,19 @@ export default function SettingsModule({
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow shadow-[#6B46C1]/20 flex items-center space-x-1.5 transition-all"
+              className="px-6 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow shadow-[#6B46C1]/20 flex items-center space-x-1.5 transition-all disabled:opacity-50"
             >
-              <Save className="w-4 h-4 text-[#D4AF37]" />
-              <span>{isSaving ? "Saving Configuration..." : "Save Configuration"}</span>
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-[#D4AF37]" />
+                  <span>Saving Configuration...</span>
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 text-[#D4AF37]" />
+                  <span>Save Configuration</span>
+                </>
+              )}
             </button>
           </form>
         </div>
@@ -427,11 +442,21 @@ export default function SettingsModule({
               <p className="text-xs text-red-500 leading-relaxed">Wipes current local cache database and seeds pristine catalog data.</p>
             </div>
             <button
+              disabled={isResettingData}
               onClick={handleResetData}
-              className="py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all shadow"
+              className="py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all shadow disabled:opacity-50"
             >
-              <RefreshCw className="w-4 h-4" />
-              <span>Reset & Fresh Seed Database</span>
+              {isResettingData ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Resetting Database...</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4" />
+                  <span>Reset & Fresh Seed Database</span>
+                </>
+              )}
             </button>
           </div>
         </div>

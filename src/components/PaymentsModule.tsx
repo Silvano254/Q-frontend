@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { CreditCard, Search, DollarSign, Calendar, Download, Eye, Receipt, FileSpreadsheet } from "lucide-react";
+import { CreditCard, Search, DollarSign, Calendar, Download, Eye, Receipt, FileSpreadsheet, Loader2 } from "lucide-react";
 import { Invoice, PaymentRecord } from "../types";
 
 interface PaymentsModuleProps {
@@ -17,6 +17,7 @@ export default function PaymentsModule({
 }: PaymentsModuleProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [methodFilter, setMethodFilter] = useState("all");
+  const [isExporting, setIsExporting] = useState(false);
 
   // Flat map all payments with invoice info
   const allPayments = (invoices || []).flatMap(inv => 
@@ -49,31 +50,37 @@ export default function PaymentsModule({
   const totalCash = filteredPayments.filter(p => p.paymentMethod === "cash").reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
 
   // Export payments list to CSV
-  const exportPaymentsCSV = () => {
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Payment ID,Payment Date,Invoice Number,Client Name,Payment Method,Reference Number,Amount Paid,Notes\n";
-    
-    filteredPayments.forEach(p => {
-      const row = [
-        p.id || "N/A",
-        p.paymentDate || "",
-        p.invoiceNumber || "",
-        `"${(p.clientName || "").replace(/"/g, '""')}"`,
-        (p.paymentMethod || "other").replace(/_/g, " "),
-        p.referenceNumber || "N/A",
-        p.amountPaid || 0,
-        `"${(p.notes || "").replace(/"/g, '""')}"`
-      ].join(",");
-      csvContent += row + "\n";
-    });
+  const exportPaymentsCSV = async () => {
+    setIsExporting(true);
+    try {
+      await new Promise(r => setTimeout(r, 80));
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += "Payment ID,Payment Date,Invoice Number,Client Name,Payment Method,Reference Number,Amount Paid,Notes\n";
+      
+      filteredPayments.forEach(p => {
+        const row = [
+          p.id || "N/A",
+          p.paymentDate || "",
+          p.invoiceNumber || "",
+          `"${(p.clientName || "").replace(/"/g, '""')}"`,
+          (p.paymentMethod || "other").replace(/_/g, " "),
+          p.referenceNumber || "N/A",
+          p.amountPaid || 0,
+          `"${(p.notes || "").replace(/"/g, '""')}"`
+        ].join(",");
+        csvContent += row + "\n";
+      });
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `binti_manual_payments_ledger_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `binti_manual_payments_ledger_${new Date().toISOString().split("T")[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -88,11 +95,21 @@ export default function PaymentsModule({
           <p className="text-xs text-gray-500 mt-1">Audit log of payments received, cash collections, bank checks, and transaction identifiers.</p>
         </div>
         <button
+          disabled={isExporting}
           onClick={exportPaymentsCSV}
-          className="px-4 py-2 bg-[#1F2937] hover:bg-gray-800 text-white rounded-xl text-xs font-semibold shadow flex items-center space-x-2 transition-all"
+          className="px-4 py-2 bg-[#1F2937] hover:bg-gray-800 text-white rounded-xl text-xs font-semibold shadow flex items-center space-x-2 transition-all disabled:opacity-75"
         >
-          <FileSpreadsheet className="w-4 h-4 text-[#D4AF37]" />
-          <span>Export Ledger (CSV)</span>
+          {isExporting ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-[#D4AF37]" />
+              <span>Exporting Ledger...</span>
+            </>
+          ) : (
+            <>
+              <FileSpreadsheet className="w-4 h-4 text-[#D4AF37]" />
+              <span>Export Ledger (CSV)</span>
+            </>
+          )}
         </button>
       </div>
 

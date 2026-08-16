@@ -19,7 +19,9 @@ import {
   FileCheck2,
   CalendarCheck2,
   X,
-  Copy
+  Copy,
+  Check,
+  Loader2
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { Invoice, Client, ProductService, BillingItem, PaymentRecord } from "../types";
@@ -115,6 +117,15 @@ export default function InvoicesModule({
   const [pdfTemplate, setPdfTemplate] = useState<'corporate' | 'binti'>(() => {
     return (localStorage.getItem('pdf_template_preference') as 'corporate' | 'binti') || 'corporate';
   });
+
+  // Action states for button transitions
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [savingStatus, setSavingStatus] = useState<'draft' | 'pending' | null>(null);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [copiedWhatsApp, setCopiedWhatsApp] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [copiedAiDraft, setCopiedAiDraft] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // AI Email
   const [aiEmailDraft, setAiEmailDraft] = useState<string | null>(null);
@@ -307,33 +318,40 @@ export default function InvoicesModule({
       showToast("Please select a client before saving.", "warning");
       return;
     }
-    const totals = getTotals();
-    const selectedCli = clients.find(c => c.id === clientId);
-    
-    const invoicePayload: Partial<Invoice> = {
-      clientId,
-      clientName: selectedCli ? selectedCli.name : "Unknown",
-      issueDate,
-      dueDate,
-      items: items.map(i => ({
-        id: i.id || "ii_" + Math.random().toString(),
-        description: i.description || "Custom Event Asset Setup",
-        quantity: Number(i.quantity) || 1,
-        unitPrice: Number(i.unitPrice) || 0,
-        discount: Number(i.discount) || 0,
-        tax: Number(i.tax) || 16,
-        amount: Number(i.amount) || 0
-      })),
-      ...totals,
-      notes,
-      terms,
-      status,
-      payments: []
-    };
+    setSavingStatus(status);
+    try {
+      const totals = getTotals();
+      const selectedCli = clients.find(c => c.id === clientId);
+      
+      const invoicePayload: Partial<Invoice> = {
+        clientId,
+        clientName: selectedCli ? selectedCli.name : "Unknown",
+        issueDate,
+        dueDate,
+        items: items.map(i => ({
+          id: i.id || "ii_" + Math.random().toString(),
+          description: i.description || "Custom Event Asset Setup",
+          quantity: Number(i.quantity) || 1,
+          unitPrice: Number(i.unitPrice) || 0,
+          discount: Number(i.discount) || 0,
+          tax: Number(i.tax) || 16,
+          amount: Number(i.amount) || 0
+        })),
+        ...totals,
+        notes,
+        terms,
+        status,
+        payments: []
+      };
 
-    await onCreateInvoice(invoicePayload);
-    setIsCreating(false);
-    resetForm();
+      await onCreateInvoice(invoicePayload);
+      setIsCreating(false);
+      resetForm();
+    } catch (err) {
+      console.error("Save invoice error:", err);
+    } finally {
+      setSavingStatus(null);
+    }
   };
 
   const resetForm = () => {
@@ -362,21 +380,30 @@ export default function InvoicesModule({
       }
     }
 
-    const paymentPayload: Partial<PaymentRecord> = {
-      paymentDate: pDate,
-      paymentMethod: pMethod,
-      referenceNumber: pRef,
-      amountPaid: amount,
-      notes: pNotes
-    };
+    setIsSubmittingPayment(true);
+    try {
+      const paymentPayload: Partial<PaymentRecord> = {
+        paymentDate: pDate,
+        paymentMethod: pMethod,
+        referenceNumber: pRef,
+        amountPaid: amount,
+        notes: pNotes
+      };
 
-    await onRecordPayment(selectedInvoice.id, paymentPayload);
-    setIsLoggingPayment(false);
-    
-    // Reset payment fields
-    setPRef("");
-    setPAmount("");
-    setPNotes("");
+      await onRecordPayment(selectedInvoice.id, paymentPayload);
+      setIsLoggingPayment(false);
+      
+      // Reset payment fields
+      setPRef("");
+      setPAmount("");
+      setPNotes("");
+      showToast("Payment recorded successfully!");
+    } catch (err) {
+      console.error("Payment logging error:", err);
+      showToast("Failed to record payment.", "warning");
+    } finally {
+      setIsSubmittingPayment(false);
+    }
   };
 
   const loadImgBase64 = (url: string): Promise<string> => {
@@ -409,12 +436,24 @@ export default function InvoicesModule({
     });
   };
 
-  // Generate TAX INVOICE PDF (jsPDF)
+  // Generate TAX INVOICE PDF (jsPDF) with visual active state
   const generatePDF = async (invoice: Invoice) => {
-    if (pdfTemplate === 'binti') {
-      await generatePDFBinti(invoice);
-    } else {
-      generatePDFCorporate(invoice);
+    if (!invoice) return;
+    setDownloadingPdf(true);
+    showToast("Generating and preparing Tax Invoice PDF...");
+    try {
+      await new Promise(r => setTimeout(r, 60));
+      if (pdfTemplate === 'binti') {
+        await generatePDFBinti(invoice);
+      } else {
+        generatePDFCorporate(invoice);
+      }
+      showToast("Tax Invoice PDF downloaded successfully!");
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      showToast("Failed to generate Tax Invoice PDF.", "warning");
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -1238,18 +1277,36 @@ export default function InvoicesModule({
               <div className="flex items-center space-x-4 pt-4 border-t border-gray-200/60">
                 <button
                   type="button"
+                  disabled={savingStatus !== null}
                   onClick={() => handleSaveInvoice("draft")}
-                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all"
+                  className="flex-1 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center space-x-1.5"
                 >
-                  Save Draft
+                  {savingStatus === 'draft' ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Saving Draft...</span>
+                    </>
+                  ) : (
+                    <span>Save Draft</span>
+                  )}
                 </button>
                 <button
                   type="button"
+                  disabled={savingStatus !== null}
                   onClick={() => handleSaveInvoice("pending")}
-                  className="flex-1 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md shadow-[#6B46C1]/20 transition-all flex items-center justify-center space-x-1"
+                  className="flex-1 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md shadow-[#6B46C1]/20 transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50"
                 >
-                  <CalendarCheck2 className="w-4 h-4 text-[#D4AF37]" />
-                  <span>Issue Live Invoice</span>
+                  {savingStatus === 'pending' ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Issuing Invoice...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CalendarCheck2 className="w-4 h-4 text-[#D4AF37]" />
+                      <span>Issue Live Invoice</span>
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -1445,11 +1502,21 @@ export default function InvoicesModule({
                   </div>
 
                   <button
+                    disabled={downloadingPdf}
                     onClick={() => generatePDF(selectedInvoice)}
-                    className="w-full py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all shadow-md shadow-[#6B46C1]/10"
+                    className="w-full py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all shadow-md shadow-[#6B46C1]/10 disabled:opacity-75"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Download PDF Invoice</span>
+                    {downloadingPdf ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Generating Tax Invoice PDF...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download PDF Invoice</span>
+                      </>
+                    )}
                   </button>
 
                   <button
@@ -1471,10 +1538,13 @@ export default function InvoicesModule({
                   <button
                     onClick={() => handleDraftEmail(selectedInvoice)}
                     disabled={draftingEmail}
-                    className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all"
+                    className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-50"
                   >
                     {draftingEmail ? (
-                      <span>Drafting email...</span>
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D4AF37]" />
+                        <span>Drafting AI Email...</span>
+                      </>
                     ) : (
                       <>
                         <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
@@ -1578,9 +1648,17 @@ export default function InvoicesModule({
 
                     <button
                       type="submit"
-                      className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all shadow"
+                      disabled={isSubmittingPayment}
+                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all shadow disabled:opacity-50 flex items-center justify-center space-x-1.5"
                     >
-                      Confirm Manual Receipt
+                      {isSubmittingPayment ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Processing Payment Receipt...</span>
+                        </>
+                      ) : (
+                        <span>Confirm Manual Receipt</span>
+                      )}
                     </button>
                   </form>
                 </div>
@@ -1598,18 +1676,22 @@ export default function InvoicesModule({
                       <button 
                         onClick={() => handleSendEmail(selectedInvoice!)}
                         disabled={isSendingEmail}
-                        className="text-[10px] text-[#6B46C1] hover:underline font-bold disabled:opacity-50"
+                        className="text-[10px] text-[#6B46C1] hover:underline font-bold disabled:opacity-50 flex items-center space-x-1"
                       >
-                        {isSendingEmail ? "Sending..." : "Send via Resend"}
+                        {isSendingEmail && <Loader2 className="w-3 h-3 animate-spin" />}
+                        <span>{isSendingEmail ? "Sending..." : "Send via Resend"}</span>
                       </button>
                       <button 
                         onClick={() => {
                           navigator.clipboard.writeText(aiEmailDraft);
+                          setCopiedAiDraft(true);
                           showToast("Email text copied!");
+                          setTimeout(() => setCopiedAiDraft(false), 2000);
                         }}
-                        className="text-[10px] text-[#6B46C1] hover:underline font-bold"
+                        className="text-[10px] text-[#6B46C1] hover:underline font-bold flex items-center space-x-1"
                       >
-                        Copy
+                        {copiedAiDraft ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                        <span>{copiedAiDraft ? "Copied!" : "Copy"}</span>
                       </button>
                     </div>
                   </div>
@@ -1754,15 +1836,25 @@ export default function InvoicesModule({
                           )}
                           
                           <button
-                            onClick={() => {
+                            disabled={deletingId === inv.id}
+                            onClick={async () => {
                               if (confirm("Are you sure you want to delete this invoice?")) {
-                                onDeleteInvoice(inv.id);
+                                setDeletingId(inv.id);
+                                try {
+                                  await onDeleteInvoice(inv.id);
+                                } finally {
+                                  setDeletingId(null);
+                                }
                               }
                             }}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
                             title="Delete Invoice"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {deletingId === inv.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -1807,11 +1899,21 @@ export default function InvoicesModule({
                 </div>
                 <button
                   type="button"
+                  disabled={downloadingPdf}
                   onClick={() => generatePDF(whatsAppInvoice)}
-                  className="px-2.5 py-1 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1"
+                  className="px-3 py-1.5 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1.5 disabled:opacity-75 transition-all"
                 >
-                  <Download className="w-3 h-3" />
-                  <span>Get PDF</span>
+                  {downloadingPdf ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3 h-3" />
+                      <span>Get PDF</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -1843,12 +1945,23 @@ export default function InvoicesModule({
                 type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(whatsAppMessage);
+                  setCopiedWhatsApp(true);
                   showToast("WhatsApp text copied to clipboard!");
+                  setTimeout(() => setCopiedWhatsApp(false), 2000);
                 }}
                 className="w-1/3 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy Text</span>
+                {copiedWhatsApp ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-600">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy Text</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -1895,11 +2008,21 @@ export default function InvoicesModule({
                 </div>
                 <button
                   type="button"
+                  disabled={downloadingPdf}
                   onClick={() => generatePDF(emailInvoice)}
-                  className="px-2.5 py-1 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1"
+                  className="px-3 py-1.5 bg-[#6B46C1] hover:bg-purple-700 text-white rounded-lg text-[10px] font-bold flex items-center space-x-1.5 disabled:opacity-75 transition-all"
                 >
-                  <Download className="w-3 h-3" />
-                  <span>Get PDF</span>
+                  {downloadingPdf ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-3 h-3" />
+                      <span>Get PDF</span>
+                    </>
+                  )}
                 </button>
               </div>
 
@@ -1932,10 +2055,19 @@ export default function InvoicesModule({
                     type="button"
                     onClick={() => handleDraftEmail(emailInvoice)}
                     disabled={draftingEmail}
-                    className="text-[10px] font-bold text-[#6B46C1] hover:underline flex items-center space-x-1"
+                    className="text-[10px] font-bold text-[#6B46C1] hover:underline flex items-center space-x-1 disabled:opacity-50"
                   >
-                    <Sparkles className="w-3 h-3 text-[#D4AF37]" />
-                    <span>{draftingEmail ? "Drafting..." : "Generate AI Copy"}</span>
+                    {draftingEmail ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin text-[#D4AF37]" />
+                        <span>Drafting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+                        <span>Generate AI Copy</span>
+                      </>
+                    )}
                   </button>
                 </div>
                 <textarea
@@ -1952,12 +2084,23 @@ export default function InvoicesModule({
                 type="button"
                 onClick={() => {
                   navigator.clipboard.writeText(`Subject: ${emailSubject}\n\n${emailBody}`);
+                  setCopiedEmail(true);
                   showToast("Email text copied to clipboard!");
+                  setTimeout(() => setCopiedEmail(false), 2000);
                 }}
                 className="w-1/3 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copy</span>
+                {copiedEmail ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="text-emerald-600">Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy</span>
+                  </>
+                )}
               </button>
 
               <button
@@ -1973,10 +2116,19 @@ export default function InvoicesModule({
                 type="button"
                 onClick={handleSendModalEmail}
                 disabled={isSendingEmail}
-                className="w-1/3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center space-x-1"
+                className="w-1/3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center space-x-1 disabled:opacity-50"
               >
-                <Mail className="w-3.5 h-3.5" />
-                <span>{isSendingEmail ? "Sending..." : "Send API"}</span>
+                {isSendingEmail ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>Send API</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

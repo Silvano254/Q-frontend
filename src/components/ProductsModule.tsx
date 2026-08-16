@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ShoppingBag, Plus, Search, Trash2, Edit, ChevronLeft, Layers, Percent, DollarSign } from "lucide-react";
+import { ShoppingBag, Plus, Search, Trash2, Edit, ChevronLeft, Layers, Percent, DollarSign, Loader2 } from "lucide-react";
 import { ProductService } from "../types";
 
 interface ProductsModuleProps {
@@ -23,6 +23,8 @@ export default function ProductsModule({
   const [isEditing, setIsEditing] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductService | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
   // Form states
   const [name, setName] = useState("");
@@ -52,24 +54,31 @@ export default function ProductsModule({
       return;
     }
 
-    const payload: Partial<ProductService> = {
-      name,
-      description,
-      category,
-      unitType,
-      unitPrice: Number(unitPrice),
-      taxRate: Number(taxRate),
-      status
-    };
+    setIsSaving(true);
+    try {
+      const payload: Partial<ProductService> = {
+        name,
+        description,
+        category,
+        unitType,
+        unitPrice: Number(unitPrice),
+        taxRate: Number(taxRate),
+        status
+      };
 
-    if (isEditing && selectedProduct) {
-      await onUpdateProduct(selectedProduct.id, payload);
-      setIsEditing(false);
-    } else {
-      await onCreateProduct(payload);
-      setIsCreating(false);
+      if (isEditing && selectedProduct) {
+        await onUpdateProduct(selectedProduct.id, payload);
+        setIsEditing(false);
+      } else {
+        await onCreateProduct(payload);
+        setIsCreating(false);
+      }
+      resetForm();
+    } catch (err) {
+      console.error("Save product error:", err);
+    } finally {
+      setIsSaving(false);
     }
-    resetForm();
   };
 
   const resetForm = () => {
@@ -243,9 +252,17 @@ export default function ProductsModule({
             <div className="flex items-center space-x-4 pt-4 border-t border-gray-100">
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold shadow shadow-[#6B46C1]/20 transition-all"
+                disabled={isSaving}
+                className="px-6 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold shadow shadow-[#6B46C1]/20 transition-all disabled:opacity-50 flex items-center space-x-1.5"
               >
-                {isEditing ? "Save Catalog Item" : "Register Item Asset"}
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{isEditing ? "Saving Item..." : "Registering Item..."}</span>
+                  </>
+                ) : (
+                  <span>{isEditing ? "Save Catalog Item" : "Register Item Asset"}</span>
+                )}
               </button>
               <button
                 type="button"
@@ -336,15 +353,25 @@ export default function ProductsModule({
                           </button>
                           
                           <button
-                            onClick={() => {
+                            disabled={isDeletingId === p.id}
+                            onClick={async () => {
                               if (confirm(`Delete catalog item "${p.name}"?`)) {
-                                onDeleteProduct(p.id);
+                                setIsDeletingId(p.id);
+                                try {
+                                  await onDeleteProduct(p.id);
+                                } finally {
+                                  setIsDeletingId(null);
+                                }
                               }
                             }}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
                             title="Remove catalog item"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {isDeletingId === p.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>

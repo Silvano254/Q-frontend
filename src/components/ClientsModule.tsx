@@ -14,9 +14,10 @@ import {
   MapPin, 
   TrendingUp, 
   DollarSign, 
-  Notebook,
-  UserCheck,
-  Award
+  Notebook, 
+  UserCheck, 
+  Award, 
+  Loader2 
 } from "lucide-react";
 import { Client, Quote, Invoice } from "../types";
 
@@ -45,6 +46,8 @@ export default function ClientsModule({
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
 
   // Form Fields
   const [name, setName] = useState("");
@@ -76,27 +79,34 @@ export default function ClientsModule({
       return;
     }
 
-    const payload: Partial<Client> = {
-      name,
-      company,
-      phone,
-      email,
-      address,
-      taxNumber,
-      notes,
-      status
-    };
+    setIsSaving(true);
+    try {
+      const payload: Partial<Client> = {
+        name,
+        company,
+        phone,
+        email,
+        address,
+        taxNumber,
+        notes,
+        status
+      };
 
-    if (isEditing && selectedClient) {
-      await onUpdateClient(selectedClient.id, payload);
-      setIsEditing(false);
-      const updated = clients.find(c => c.id === selectedClient.id);
-      if (updated) setSelectedClient({ ...updated, ...payload });
-    } else {
-      await onCreateClient(payload);
-      setIsCreating(false);
+      if (isEditing && selectedClient) {
+        await onUpdateClient(selectedClient.id, payload);
+        setIsEditing(false);
+        const updated = clients.find(c => c.id === selectedClient.id);
+        if (updated) setSelectedClient({ ...updated, ...payload });
+      } else {
+        await onCreateClient(payload);
+        setIsCreating(false);
+      }
+      resetForm();
+    } catch (err) {
+      console.error("Save client error:", err);
+    } finally {
+      setIsSaving(false);
     }
-    resetForm();
   };
 
   const resetForm = () => {
@@ -266,9 +276,17 @@ export default function ClientsModule({
             <div className="flex items-center space-x-4 pt-4 border-t border-gray-100">
               <button
                 type="submit"
-                className="px-6 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold shadow shadow-[#6B46C1]/20 transition-all"
+                disabled={isSaving}
+                className="px-6 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold shadow shadow-[#6B46C1]/20 transition-all disabled:opacity-50 flex items-center space-x-1.5"
               >
-                {isEditing ? "Save Updated Profile" : "Register Corporate Client"}
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>{isEditing ? "Saving Changes..." : "Registering Client..."}</span>
+                  </>
+                ) : (
+                  <span>{isEditing ? "Save Updated Profile" : "Register Corporate Client"}</span>
+                )}
               </button>
               <button
                 type="button"
@@ -556,15 +574,25 @@ export default function ClientsModule({
                           </button>
 
                           <button
-                            onClick={() => {
+                            disabled={isDeletingId === client.id}
+                            onClick={async () => {
                               if (confirm("Warning: Deleting this client does not delete their invoices, but removes their record from directory. Proceed?")) {
-                                onDeleteClient(client.id);
+                                setIsDeletingId(client.id);
+                                try {
+                                  await onDeleteClient(client.id);
+                                } finally {
+                                  setIsDeletingId(null);
+                                }
                               }
                             }}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
                             title="Delete Client File"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            {isDeletingId === client.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
                           </button>
                         </div>
                       </td>

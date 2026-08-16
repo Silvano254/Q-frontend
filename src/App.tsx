@@ -433,6 +433,16 @@ export default function App() {
     }
   };
 
+  // Clear all notifications
+  const handleClearNotifications = () => {
+    setNotifications([]);
+  };
+
+  // Dismiss a specific notification
+  const handleDismissNotification = (notifId: string) => {
+    setNotifications(prev => prev.filter(n => n.id !== notifId));
+  };
+
   // Global searching cross-filtering logic
   const filteredQuotes = quotes.filter(q => 
     q.quoteNumber.toLowerCase().includes(globalSearch.toLowerCase()) ||
@@ -960,6 +970,8 @@ export default function App() {
           currency={companySettings.currency}
           notifications={notifications}
           onNotificationClick={handleNotificationClick}
+          onClearNotifications={handleClearNotifications}
+          onDismissNotification={handleDismissNotification}
           onToggleMobileMenu={() => setIsMobileMenuOpen(prev => !prev)}
           onOpenAiAssistant={() => setIsAiAssistantOpen(true)}
         />
@@ -984,7 +996,7 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Quotes found */}
                 <div className="space-y-2">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Matched Quotes Proposals ({filteredQuotes.length})</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Matched Quotes ({filteredQuotes.length})</span>
                   {filteredQuotes.length === 0 ? (
                     <p className="text-xs text-gray-400">No quotes found.</p>
                   ) : (

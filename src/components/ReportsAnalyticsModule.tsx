@@ -7,10 +7,12 @@ import {
   FileSpreadsheet, 
   DollarSign, 
   AlertTriangle, 
-  Activity,
-  Award,
-  CheckCircle2,
-  CalendarCheck2
+  Activity, 
+  Award, 
+  CheckCircle2, 
+  CalendarCheck2, 
+  Loader2, 
+  Check 
 } from "lucide-react";
 import { 
   BarChart, 
@@ -23,11 +25,11 @@ import {
   ResponsiveContainer, 
   PieChart, 
   Pie, 
-  Cell,
-  LineChart,
-  Line,
-  AreaChart,
-  Area
+  Cell, 
+  LineChart, 
+  Line, 
+  AreaChart, 
+  Area 
 } from "recharts";
 import { Invoice, Quote, Client, ProductService } from "../types";
 
@@ -47,6 +49,7 @@ export default function ReportsAnalyticsModule({
   currency
 }: ReportsAnalyticsModuleProps) {
   const [activeTab, setActiveTab] = useState<'analytics' | 'reports'>('analytics');
+  const [downloadingReport, setDownloadingReport] = useState<'aging' | 'sales' | 'ledger' | null>(null);
 
   // ==========================================
   // DATA PREPARATION FOR VISUALS
@@ -119,56 +122,74 @@ export default function ReportsAnalyticsModule({
   // CSV SPREADSHEET GENERATORS
   // ==========================================
 
-  const downloadAgingReportCSV = () => {
-    let csv = "data:text/csv;charset=utf-8,";
-    csv += "Client Representative,Corporate Entity,Total Outstanding Balance,Email,Phone,Issued Invoices Count\n";
-    
-    clients.forEach(c => {
-      const clientInvs = invoices.filter(i => i.clientId === c.id);
-      const outstanding = clientInvs.reduce((sum, i) => sum + i.balanceRemaining, 0);
-      if (outstanding > 0) {
-        csv += `"${c.name}","${c.company || 'Private'}",${outstanding},"${c.email}","${c.phone || ''}",${clientInvs.length}\n`;
-      }
-    });
+  const downloadAgingReportCSV = async () => {
+    setDownloadingReport('aging');
+    try {
+      await new Promise(r => setTimeout(r, 80));
+      let csv = "data:text/csv;charset=utf-8,";
+      csv += "Client Representative,Corporate Entity,Total Outstanding Balance,Email,Phone,Issued Invoices Count\n";
+      
+      clients.forEach(c => {
+        const clientInvs = invoices.filter(i => i.clientId === c.id);
+        const outstanding = clientInvs.reduce((sum, i) => sum + i.balanceRemaining, 0);
+        if (outstanding > 0) {
+          csv += `"${c.name}","${c.company || 'Private'}",${outstanding},"${c.email}","${c.phone || ''}",${clientInvs.length}\n`;
+        }
+      });
 
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csv));
-    link.setAttribute("download", `binti_accounts_receivable_aging_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csv));
+      link.setAttribute("download", `binti_accounts_receivable_aging_${new Date().toISOString().split("T")[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setDownloadingReport(null);
+    }
   };
 
-  const downloadServiceSalesCSV = () => {
-    let csv = "data:text/csv;charset=utf-8,";
-    csv += "Category Line,Total Billed Value,Popularity Segment\n";
-    
-    Object.keys(categoryBillingMap).forEach(cat => {
-      csv += `"${cat}",${categoryBillingMap[cat]},"Corporate Hire"\n`;
-    });
+  const downloadServiceSalesCSV = async () => {
+    setDownloadingReport('sales');
+    try {
+      await new Promise(r => setTimeout(r, 80));
+      let csv = "data:text/csv;charset=utf-8,";
+      csv += "Category Line,Total Billed Value,Popularity Segment\n";
+      
+      Object.keys(categoryBillingMap).forEach(cat => {
+        csv += `"${cat}",${categoryBillingMap[cat]},"Corporate Hire"\n`;
+      });
 
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csv));
-    link.setAttribute("download", `binti_sales_category_performance_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csv));
+      link.setAttribute("download", `binti_sales_category_performance_${new Date().toISOString().split("T")[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setDownloadingReport(null);
+    }
   };
 
-  const downloadAnnualLedgerCSV = () => {
-    let csv = "data:text/csv;charset=utf-8,";
-    csv += "Invoice Number,Client Representative,Issue Date,Due Date,Invoiced Grand Total,Outstanding Balance,Status\n";
-    
-    invoices.forEach(i => {
-      csv += `"${i.invoiceNumber}","${i.clientName}","${i.issueDate}","${i.dueDate}",${i.grandTotal},${i.balanceRemaining},"${i.status}"\n`;
-    });
+  const downloadAnnualLedgerCSV = async () => {
+    setDownloadingReport('ledger');
+    try {
+      await new Promise(r => setTimeout(r, 80));
+      let csv = "data:text/csv;charset=utf-8,";
+      csv += "Invoice Number,Client Representative,Issue Date,Due Date,Invoiced Grand Total,Outstanding Balance,Status\n";
+      
+      invoices.forEach(i => {
+        csv += `"${i.invoiceNumber}","${i.clientName}","${i.issueDate}","${i.dueDate}",${i.grandTotal},${i.balanceRemaining},"${i.status}"\n`;
+      });
 
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csv));
-    link.setAttribute("download", `binti_tax_invoice_ledger_${new Date().getFullYear()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csv));
+      link.setAttribute("download", `binti_tax_invoice_ledger_${new Date().getFullYear()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setDownloadingReport(null);
+    }
   };
 
   return (
@@ -359,11 +380,21 @@ export default function ReportsAnalyticsModule({
               <p className="text-xs text-gray-400">Extracts a complete breakdown of clients with unpaid outstanding balances, their corporate entities, phone numbers, and aged ledger values.</p>
             </div>
             <button
+              disabled={downloadingReport !== null}
               onClick={downloadAgingReportCSV}
-              className="w-full py-2 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-[#6B46C1]/10"
+              className="w-full py-2 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-[#6B46C1]/10 disabled:opacity-75"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download Aging CSV</span>
+              {downloadingReport === 'aging' ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Exporting Aging CSV...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Aging CSV</span>
+                </>
+              )}
             </button>
           </div>
 
@@ -376,11 +407,21 @@ export default function ReportsAnalyticsModule({
               <p className="text-xs text-gray-400">Analyzes sales revenue generated per event hire asset category (Stretch Tents, Ambient Fairylights, Wooden structures) to see where the highest margins occur.</p>
             </div>
             <button
+              disabled={downloadingReport !== null}
               onClick={downloadServiceSalesCSV}
-              className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all shadow shadow-emerald-600/10"
+              className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all shadow shadow-emerald-600/10 disabled:opacity-75"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download Sales CSV</span>
+              {downloadingReport === 'sales' ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Exporting Sales CSV...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Sales CSV</span>
+                </>
+              )}
             </button>
           </div>
 
@@ -393,11 +434,21 @@ export default function ReportsAnalyticsModule({
               <p className="text-xs text-gray-400">Downloads a complete chronologically-sorted table of every issued tax invoice, client name, tax PIN, total amount, and balance due for the current year.</p>
             </div>
             <button
+              disabled={downloadingReport !== null}
               onClick={downloadAnnualLedgerCSV}
-              className="w-full py-2 bg-[#1F2937] hover:bg-gray-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all"
+              className="w-full py-2 bg-[#1F2937] hover:bg-gray-800 text-white rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all disabled:opacity-75"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download Ledger CSV</span>
+              {downloadingReport === 'ledger' ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-[#D4AF37]" />
+                  <span>Exporting Ledger CSV...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Ledger CSV</span>
+                </>
+              )}
             </button>
           </div>
         </div>

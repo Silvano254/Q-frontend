@@ -57,7 +57,10 @@ Binti Events Corporate Suite is a modern, high-performance web application engin
 - Contextual suggestions across Dashboard, Quotes, Invoices, and Clients modules.
 - AI contract terms generation and email dispatch drafting.
 
----
+### 10. 🔐 Inactivity Session Timeout & Workspace State Restoration
+- **15-Minute Inactivity Protection**: Automatically logs out the user after 15 minutes of inactivity across mouse, keyboard, touch, or scroll events.
+- **Smart Workspace Preservation**: Serializes and snapshots the user's active tab, open quote/invoice previews, and search queries before logging out.
+- **Instant Workspace Restoration**: Upon re-authenticating, automatically restores the user's workspace exactly where they left off with a welcoming notification.
 
 ## 🛠️ Technology Stack
 

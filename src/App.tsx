@@ -194,7 +194,20 @@ export default function App() {
         }
       });
 
-      setNotifications(generatedAlerts.slice(0, 8)); // Top 8 active notices
+      // Filter out notifications dismissed or cleared by the user
+      const dismissedRaw = localStorage.getItem("binti_dismissed_notifications");
+      let dismissedSet = new Set<string>();
+      if (dismissedRaw) {
+        try {
+          const parsed = JSON.parse(dismissedRaw);
+          if (Array.isArray(parsed)) dismissedSet = new Set(parsed);
+        } catch (e) {
+          console.error("Failed to parse dismissed notifications", e);
+        }
+      }
+
+      const activeAlerts = generatedAlerts.filter(a => !dismissedSet.has(a.id));
+      setNotifications(activeAlerts.slice(0, 8)); // Top 8 active notices
     } catch (err) {
       console.error("Failed to load initial corporate database:", err);
     } finally {
@@ -415,6 +428,7 @@ export default function App() {
 
   // Database Hard Wiping and Presets seed
   const handleResetDatabase = async () => {
+    localStorage.removeItem("binti_dismissed_notifications");
     await apiRequest('/api/settings/reset', { method: 'POST' });
     showToast("Database reset successfully.");
     fetchAllData();
@@ -433,13 +447,32 @@ export default function App() {
     }
   };
 
-  // Clear all notifications
+  // Clear all notifications persistently
   const handleClearNotifications = () => {
-    setNotifications([]);
+    setNotifications(prev => {
+      try {
+        const dismissedRaw = localStorage.getItem("binti_dismissed_notifications");
+        const existing: string[] = dismissedRaw ? JSON.parse(dismissedRaw) : [];
+        const updated = Array.from(new Set([...existing, ...prev.map(n => n.id)]));
+        localStorage.setItem("binti_dismissed_notifications", JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to persist cleared notifications", e);
+      }
+      return [];
+    });
   };
 
-  // Dismiss a specific notification
+  // Dismiss a specific notification persistently
   const handleDismissNotification = (notifId: string) => {
+    try {
+      const dismissedRaw = localStorage.getItem("binti_dismissed_notifications");
+      const existing: string[] = dismissedRaw ? JSON.parse(dismissedRaw) : [];
+      if (!existing.includes(notifId)) {
+        localStorage.setItem("binti_dismissed_notifications", JSON.stringify([...existing, notifId]));
+      }
+    } catch (e) {
+      console.error("Failed to persist dismissed notification", e);
+    }
     setNotifications(prev => prev.filter(n => n.id !== notifId));
   };
 

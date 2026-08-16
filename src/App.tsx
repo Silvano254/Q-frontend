@@ -89,17 +89,27 @@ export default function App() {
   const [products, setProducts] = useState<ProductService[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [companySettings, setCompanySettings] = useState<CompanySettings>({
-    companyName: "Binti Events",
-    email: "billing@bintievents.co.ke",
-    phone: "+254 712 345678",
-    address: "Ngong Road, Nairobi, Kenya",
-    taxNumber: "P051234567A",
-    currency: "KES",
-    invoiceFormat: "INV-2026-{SEQ}",
-    quoteFormat: "QT-2026-{SEQ}",
-    termsTemplate: "1. 50% commitment fee to book, with the balance paid before setup.\n2. Broken gear billed at cost.",
-    emailTemplate: ""
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
+    const saved = localStorage.getItem("binti_company_settings");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch (e) {}
+    }
+    return {
+      companyName: "Binti Events",
+      email: "billing@bintievents.co.ke",
+      phone: "+254 712 345678",
+      address: "Ngong Road, Nairobi, Kenya",
+      taxNumber: "P051234567A",
+      bankDetails: "Bank: Equity Bank Kenya\nAccount Name: Binti Events Ltd\nAccount Number: 0123456789012\nBranch: Ngong Road\nPaybill: 247247 (Acc: 0123456789012)",
+      currency: "KES",
+      invoiceFormat: "INV-2026-{SEQ}",
+      quoteFormat: "QT-2026-{SEQ}",
+      termsTemplate: "1. 50% commitment fee to book, with the balance paid before setup.\n2. Broken gear billed at cost.",
+      emailTemplate: ""
+    };
   });
 
   // Cross-Module Selected States
@@ -146,7 +156,15 @@ export default function App() {
       setQuotes(resQuotes);
       setInvoices(resInvoices);
       if (resSettings) {
-        setCompanySettings(resSettings);
+        setCompanySettings(prev => {
+          const merged: CompanySettings = {
+            ...prev,
+            ...resSettings,
+            bankDetails: ((resSettings as any).bankDetails || (resSettings as any).bank_details || prev.bankDetails || "").trim()
+          };
+          localStorage.setItem("binti_company_settings", JSON.stringify(merged));
+          return merged;
+        });
       }
 
       // Generate dynamic notifications based on real status
@@ -421,14 +439,31 @@ export default function App() {
 
   // Settings Configuration Update
   const handleUpdateSettings = async (settingsPayload: CompanySettings) => {
-    await apiRequest('/api/settings', { method: 'PUT', body: JSON.stringify(settingsPayload) });
-    showToast("System settings updated successfully.");
+    setCompanySettings(settingsPayload);
+    localStorage.setItem("binti_company_settings", JSON.stringify(settingsPayload));
+
+    try {
+      const payloadToSend = {
+        ...settingsPayload,
+        bankDetails: settingsPayload.bankDetails,
+        bank_details: settingsPayload.bankDetails,
+        company_name: settingsPayload.companyName,
+        tax_number: settingsPayload.taxNumber,
+        terms_template: settingsPayload.termsTemplate
+      };
+      await apiRequest('/api/settings', { method: 'PUT', body: JSON.stringify(payloadToSend) });
+      showToast("Corporate billing settings saved successfully.");
+    } catch (err) {
+      console.warn("Backend settings update note:", err);
+      showToast("Corporate billing settings saved locally.");
+    }
     fetchAllData();
   };
 
   // Database Hard Wiping and Presets seed
   const handleResetDatabase = async () => {
     localStorage.removeItem("binti_dismissed_notifications");
+    localStorage.removeItem("binti_company_settings");
     await apiRequest('/api/settings/reset', { method: 'POST' });
     showToast("Database reset successfully.");
     fetchAllData();
@@ -554,15 +589,7 @@ export default function App() {
             clients={clients}
             products={products}
             currency={companySettings.currency}
-            companySettings={{
-              companyName: companySettings.companyName,
-              email: companySettings.email,
-              phone: companySettings.phone,
-              address: companySettings.address,
-              taxNumber: companySettings.taxNumber,
-              bankDetails: companySettings.bankDetails,
-              termsTemplate: companySettings.termsTemplate
-            }}
+            companySettings={companySettings}
             onCreateQuote={handleCreateQuote}
             onUpdateQuote={handleUpdateQuote}
             onDeleteQuote={handleDeleteQuote}
@@ -579,15 +606,7 @@ export default function App() {
             clients={clients}
             products={products}
             currency={companySettings.currency}
-            companySettings={{
-              companyName: companySettings.companyName,
-              email: companySettings.email,
-              phone: companySettings.phone,
-              address: companySettings.address,
-              taxNumber: companySettings.taxNumber,
-              bankDetails: companySettings.bankDetails,
-              termsTemplate: companySettings.termsTemplate
-            }}
+            companySettings={companySettings}
             onCreateInvoice={handleCreateInvoice}
             onUpdateInvoice={handleUpdateInvoice}
             onRecordPayment={handleRecordPayment}

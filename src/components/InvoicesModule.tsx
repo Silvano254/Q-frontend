@@ -24,7 +24,7 @@ import {
   Loader2
 } from "lucide-react";
 import { jsPDF } from "jspdf";
-import { Invoice, Client, ProductService, BillingItem, PaymentRecord } from "../types";
+import { Invoice, Client, ProductService, BillingItem, PaymentRecord, CompanySettings } from "../types";
 import { generateEmailDraft } from "../services/geminiService";
 import { apiRequest } from "../services/apiClient";
 import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
@@ -41,15 +41,7 @@ interface InvoicesModuleProps {
   clients: Client[];
   products: ProductService[];
   currency: string;
-  companySettings: {
-    companyName: string;
-    email: string;
-    phone: string;
-    address: string;
-    taxNumber: string;
-    termsTemplate: string;
-    bankDetails?: string;
-  };
+  companySettings: CompanySettings;
   onCreateInvoice: (invoice: Partial<Invoice>) => Promise<void>;
   onUpdateInvoice: (id: string, invoice: Partial<Invoice>) => Promise<void>;
   onRecordPayment: (id: string, payment: Partial<PaymentRecord>) => Promise<void>;
@@ -624,9 +616,30 @@ export default function InvoicesModule({
     currentY += 5;
     doc.text(splitTerms, 20, currentY);
 
+    // Official Payment Instructions & Bank Details Block
+    if (companySettings.bankDetails && companySettings.bankDetails.trim()) {
+      currentY += (splitTerms.length * 4) + 6;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(purple[0], purple[1], purple[2]);
+      doc.text("OFFICIAL PAYMENT INSTRUCTIONS & BANK DETAILS:", 20, currentY);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
+      const bankLines = companySettings.bankDetails.split(/\r?\n/);
+      currentY += 4;
+      bankLines.forEach(line => {
+        if (line.trim()) {
+          doc.text(line.trim(), 20, currentY);
+          currentY += 3.5;
+        }
+      });
+    }
+
     // Payment History log table in PDF
     if (invoice.payments && invoice.payments.length > 0) {
-      currentY += (splitTerms.length * 4) + 15;
+      currentY += 8;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8.5);
       doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
@@ -894,20 +907,22 @@ export default function InvoicesModule({
     y += 8;
 
     // Registered Bank / Billing Details Block
-    if (companySettings.bankDetails) {
+    if (companySettings.bankDetails && companySettings.bankDetails.trim()) {
       ensurePageSpace(25);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
       doc.setTextColor(black[0], black[1], black[2]);
-      doc.text('PAYMENT DETAILS / BANK ACCOUNT:', margin, y);
+      doc.text('OFFICIAL PAYMENT INSTRUCTIONS & BANK DETAILS:', margin, y);
       y += 4;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(gray[0], gray[1], gray[2]);
-      const bankLines = companySettings.bankDetails.split('\n');
+      const bankLines = companySettings.bankDetails.split(/\r?\n/);
       bankLines.forEach(line => {
-        doc.text(line, margin, y);
-        y += 3.5;
+        if (line.trim()) {
+          doc.text(line.trim(), margin, y);
+          y += 3.5;
+        }
       });
       y += 4;
     }
@@ -1450,6 +1465,17 @@ export default function InvoicesModule({
                   </div>
                 )}
               </div>
+
+              {/* Official Bank Account & Payment Instructions Preview */}
+              {companySettings.bankDetails && companySettings.bankDetails.trim() && (
+                <div className="bg-emerald-50/20 p-4 border border-emerald-100 rounded-2xl space-y-1.5">
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center space-x-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Official Payment Instructions & Bank Details (On Invoice PDFs)</span>
+                  </span>
+                  <p className="text-xs text-gray-700 leading-relaxed font-mono whitespace-pre-wrap pl-5">{companySettings.bankDetails}</p>
+                </div>
+              )}
             </div>
 
             {/* Right Col: Totals + Actions */}

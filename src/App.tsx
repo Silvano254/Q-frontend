@@ -191,49 +191,6 @@ export default function App() {
       // Generate dynamic notifications based on real status
       const generatedAlerts: typeof notifications = [];
       
-      // Check overdue invoices
-      resInvoices.forEach((inv: Invoice) => {
-        if (inv.status === "overdue" || (inv.status !== "paid" && inv.dueDate && new Date(inv.dueDate) < new Date())) {
-          generatedAlerts.push({
-            id: `notif-overdue-${inv.id}`,
-            type: "overdue",
-            title: `Invoice Overdue: ${inv.invoiceNumber}`,
-            description: `${inv.clientName} is yet to clear KES ${(inv.balanceRemaining || 0).toLocaleString()}.`,
-            time: `Due on ${inv.dueDate}`,
-            unread: true
-          });
-        }
-      });
-
-      // Recent payment notification
-      resInvoices.forEach((inv: Invoice) => {
-        (inv.payments || []).forEach((p, idx) => {
-          generatedAlerts.push({
-            id: `notif-pm-${inv.id}-${idx}`,
-            type: "payment",
-            title: `Payment Received - ${inv.invoiceNumber || 'INV'}`,
-            description: `Manual receipt registered for ${inv.clientName || 'Client'}: KES ${(Number(p.amountPaid) || 0).toLocaleString()} paid via ${(p.paymentMethod || "other").replace(/_/g, " ")}.`,
-            time: p.paymentDate || new Date().toISOString().split("T")[0],
-            unread: false
-          });
-        });
-      });
-
-      // Upcoming due date warnings
-      resInvoices.forEach((inv: Invoice) => {
-        if (inv.status === "pending") {
-          generatedAlerts.push({
-            id: `notif-due-${inv.id}`,
-            type: "upcoming",
-            title: `Invoice Due Soon`,
-            description: `${inv.clientName}'s invoice ${inv.invoiceNumber} is due in 3 days.`,
-            time: `Due on ${inv.dueDate}`,
-            unread: true
-          });
-        }
-      });
-
-      // Filter out notifications dismissed or cleared by the user
       const dismissedRaw = localStorage.getItem("binti_dismissed_notifications");
       let dismissedSet = new Set<string>();
       if (dismissedRaw) {
@@ -245,8 +202,82 @@ export default function App() {
         }
       }
 
+      const readRaw = localStorage.getItem("binti_read_notifications");
+      let readSet = new Set<string>();
+      if (readRaw) {
+        try {
+          const parsed = JSON.parse(readRaw);
+          if (Array.isArray(parsed)) readSet = new Set(parsed);
+        } catch (e) {
+          console.error("Failed to parse read notifications", e);
+        }
+      }
+
+      const clearedAtStr = localStorage.getItem("binti_notifications_cleared_at");
+      const clearedAtTime = clearedAtStr ? new Date(clearedAtStr).getTime() : 0;
+      const now = new Date();
+
+      // 1. Check overdue invoices (only with active due balance)
+      resInvoices.forEach((inv: Invoice) => {
+        const remaining = Number(inv.balanceRemaining ?? inv.grandTotal ?? 0);
+        if (inv.status !== "paid" && remaining > 0 && inv.dueDate) {
+          const due = new Date(inv.dueDate);
+          if (due.getTime() < now.getTime()) {
+            const notifId = `notif-overdue-${inv.id || inv.invoiceNumber}`;
+            generatedAlerts.push({
+              id: notifId,
+              type: "overdue",
+              title: `Invoice Overdue: ${inv.invoiceNumber}`,
+              description: `${inv.clientName} is yet to clear KES ${remaining.toLocaleString()}.`,
+              time: `Due on ${inv.dueDate.split('T')[0]}`,
+              unread: !readSet.has(notifId)
+            });
+          }
+        }
+      });
+
+      // 2. Upcoming due date warnings (only if due in 0-3 days and has active due balance)
+      resInvoices.forEach((inv: Invoice) => {
+        const remaining = Number(inv.balanceRemaining ?? inv.grandTotal ?? 0);
+        if (inv.status !== "paid" && remaining > 0 && inv.dueDate) {
+          const due = new Date(inv.dueDate);
+          const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays >= 0 && diffDays <= 3) {
+            const notifId = `notif-due-${inv.id || inv.invoiceNumber}`;
+            generatedAlerts.push({
+              id: notifId,
+              type: "upcoming",
+              title: `Invoice Due Soon: ${inv.invoiceNumber}`,
+              description: `${inv.clientName}'s invoice ${inv.invoiceNumber} is due in ${diffDays === 0 ? 'today' : `${diffDays} day${diffDays > 1 ? 's' : ''}`}.`,
+              time: `Due on ${inv.dueDate.split('T')[0]}`,
+              unread: !readSet.has(notifId)
+            });
+          }
+        }
+      });
+
+      // 3. Recent payment notification
+      resInvoices.forEach((inv: Invoice) => {
+        (inv.payments || []).forEach((p: any, idx: number) => {
+          const payDate = p.paymentDate || p.created_at || inv.issueDate || "";
+          const payTime = payDate ? new Date(payDate).getTime() : now.getTime();
+          if (clearedAtTime && payTime <= clearedAtTime) return;
+
+          const pKey = p.id || p.referenceNumber || `${p.amountPaid}_${idx}`;
+          const notifId = `notif-pm-${inv.id || inv.invoiceNumber}-${pKey}`;
+          generatedAlerts.push({
+            id: notifId,
+            type: "payment",
+            title: `Payment Received - ${inv.invoiceNumber || 'INV'}`,
+            description: `Manual receipt registered for ${inv.clientName || 'Client'}: KES ${(Number(p.amountPaid) || 0).toLocaleString()} paid via ${(p.paymentMethod || "other").replace(/_/g, " ")}.`,
+            time: (p.paymentDate || "").split('T')[0] || "Recent",
+            unread: !readSet.has(notifId)
+          });
+        });
+      });
+
       const activeAlerts = generatedAlerts.filter(a => !dismissedSet.has(a.id));
-      setNotifications(activeAlerts.slice(0, 8)); // Top 8 active notices
+      setNotifications(activeAlerts);
     } catch (err) {
       console.error("Failed to load initial corporate database:", err);
     } finally {
@@ -491,9 +522,19 @@ export default function App() {
   };
 
   // Handles clicking on TopBar unread warnings
+  // Handles clicking on TopBar unread warnings
   const handleNotificationClick = (notifId: string) => {
-    // Dismiss read locally
+    // Persist read status locally
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, unread: false } : n));
+    try {
+      const readRaw = localStorage.getItem("binti_read_notifications");
+      const readList: string[] = readRaw ? JSON.parse(readRaw) : [];
+      if (!readList.includes(notifId)) {
+        localStorage.setItem("binti_read_notifications", JSON.stringify([...readList, notifId]));
+      }
+    } catch (e) {
+      console.error("Failed to persist read notification", e);
+    }
     
     // Jump to modules based on type
     if (notifId.includes("overdue") || notifId.includes("due")) {
@@ -505,17 +546,17 @@ export default function App() {
 
   // Clear all notifications persistently
   const handleClearNotifications = () => {
-    setNotifications(prev => {
-      try {
-        const dismissedRaw = localStorage.getItem("binti_dismissed_notifications");
-        const existing: string[] = dismissedRaw ? JSON.parse(dismissedRaw) : [];
-        const updated = Array.from(new Set([...existing, ...prev.map(n => n.id)]));
-        localStorage.setItem("binti_dismissed_notifications", JSON.stringify(updated));
-      } catch (e) {
-        console.error("Failed to persist cleared notifications", e);
-      }
-      return [];
-    });
+    try {
+      localStorage.setItem("binti_notifications_cleared_at", new Date().toISOString());
+      const dismissedRaw = localStorage.getItem("binti_dismissed_notifications");
+      const existing: string[] = dismissedRaw ? JSON.parse(dismissedRaw) : [];
+      const updated = Array.from(new Set([...existing, ...notifications.map(n => n.id)]));
+      localStorage.setItem("binti_dismissed_notifications", JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to persist cleared notifications", e);
+    }
+    setNotifications([]);
+    showToast("All notifications cleared.");
   };
 
   // Dismiss a specific notification persistently

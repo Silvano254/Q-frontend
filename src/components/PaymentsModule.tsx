@@ -21,8 +21,9 @@ export default function PaymentsModule({
 
   // Flat map all payments with invoice info
   const allPayments = (invoices || []).flatMap(inv => 
-    (inv.payments || []).map(p => ({
+    (inv.payments || []).map((p, idx) => ({
       ...p,
+      id: p.id || `pm-${inv.id || inv.invoiceNumber}-${idx}`,
       invoiceId: inv.id,
       invoiceNumber: inv.invoiceNumber || "N/A",
       clientName: inv.clientName || "Unknown Client",
@@ -215,10 +216,10 @@ export default function PaymentsModule({
                   </td>
                 </tr>
               ) : (
-                filteredPayments.map((p) => {
+                filteredPayments.map((p, idx) => {
                   const correlatedInvoice = invoices.find(inv => inv.id === p.invoiceId);
                   return (
-                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
+                    <tr key={p.id || `pm-${p.invoiceId}-${idx}`} className="hover:bg-gray-50/50 transition-colors">
                       <td className="p-4 font-semibold text-gray-800">{p.paymentDate}</td>
                       <td className="p-4 font-bold text-[#6B46C1]">{p.invoiceNumber}</td>
                       <td className="p-4 font-semibold text-gray-800">{p.clientName}</td>

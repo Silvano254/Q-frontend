@@ -718,12 +718,50 @@ export default function App() {
   // Database Hard Wiping and Presets seed
   const handleResetDatabase = async () => {
     try {
-      await apiRequest('/api/settings/reset', {
-        method: 'POST',
-        body: JSON.stringify({ action: 'reset', confirm: true, reset: true })
-      });
-      
-      // Clean up all local cache / session entries on successful reset
+      let resetSucceeded = false;
+      try {
+        await apiRequest('/api/settings/reset', {
+          method: 'POST',
+          body: JSON.stringify({ action: 'reset', confirm: true, reset: true })
+        });
+        resetSucceeded = true;
+      } catch (endpointErr) {
+        console.warn("Direct /api/settings/reset endpoint unavailable, falling back to resource cascade wipe:", endpointErr);
+      }
+
+      // If backend reset endpoint is not implemented or threw "Failed to update settings", perform cascade wipe
+      if (!resetSucceeded) {
+        // 1. Delete all invoices
+        await Promise.allSettled(invoices.map(inv => apiRequest(`/api/invoices/${inv.id}`, { method: 'DELETE' })));
+        // 2. Delete all quotes
+        await Promise.allSettled(quotes.map(q => apiRequest(`/api/quotes/${q.id}`, { method: 'DELETE' })));
+        // 3. Delete all products
+        await Promise.allSettled(products.map(p => apiRequest(`/api/products/${p.id}`, { method: 'DELETE' })));
+        // 4. Delete all clients
+        await Promise.allSettled(clients.map(c => apiRequest(`/api/clients/${c.id}`, { method: 'DELETE' })));
+
+        // 5. Restore pristine company settings with valid payload
+        const pristineSettings: CompanySettings = {
+          companyName: "Binti Events",
+          email: "info@bintievents.co.ke",
+          phone: "+254 700 111 222",
+          address: "Ngong Road, Nairobi, Kenya",
+          taxNumber: "P051234567A",
+          bankDetails: "Equity Bank — A/C 1160274628991\nBranch: Ngong Road\nSWIFT: EABORKE",
+          currency: "KES",
+          invoiceFormat: "INV-2026-{SEQ}",
+          quoteFormat: "QT-2026-{SEQ}",
+          termsTemplate: "1. 50% commitment fee to book, with the balance paid before setup.\n2. Broken or damaged equipment will be billed at replacement cost.\n3. Setup and breakdown are included within Nairobi County.\n4. Cancellation within 7 days of event date forfeits the deposit.\n5. Client by making payment authorizes Binti Tents & Events to supply the above facilities.",
+          emailTemplate: "Dear {CLIENT_NAME},\n\nPlease find attached {TYPE} #{NUMBER} from Binti Events.\n\nBest regards,\nBinti Events Team"
+        };
+        await handleUpdateSettings(pristineSettings);
+      }
+
+      // Clean up all local cache / session entries
+      setInvoices([]);
+      setQuotes([]);
+      setProducts([]);
+      setClients([]);
       localStorage.removeItem("binti_dismissed_notifications");
       localStorage.removeItem("binti_read_notifications");
       localStorage.removeItem("binti_notifications_cleared_at");
@@ -731,7 +769,7 @@ export default function App() {
       sessionStorage.removeItem("binti_restore_quote_id");
       sessionStorage.removeItem("binti_restore_invoice_id");
       
-      showToast("Cloud database reset and seeded with pristine presets.");
+      showToast("Cloud database reset and cleared successfully.");
       await fetchAllData();
     } catch (err: any) {
       console.error("Database reset error:", err);

@@ -149,8 +149,20 @@ export default function App() {
         apiRequest<CompanySettings>('/api/settings')
       ]);
       resClients = apiClients;
-      resProducts = apiProducts;
       resQuotes = apiQuotes;
+      
+      const normalizedProducts: ProductService[] = (apiProducts || []).map((p: any) => ({
+        id: p.id,
+        name: p.name || '',
+        description: p.description || '',
+        category: p.category || 'General',
+        unitType: p.unitType || p.unit_type || p.unit || 'Day',
+        unitPrice: Number(p.unitPrice ?? p.unit_price ?? p.price ?? 0),
+        taxRate: Number(p.taxRate ?? p.tax_rate ?? p.tax ?? 16),
+        status: (p.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive'
+      }));
+
+      resProducts = normalizedProducts;
       
       const normalizedInvoices: Invoice[] = (apiInvoices || []).map((inv: any) => {
         const grandTotal = Number(inv.grandTotal ?? inv.grandtotal ?? inv.grand_total ?? 0);
@@ -176,6 +188,7 @@ export default function App() {
       resSettings = apiSettings;
 
       setClients(resClients);
+      setProducts(normalizedProducts);
       setQuotes(resQuotes);
       setInvoices(normalizedInvoices);
 
@@ -503,13 +516,29 @@ export default function App() {
 
   // Products CRUD Sync
   const handleCreateProduct = async (prodPayload: Partial<ProductService>) => {
-    await apiRequest('/api/products', { method: 'POST', body: JSON.stringify(prodPayload) });
+    const payload = {
+      ...prodPayload,
+      price: prodPayload.unitPrice,
+      unit: prodPayload.unitType,
+      unit_price: prodPayload.unitPrice,
+      unit_type: prodPayload.unitType,
+      tax_rate: prodPayload.taxRate
+    };
+    await apiRequest('/api/products', { method: 'POST', body: JSON.stringify(payload) });
     showToast(`Catalog item ${prodPayload.name} added.`);
     fetchAllData();
   };
 
   const handleUpdateProduct = async (id: string, prodPayload: Partial<ProductService>) => {
-    await apiRequest(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(prodPayload) });
+    const payload = {
+      ...prodPayload,
+      price: prodPayload.unitPrice,
+      unit: prodPayload.unitType,
+      unit_price: prodPayload.unitPrice,
+      unit_type: prodPayload.unitType,
+      tax_rate: prodPayload.taxRate
+    };
+    await apiRequest(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
     showToast("Catalog item updated.");
     fetchAllData();
   };

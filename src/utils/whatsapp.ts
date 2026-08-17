@@ -27,6 +27,7 @@ export function buildInvoiceWhatsAppMessage(
   const clientName = client?.name || invoice.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
   const dateFormatted = invoice.issueDate ? invoice.issueDate.split("T")[0] : "N/A";
+  const dueDateFormatted = invoice.dueDate ? invoice.dueDate.split("T")[0] : "N/A";
   const isPaid = invoice.status === 'paid' || (invoice.balanceRemaining !== undefined && invoice.balanceRemaining <= 0);
   const balanceText = isPaid 
     ? `${currency} 0 (Fully Paid)` 

@@ -57,16 +57,26 @@ export default function SettingsModule({
   const handleRegisterBiometric = async () => {
     showToast('Biometric authentication is not configured.', 'warning');
   };
-  
+  const normalizeMultiline = (val: any): string => {
+    if (val === null || val === undefined) return "";
+    let str = String(val);
+    str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
+    str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    if (!str.includes('\n') && /\d+\.\s+/.test(str)) {
+      str = str.replace(/(?<=[^\n])\s+(?=\d+\.\s+)/g, '\n');
+    }
+    return str.trim();
+  };
+
   // Fields state synced safely with companySettings prop
   const [companyName, setCompanyName] = useState(companySettings?.companyName || (companySettings as any)?.company_name || "Binti Events");
   const [email, setEmail] = useState(companySettings?.email || "");
   const [phone, setPhone] = useState(companySettings?.phone || "+254 700 111 222");
   const [address, setAddress] = useState(companySettings?.address || "Warehouse Block B, Ngong Road, Nairobi");
   const [taxNumber, setTaxNumber] = useState(companySettings?.taxNumber || (companySettings as any)?.tax_number || "P051234567A");
-  const [bankDetails, setBankDetails] = useState(companySettings?.bankDetails || (companySettings as any)?.bank_details || "");
+  const [bankDetails, setBankDetails] = useState(normalizeMultiline(companySettings?.bankDetails || (companySettings as any)?.bank_details || ""));
   const [currency, setCurrency] = useState(companySettings?.currency || "KES");
-  const [termsTemplate, setTermsTemplate] = useState(companySettings?.termsTemplate ?? (companySettings as any)?.terms_template ?? "");
+  const [termsTemplate, setTermsTemplate] = useState(normalizeMultiline(companySettings?.termsTemplate ?? (companySettings as any)?.terms_template ?? ""));
 
   // Synchronize internal state whenever parent companySettings updates
   React.useEffect(() => {
@@ -76,9 +86,9 @@ export default function SettingsModule({
       setPhone(companySettings.phone || "+254 700 111 222");
       setAddress(companySettings.address || "Warehouse Block B, Ngong Road, Nairobi");
       setTaxNumber(companySettings.taxNumber || (companySettings as any).tax_number || "P051234567A");
-      setBankDetails(companySettings.bankDetails || (companySettings as any).bank_details || "");
+      setBankDetails(normalizeMultiline(companySettings.bankDetails || (companySettings as any).bank_details || ""));
       setCurrency(companySettings.currency || "KES");
-      setTermsTemplate(companySettings.termsTemplate ?? (companySettings as any).terms_template ?? "");
+      setTermsTemplate(normalizeMultiline(companySettings.termsTemplate ?? (companySettings as any).terms_template ?? ""));
     }
   }, [companySettings]);
 
@@ -86,6 +96,9 @@ export default function SettingsModule({
     e.preventDefault();
     setIsSaving(true);
     try {
+      const cleanTerms = normalizeMultiline(termsTemplate);
+      const cleanBank = normalizeMultiline(bankDetails);
+
       const payload: CompanySettings = {
         ...companySettings,
         companyName,
@@ -93,9 +106,9 @@ export default function SettingsModule({
         phone,
         address,
         taxNumber,
-        bankDetails,
+        bankDetails: cleanBank,
         currency,
-        termsTemplate
+        termsTemplate: cleanTerms
       };
       await onUpdateSettings(payload);
       showToast("Corporate billing settings saved successfully.");
@@ -236,15 +249,29 @@ export default function SettingsModule({
 
             {/* Terms and conditions default template */}
             <div>
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 flex items-center space-x-1">
-                <AlignLeft className="w-3.5 h-3.5" />
-                <span>Default Quotation & Tax Invoice fine-print Contract clauses</span>
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[10px] font-bold text-gray-400 uppercase flex items-center space-x-1">
+                  <AlignLeft className="w-3.5 h-3.5" />
+                  <span>Default Quotation & Tax Invoice fine-print Contract clauses</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setTermsTemplate(prev => normalizeMultiline(prev))}
+                  className="text-[10px] text-[#6B46C1] hover:text-purple-800 font-semibold flex items-center space-x-1 px-2 py-0.5 rounded bg-purple-50 hover:bg-purple-100 transition-colors"
+                  title="Format each numbered clause onto its own line"
+                >
+                  <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+                  <span>Format numbered lines</span>
+                </button>
+              </div>
               <textarea
                 value={termsTemplate}
                 onChange={(e) => setTermsTemplate(e.target.value)}
-                rows={6}
-                className="w-full p-4 border border-gray-200 rounded-xl text-xs font-mono leading-relaxed"
+                onBlur={() => setTermsTemplate(prev => normalizeMultiline(prev))}
+                rows={7}
+                placeholder="1. 50% commitment fee to book, with the balance paid before setup.&#10;2. Broken or damaged equipment will be billed at replacement cost.&#10;3. Setup and breakdown are included within Nairobi County."
+                className="w-full p-4 border border-gray-200 rounded-xl text-xs font-mono leading-relaxed focus:ring-2 focus:ring-[#6B46C1] focus:border-transparent outline-none transition-all"
+                style={{ whiteSpace: 'pre-wrap' }}
               />
             </div>
 

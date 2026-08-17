@@ -209,6 +209,29 @@ export default function App() {
       if (resSettings) {
         setCompanySettings(prev => {
           const raw = resSettings as any;
+          const normalizeMultiline = (val: any): string => {
+            if (val === null || val === undefined) return "";
+            let str = String(val);
+            str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
+            str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            if (!str.includes('\n') && /\d+\.\s+/.test(str)) {
+              str = str.replace(/(?<=[^\n])\s+(?=\d+\.\s+)/g, '\n');
+            }
+            return str.trim();
+          };
+
+          const rawTerms = (raw.termsTemplate !== undefined && raw.termsTemplate !== null)
+            ? raw.termsTemplate
+            : ((raw.terms_template !== undefined && raw.terms_template !== null)
+                ? raw.terms_template
+                : (prev.termsTemplate || ""));
+
+          const rawBank = (raw.bankDetails !== undefined && raw.bankDetails !== null)
+            ? raw.bankDetails
+            : ((raw.bank_details !== undefined && raw.bank_details !== null)
+                ? raw.bank_details
+                : (prev.bankDetails || ""));
+
           const merged: CompanySettings = {
             ...prev,
             companyName: raw.companyName || raw.company_name || prev.companyName || "Binti Events",
@@ -216,15 +239,11 @@ export default function App() {
             phone: raw.phone !== undefined ? raw.phone : (prev.phone || ""),
             address: raw.address !== undefined ? raw.address : (prev.address || ""),
             taxNumber: raw.taxNumber || raw.tax_number || prev.taxNumber || "",
-            bankDetails: (raw.bankDetails || raw.bank_details || prev.bankDetails || "").trim(),
+            bankDetails: normalizeMultiline(rawBank),
             currency: raw.currency || prev.currency || "KES",
             invoiceFormat: raw.invoiceFormat || raw.invoice_format || prev.invoiceFormat || "INV-2026-{SEQ}",
             quoteFormat: raw.quoteFormat || raw.quote_format || prev.quoteFormat || "QT-2026-{SEQ}",
-            termsTemplate: (raw.termsTemplate !== undefined && raw.termsTemplate !== null)
-              ? raw.termsTemplate
-              : ((raw.terms_template !== undefined && raw.terms_template !== null)
-                  ? raw.terms_template
-                  : (prev.termsTemplate || "")),
+            termsTemplate: normalizeMultiline(rawTerms),
             emailTemplate: (raw.emailTemplate !== undefined && raw.emailTemplate !== null)
               ? raw.emailTemplate
               : ((raw.email_template !== undefined && raw.email_template !== null)
@@ -645,30 +664,50 @@ export default function App() {
 
   // Settings Configuration Update
   const handleUpdateSettings = async (settingsPayload: CompanySettings) => {
-    setCompanySettings(settingsPayload);
-    localStorage.setItem("binti_company_settings", JSON.stringify(settingsPayload));
+    const normalizeMultiline = (val: any): string => {
+      if (val === null || val === undefined) return "";
+      let str = String(val);
+      str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
+      str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      if (!str.includes('\n') && /\d+\.\s+/.test(str)) {
+        str = str.replace(/(?<=[^\n])\s+(?=\d+\.\s+)/g, '\n');
+      }
+      return str.trim();
+    };
+
+    const cleanTerms = normalizeMultiline(settingsPayload.termsTemplate);
+    const cleanBank = normalizeMultiline(settingsPayload.bankDetails);
+
+    const normalizedSettings: CompanySettings = {
+      ...settingsPayload,
+      termsTemplate: cleanTerms,
+      bankDetails: cleanBank
+    };
+
+    setCompanySettings(normalizedSettings);
+    localStorage.setItem("binti_company_settings", JSON.stringify(normalizedSettings));
 
     try {
       const payloadToSend = {
-        ...settingsPayload,
-        companyName: settingsPayload.companyName,
-        company_name: settingsPayload.companyName,
-        email: settingsPayload.email,
-        phone: settingsPayload.phone,
-        address: settingsPayload.address,
-        taxNumber: settingsPayload.taxNumber,
-        tax_number: settingsPayload.taxNumber,
-        bankDetails: settingsPayload.bankDetails,
-        bank_details: settingsPayload.bankDetails,
-        currency: settingsPayload.currency,
-        termsTemplate: settingsPayload.termsTemplate,
-        terms_template: settingsPayload.termsTemplate,
-        invoiceFormat: settingsPayload.invoiceFormat,
-        invoice_format: settingsPayload.invoiceFormat,
-        quoteFormat: settingsPayload.quoteFormat,
-        quote_format: settingsPayload.quoteFormat,
-        emailTemplate: settingsPayload.emailTemplate,
-        email_template: settingsPayload.emailTemplate
+        ...normalizedSettings,
+        companyName: normalizedSettings.companyName,
+        company_name: normalizedSettings.companyName,
+        email: normalizedSettings.email,
+        phone: normalizedSettings.phone,
+        address: normalizedSettings.address,
+        taxNumber: normalizedSettings.taxNumber,
+        tax_number: normalizedSettings.taxNumber,
+        bankDetails: cleanBank,
+        bank_details: cleanBank,
+        currency: normalizedSettings.currency,
+        termsTemplate: cleanTerms,
+        terms_template: cleanTerms,
+        invoiceFormat: normalizedSettings.invoiceFormat,
+        invoice_format: normalizedSettings.invoiceFormat,
+        quoteFormat: normalizedSettings.quoteFormat,
+        quote_format: normalizedSettings.quoteFormat,
+        emailTemplate: normalizedSettings.emailTemplate,
+        email_template: normalizedSettings.emailTemplate
       };
       await apiRequest('/api/settings', { method: 'PUT', body: JSON.stringify(payloadToSend) });
       showToast("Corporate billing settings saved successfully.");

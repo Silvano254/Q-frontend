@@ -59,26 +59,26 @@ export default function SettingsModule({
   };
   
   // Fields state synced safely with companySettings prop
-  const [companyName, setCompanyName] = useState(companySettings?.companyName || "Binti Events");
+  const [companyName, setCompanyName] = useState(companySettings?.companyName || (companySettings as any)?.company_name || "Binti Events");
   const [email, setEmail] = useState(companySettings?.email || "");
   const [phone, setPhone] = useState(companySettings?.phone || "+254 700 111 222");
   const [address, setAddress] = useState(companySettings?.address || "Warehouse Block B, Ngong Road, Nairobi");
-  const [taxNumber, setTaxNumber] = useState(companySettings?.taxNumber || "P051234567A");
-  const [bankDetails, setBankDetails] = useState(companySettings?.bankDetails || "");
+  const [taxNumber, setTaxNumber] = useState(companySettings?.taxNumber || (companySettings as any)?.tax_number || "P051234567A");
+  const [bankDetails, setBankDetails] = useState(companySettings?.bankDetails || (companySettings as any)?.bank_details || "");
   const [currency, setCurrency] = useState(companySettings?.currency || "KES");
-  const [termsTemplate, setTermsTemplate] = useState(companySettings?.termsTemplate || "");
+  const [termsTemplate, setTermsTemplate] = useState(companySettings?.termsTemplate ?? (companySettings as any)?.terms_template ?? "");
 
   // Synchronize internal state whenever parent companySettings updates
   React.useEffect(() => {
     if (companySettings) {
-      setCompanyName(companySettings.companyName || "Binti Events");
+      setCompanyName(companySettings.companyName || (companySettings as any).company_name || "Binti Events");
       setEmail(companySettings.email || "");
       setPhone(companySettings.phone || "+254 700 111 222");
       setAddress(companySettings.address || "Warehouse Block B, Ngong Road, Nairobi");
-      setTaxNumber(companySettings.taxNumber || "P051234567A");
-      setBankDetails(companySettings.bankDetails || "");
+      setTaxNumber(companySettings.taxNumber || (companySettings as any).tax_number || "P051234567A");
+      setBankDetails(companySettings.bankDetails || (companySettings as any).bank_details || "");
       setCurrency(companySettings.currency || "KES");
-      setTermsTemplate(companySettings.termsTemplate || "");
+      setTermsTemplate(companySettings.termsTemplate ?? (companySettings as any).terms_template ?? "");
     }
   }, [companySettings]);
 

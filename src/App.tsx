@@ -208,10 +208,28 @@ export default function App() {
       }
       if (resSettings) {
         setCompanySettings(prev => {
+          const raw = resSettings as any;
           const merged: CompanySettings = {
             ...prev,
-            ...resSettings,
-            bankDetails: ((resSettings as any).bankDetails || (resSettings as any).bank_details || prev.bankDetails || "").trim()
+            companyName: raw.companyName || raw.company_name || prev.companyName || "Binti Events",
+            email: raw.email !== undefined ? raw.email : (prev.email || ""),
+            phone: raw.phone !== undefined ? raw.phone : (prev.phone || ""),
+            address: raw.address !== undefined ? raw.address : (prev.address || ""),
+            taxNumber: raw.taxNumber || raw.tax_number || prev.taxNumber || "",
+            bankDetails: (raw.bankDetails || raw.bank_details || prev.bankDetails || "").trim(),
+            currency: raw.currency || prev.currency || "KES",
+            invoiceFormat: raw.invoiceFormat || raw.invoice_format || prev.invoiceFormat || "INV-2026-{SEQ}",
+            quoteFormat: raw.quoteFormat || raw.quote_format || prev.quoteFormat || "QT-2026-{SEQ}",
+            termsTemplate: (raw.termsTemplate !== undefined && raw.termsTemplate !== null)
+              ? raw.termsTemplate
+              : ((raw.terms_template !== undefined && raw.terms_template !== null)
+                  ? raw.terms_template
+                  : (prev.termsTemplate || "")),
+            emailTemplate: (raw.emailTemplate !== undefined && raw.emailTemplate !== null)
+              ? raw.emailTemplate
+              : ((raw.email_template !== undefined && raw.email_template !== null)
+                  ? raw.email_template
+                  : (prev.emailTemplate || ""))
           };
           localStorage.setItem("binti_company_settings", JSON.stringify(merged));
           return merged;
@@ -633,11 +651,24 @@ export default function App() {
     try {
       const payloadToSend = {
         ...settingsPayload,
+        companyName: settingsPayload.companyName,
+        company_name: settingsPayload.companyName,
+        email: settingsPayload.email,
+        phone: settingsPayload.phone,
+        address: settingsPayload.address,
+        taxNumber: settingsPayload.taxNumber,
+        tax_number: settingsPayload.taxNumber,
         bankDetails: settingsPayload.bankDetails,
         bank_details: settingsPayload.bankDetails,
-        company_name: settingsPayload.companyName,
-        tax_number: settingsPayload.taxNumber,
-        terms_template: settingsPayload.termsTemplate
+        currency: settingsPayload.currency,
+        termsTemplate: settingsPayload.termsTemplate,
+        terms_template: settingsPayload.termsTemplate,
+        invoiceFormat: settingsPayload.invoiceFormat,
+        invoice_format: settingsPayload.invoiceFormat,
+        quoteFormat: settingsPayload.quoteFormat,
+        quote_format: settingsPayload.quoteFormat,
+        emailTemplate: settingsPayload.emailTemplate,
+        email_template: settingsPayload.emailTemplate
       };
       await apiRequest('/api/settings', { method: 'PUT', body: JSON.stringify(payloadToSend) });
       showToast("Corporate billing settings saved successfully.");
@@ -645,7 +676,7 @@ export default function App() {
       console.warn("Backend settings update note:", err);
       showToast("Corporate billing settings saved locally.");
     }
-    fetchAllData();
+    await fetchAllData();
   };
 
   // Database Hard Wiping and Presets seed

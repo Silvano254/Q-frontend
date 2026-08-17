@@ -61,6 +61,14 @@ export async function apiRequest<T>(
         let requestBody = init.body;
         const method = (init.method || 'GET').toUpperCase();
 
+        if (!requestBody && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
+          if (path.includes('reset')) {
+            requestBody = JSON.stringify({ action: 'reset', confirm: true, reset: true });
+          } else {
+            requestBody = JSON.stringify({});
+          }
+        }
+
         // If path has an ID component (e.g. /api/clients/c_123), ensure id is in body for Edge Functions
         const pathSegments = path.replace(/^\/api\//, '').split('/');
         if (pathSegments.length >= 2 && (method === 'PUT' || method === 'DELETE' || method === 'POST')) {

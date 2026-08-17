@@ -718,7 +718,10 @@ export default function App() {
   // Database Hard Wiping and Presets seed
   const handleResetDatabase = async () => {
     try {
-      await apiRequest('/api/settings/reset', { method: 'POST' });
+      await apiRequest('/api/settings/reset', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'reset', confirm: true, reset: true })
+      });
       
       // Clean up all local cache / session entries on successful reset
       localStorage.removeItem("binti_dismissed_notifications");

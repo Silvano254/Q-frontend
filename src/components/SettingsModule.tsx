@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key, CreditCard, DollarSign, Loader2 } from "lucide-react";
+import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key, CreditCard, DollarSign, Loader2, AlertTriangle, ShieldAlert, X } from "lucide-react";
 import { CompanySettings } from "../types";
 
 interface SettingsModuleProps {
@@ -25,6 +25,8 @@ export default function SettingsModule({
 }: SettingsModuleProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isResettingData, setIsResettingData] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
   const [biometricRegistered, setBiometricRegistered] = useState(true);
 
   // Security Credentials Updates states
@@ -101,17 +103,6 @@ export default function SettingsModule({
       showToast("Failed to save settings.", "warning");
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleResetData = async () => {
-    if (confirm("CRITICAL WARNING: This will completely wipe all quotes, invoices, payment records, and custom clients, and seed default luxury presets. Are you sure you wish to format the local database?")) {
-      setIsResettingData(true);
-      try {
-        await onResetDatabase();
-      } finally {
-        setIsResettingData(false);
-      }
     }
   };
 
@@ -434,33 +425,169 @@ export default function SettingsModule({
               </button>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Database reset */}
-          <div className="glass-card p-6 border-l-4 border-l-red-500 space-y-4">
-            <div className="space-y-1">
-              <span className="text-xs font-bold text-red-700 uppercase tracking-wide block">Data Maintenance Desk</span>
-              <p className="text-xs text-red-500 leading-relaxed">Wipes current local cache database and seeds pristine catalog data.</p>
+      {/* ─────────────────────────────────────────────────────────────
+          RED ZONE / DANGER ZONE: DATA MAINTENANCE & DATABASE RESET
+      ───────────────────────────────────────────────────────────── */}
+      <div className="mt-8 rounded-2xl border-2 border-red-500/30 bg-gradient-to-br from-red-50/70 via-rose-50/40 to-red-100/30 p-6 md:p-8 space-y-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-red-200/70 pb-6">
+          <div className="flex items-start space-x-3.5">
+            <div className="p-3 bg-red-600 text-white rounded-xl shadow-md shadow-red-600/20 shrink-0">
+              <ShieldAlert className="w-6 h-6" />
             </div>
-            <button
-              disabled={isResettingData}
-              onClick={handleResetData}
-              className="py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 transition-all shadow disabled:opacity-50"
-            >
-              {isResettingData ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Resetting Database...</span>
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="w-4 h-4" />
-                  <span>Reset & Fresh Seed Database</span>
-                </>
-              )}
-            </button>
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-widest uppercase bg-red-600 text-white">
+                  Red Zone
+                </span>
+                <h3 className="text-base font-bold text-red-950">
+                  Data Maintenance & Cloud Database Reset
+                </h3>
+              </div>
+              <p className="text-xs text-red-800/80 leading-relaxed max-w-2xl">
+                Irreversible destructive actions. Formats the cloud database, purges all operational records, and re-seeds pristine luxury event presets and standard asset catalogs.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            disabled={isResettingData}
+            onClick={() => {
+              setConfirmText("");
+              setShowResetModal(true);
+            }}
+            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-2 transition-all shadow-md shadow-red-600/25 shrink-0 disabled:opacity-50"
+          >
+            <AlertTriangle className="w-4 h-4 text-amber-300" />
+            <span>Initiate Database Wipe</span>
+          </button>
+        </div>
+
+        {/* Impact summary checklist */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-1">
+          <div className="p-3.5 bg-white/80 rounded-xl border border-red-100/80 space-y-1">
+            <span className="text-[11px] font-bold text-red-900 flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+              <span>Quotes & Proposals</span>
+            </span>
+            <p className="text-[10px] text-gray-500">All issued and draft quotations will be permanently wiped.</p>
+          </div>
+
+          <div className="p-3.5 bg-white/80 rounded-xl border border-red-100/80 space-y-1">
+            <span className="text-[11px] font-bold text-red-900 flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+              <span>Invoices & Payments</span>
+            </span>
+            <p className="text-[10px] text-gray-500">All billing invoices, payment records, and receipts will be erased.</p>
+          </div>
+
+          <div className="p-3.5 bg-white/80 rounded-xl border border-red-100/80 space-y-1">
+            <span className="text-[11px] font-bold text-red-900 flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+              <span>Client Profiles</span>
+            </span>
+            <p className="text-[10px] text-gray-500">All client contact information, tax PINs, and histories will be cleared.</p>
+          </div>
+
+          <div className="p-3.5 bg-white/80 rounded-xl border border-red-100/80 space-y-1">
+            <span className="text-[11px] font-bold text-emerald-800 flex items-center space-x-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>Catalog Presets</span>
+            </span>
+            <p className="text-[10px] text-gray-500">Pristine equipment, tents, furniture, and catalog rates will be restored.</p>
           </div>
         </div>
       </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          RED ZONE TYPED CONFIRMATION SECURITY MODAL
+      ───────────────────────────────────────────────────────────── */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-red-200 overflow-hidden space-y-5 p-6 animate-scale-in">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-red-100 text-red-600 rounded-xl">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-red-900 uppercase tracking-wide">
+                    Red Zone Authorization Required
+                  </h4>
+                  <p className="text-xs text-gray-500">This action cannot be undone.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 bg-red-50 rounded-xl border border-red-200/80 space-y-2 text-xs text-red-900 leading-relaxed">
+              <p className="font-semibold">You are about to format the cloud database and re-seed clean demo records.</p>
+              <p className="text-[11px] text-red-700">
+                To confirm this operation, please type <strong className="font-mono text-red-950 bg-red-200/60 px-1 py-0.5 rounded">RESET</strong> below:
+              </p>
+            </div>
+
+            <div>
+              <input
+                type="text"
+                autoFocus
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="Type RESET to confirm"
+                className="w-full px-3.5 py-2.5 border-2 border-red-300 focus:border-red-600 focus:ring-2 focus:ring-red-600/20 rounded-xl text-xs font-mono font-bold uppercase tracking-wider text-center"
+              />
+            </div>
+
+            <div className="flex items-center space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                disabled={isResettingData}
+                className="flex-1 py-2.5 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={confirmText.trim().toUpperCase() !== "RESET" || isResettingData}
+                onClick={async () => {
+                  setIsResettingData(true);
+                  try {
+                    await onResetDatabase();
+                    setShowResetModal(false);
+                  } catch {
+                    // Handled in parent
+                  } finally {
+                    setIsResettingData(false);
+                  }
+                }}
+                className="flex-1 py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition-all shadow-md shadow-red-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isResettingData ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Resetting...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>Confirm Wipe</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

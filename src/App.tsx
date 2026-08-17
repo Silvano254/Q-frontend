@@ -650,11 +650,24 @@ export default function App() {
 
   // Database Hard Wiping and Presets seed
   const handleResetDatabase = async () => {
-    localStorage.removeItem("binti_dismissed_notifications");
-    localStorage.removeItem("binti_company_settings");
-    await apiRequest('/api/settings/reset', { method: 'POST' });
-    showToast("Database reset successfully.");
-    fetchAllData();
+    try {
+      await apiRequest('/api/settings/reset', { method: 'POST' });
+      
+      // Clean up all local cache / session entries on successful reset
+      localStorage.removeItem("binti_dismissed_notifications");
+      localStorage.removeItem("binti_read_notifications");
+      localStorage.removeItem("binti_notifications_cleared_at");
+      localStorage.removeItem("binti_company_settings");
+      sessionStorage.removeItem("binti_restore_quote_id");
+      sessionStorage.removeItem("binti_restore_invoice_id");
+      
+      showToast("Cloud database reset and seeded with pristine presets.");
+      await fetchAllData();
+    } catch (err: any) {
+      console.error("Database reset error:", err);
+      showToast(err?.message || "Failed to reset database. Please check backend connectivity.", "warning");
+      throw err;
+    }
   };
 
   // Handles clicking on TopBar unread warnings

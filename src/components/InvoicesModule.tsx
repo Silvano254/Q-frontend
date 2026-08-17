@@ -1820,101 +1820,7 @@ export default function InvoicesModule({
                 </div>
               </div>
 
-              {/* Record manual payment form popover modal overlay */}
-              {isLoggingPayment && (
-                <div className="bg-emerald-50/20 border border-emerald-100 rounded-2xl p-5 space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
-                    <span className="text-xs font-bold text-emerald-800 uppercase flex items-center space-x-1.5">
-                      <DollarSign className="w-4 h-4 text-emerald-600" />
-                      <span>Record Client Payment</span>
-                    </span>
-                    <button 
-                      onClick={() => setIsLoggingPayment(false)}
-                      className="text-gray-400 hover:text-gray-600 text-xs font-semibold"
-                    >
-                      Cancel
-                    </button>
-                  </div>
 
-                  <form onSubmit={handleLogManualPayment} className="space-y-3.5">
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Payment Date</label>
-                      <input
-                        type="date"
-                        required
-                        value={pDate}
-                        onChange={(e) => setPDate(e.target.value)}
-                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Payment Method</label>
-                      <select
-                        value={pMethod}
-                        onChange={(e: any) => setPMethod(e.target.value)}
-                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-white text-gray-700"
-                      >
-                        <option value="bank_transfer">Bank Transfer</option>
-                        <option value="mobile_transfer">M-Pesa / Mobile Transfer</option>
-                        <option value="cash">Cash Payment</option>
-                        <option value="cheque">Cheque Settlement</option>
-                        <option value="other">Other Manual Settlement</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Reference Number / Transaction ID</label>
-                      <input
-                        type="text"
-                        required
-                        value={pRef}
-                        onChange={(e) => setPRef(e.target.value)}
-                        placeholder="e.g. KCB-TX-10928X"
-                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Receipt Amount</label>
-                      <input
-                        type="number"
-                        required
-                        min="1"
-                        value={pAmount}
-                        onChange={(e) => setPAmount(e.target.value)}
-                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-emerald-600"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Payment Note</label>
-                      <input
-                        type="text"
-                        value={pNotes}
-                        onChange={(e) => setPNotes(e.target.value)}
-                        placeholder="Received by director / cash check cleared."
-                        className="w-full px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs text-gray-600"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={isSubmittingPayment}
-                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-all shadow disabled:opacity-50 flex items-center justify-center space-x-1.5"
-                    >
-                      {isSubmittingPayment ? (
-                        <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Processing Payment Receipt...</span>
-                        </>
-                      ) : (
-                        <span>Confirm Manual Receipt</span>
-                      )}
-                    </button>
-                  </form>
-                </div>
-              )}
 
               {/* AI Draft Email display */}
               {aiEmailDraft && (
@@ -2379,6 +2285,219 @@ export default function InvoicesModule({
                   <>
                     <Mail className="w-3.5 h-3.5" />
                     <span>Send API</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Centered Record Manual Payment Pop-up Modal with Next Steps Guidance */}
+      {isLoggingPayment && selectedInvoice && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-emerald-100 dark:border-emerald-900/30 flex flex-col max-h-[92vh]">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-5 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-white/15 rounded-2xl backdrop-blur-sm shadow-inner">
+                  <DollarSign className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base leading-tight">Record Manual Payment</h3>
+                  <p className="text-xs text-emerald-100 font-medium">
+                    Invoice #{selectedInvoice.invoiceNumber} • {selectedInvoice.clientName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLoggingPayment(false)}
+                className="p-1.5 rounded-full hover:bg-white/20 text-white transition-colors"
+                title="Close payment modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content Scroll Area */}
+            <div className="p-6 overflow-y-auto space-y-5">
+              
+              {/* Step 1: Outstanding Balance & Quick Presets */}
+              <div className="bg-emerald-50/40 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-400 uppercase tracking-widest flex items-center space-x-1.5">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Step 1: Verify Outstanding Balance</span>
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300">
+                    Status: {(selectedInvoice.status || 'Pending').toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                  <div className="bg-white dark:bg-gray-800 p-2 rounded-xl border border-emerald-50 dark:border-gray-700">
+                    <span className="text-[9px] font-bold text-gray-400 uppercase block">Grand Total</span>
+                    <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                      {currency} {(selectedInvoice.grandTotal || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-2 rounded-xl border border-emerald-50 dark:border-gray-700">
+                    <span className="text-[9px] font-bold text-gray-400 uppercase block">Paid So Far</span>
+                    <span className="text-xs font-bold text-emerald-600">
+                      {currency} {((selectedInvoice.payments || []).reduce((s, p) => s + (Number(p.amountPaid) || 0), 0)).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-emerald-600 text-white p-2 rounded-xl shadow-sm">
+                    <span className="text-[9px] font-bold text-emerald-100 uppercase block">Balance Due</span>
+                    <span className="text-xs font-extrabold">
+                      {currency} {(selectedInvoice.balanceRemaining ?? selectedInvoice.grandTotal).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quick amount shortcuts */}
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1.5">Quick Fill Amount:</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setPAmount((selectedInvoice.balanceRemaining ?? selectedInvoice.grandTotal).toString())}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors"
+                    >
+                      Full Balance ({currency} {(selectedInvoice.balanceRemaining ?? selectedInvoice.grandTotal).toLocaleString()})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPAmount(Math.round(selectedInvoice.grandTotal * 0.8).toString())}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                    >
+                      80% Booking
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPAmount(Math.round(selectedInvoice.grandTotal * 0.5).toString())}
+                      className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                    >
+                      50% Deposit
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step 2: Payment Receipt Form */}
+              <form id="manual-payment-form" onSubmit={handleLogManualPayment} className="space-y-4">
+                <div className="flex items-center space-x-1.5 pb-1 border-b border-gray-100 dark:border-gray-800">
+                  <CreditCard className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                    Step 2: Enter Transaction Details
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Receipt Amount ({currency}) *</label>
+                    <input
+                      type="number"
+                      required
+                      min="1"
+                      value={pAmount}
+                      onChange={(e) => setPAmount(e.target.value)}
+                      placeholder="e.g. 50000"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-xl text-xs font-bold text-emerald-600 dark:text-emerald-400 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Payment Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={pDate}
+                      onChange={(e) => setPDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-xl text-xs text-gray-800 dark:text-gray-200 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Payment Method *</label>
+                    <select
+                      value={pMethod}
+                      onChange={(e: any) => setPMethod(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-xl text-xs text-gray-800 dark:text-gray-200 font-medium focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                    >
+                      <option value="mobile_transfer">M-Pesa / Mobile Transfer</option>
+                      <option value="bank_transfer">Bank Wire / RTGS / EFT</option>
+                      <option value="cash">Cash Payment</option>
+                      <option value="cheque">Cheque Settlement</option>
+                      <option value="other">Other Settlement</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Reference / TX ID *</label>
+                    <input
+                      type="text"
+                      required
+                      value={pRef}
+                      onChange={(e) => setPRef(e.target.value)}
+                      placeholder="e.g. QAK12984X or CHQ-4021"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-xl text-xs text-gray-800 dark:text-gray-200 font-mono focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Internal Note / Received By</label>
+                  <input
+                    type="text"
+                    value={pNotes}
+                    onChange={(e) => setPNotes(e.target.value)}
+                    placeholder="e.g. Received via Lipa na M-Pesa / Verified by Accounts"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 dark:bg-gray-800 rounded-xl text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none"
+                  />
+                </div>
+              </form>
+
+              {/* Step 3: Next Steps & Automation Breakdown */}
+              <div className="bg-gray-50 dark:bg-gray-800/60 rounded-2xl p-3.5 border border-gray-100 dark:border-gray-700 text-xs space-y-1.5">
+                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest block">
+                  Next steps after confirmation:
+                </span>
+                <ul className="text-[11px] text-gray-600 dark:text-gray-300 space-y-1 list-disc list-inside">
+                  <li>Invoice balance updates immediately and marks status as <strong>Partial</strong> or <strong>Paid</strong>.</li>
+                  <li>Receipt slip is attached to the customer's PDF download and payment history.</li>
+                  <li>Revenue is reflected in your Analytics & Payments Ledger in real time.</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setIsLoggingPayment(false)}
+                className="px-4 py-2 text-xs font-bold text-gray-600 hover:text-gray-800 dark:text-gray-300 rounded-xl hover:bg-gray-200/60 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="manual-payment-form"
+                disabled={isSubmittingPayment}
+                className="px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-600 text-white rounded-xl text-xs font-bold shadow-lg shadow-emerald-600/20 flex items-center space-x-1.5 transition-all disabled:opacity-50"
+              >
+                {isSubmittingPayment ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Confirming Receipt...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-white" />
+                    <span>Confirm & Issue Payment Receipt</span>
                   </>
                 )}
               </button>

@@ -668,7 +668,16 @@ export default function QuotesModule({
       doc.setFontSize(7.5);
       doc.setTextColor(100, 100, 100);
 
-      const termsLines = termsSource.split(/\r?\n/).filter(Boolean);
+      const splitTermsIntoLines = (val?: string): string[] => {
+        if (!val) return [];
+        let str = String(val);
+        str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
+        str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        str = str.replace(/(?<=[^\n])\s*(?=\b\d+\.\s+)/g, '\n');
+        return str.split('\n').map(l => l.trim()).filter(Boolean);
+      };
+
+      const termsLines = splitTermsIntoLines(termsSource);
       termsLines.forEach((term: string) => {
         const splitLine = doc.splitTextToSize(term, contentWidth);
         ensurePageSpace(splitLine.length * 4.0 + 2);
@@ -908,13 +917,23 @@ export default function QuotesModule({
     doc.setFontSize(7.5);
     doc.setTextColor(gray[0], gray[1], gray[2]);
 
+    const splitTermsIntoLines = (val?: string): string[] => {
+      if (!val) return [];
+      let str = String(val);
+      str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
+      str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      str = str.replace(/(?<=[^\n])\s*(?=\b\d+\.\s+)/g, '\n');
+      return str.split('\n').map(l => l.trim()).filter(Boolean);
+    };
+
     const termsSourceBinti = quote.terms || companySettings.termsTemplate || (companySettings as any).terms_template;
-    const termsLines = termsSourceBinti ? termsSourceBinti.split(/\r?\n/).filter(Boolean) : [
-      'Client by making payment authorizes Binti Tents & Events to supply the above facilities',
-      'Payment of at least 80% confirms your booking upon signing below; balance to be upon set up',
-      'Cancellation policy: Cancellation must be in writing. A month before event: 50% refund, 2 weeks before: 25% refund; Less than a week: non refundable',
-      'Client agrees to safeguard the equipment and be solely responsible for any loss or damage of the same that may occur during period of hire',
-      'Quote valid for 30 days',
+    const rawTermsLines = splitTermsIntoLines(termsSourceBinti);
+    const termsLines = rawTermsLines.length > 0 ? rawTermsLines : [
+      '1. Client by making payment authorizes Binti Tents & Events to supply the above facilities',
+      '2. Payment of at least 80% confirms your booking upon signing below; balance to be upon set up',
+      '3. Cancellation policy: Cancellation must be in writing. A month before event: 50% refund, 2 weeks before: 25% refund; Less than a week: non refundable',
+      '4. Client agrees to safeguard the equipment and be solely responsible for any loss or damage of the same that may occur during period of hire',
+      '5. Quote valid for 30 days',
     ];
     termsLines.forEach((term: string, i: number) => {
       const lineText = term.match(/^\d+\./) ? term : `${i + 1}. ${term}`;

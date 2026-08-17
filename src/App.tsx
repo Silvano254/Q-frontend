@@ -214,10 +214,9 @@ export default function App() {
             let str = String(val);
             str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
             str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-            if (!str.includes('\n') && /\d+\.\s+/.test(str)) {
-              str = str.replace(/(?<=[^\n])\s+(?=\d+\.\s+)/g, '\n');
-            }
-            return str.trim();
+            // Split squashed numbered clauses (e.g. "...crew.2. 20%..." or "...crew. 2. 20%...")
+            str = str.replace(/(?<=[^\n])\s*(?=\b\d+\.\s+)/g, '\n');
+            return str.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
           };
 
           const rawTerms = (raw.termsTemplate !== undefined && raw.termsTemplate !== null)
@@ -669,10 +668,8 @@ export default function App() {
       let str = String(val);
       str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
       str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      if (!str.includes('\n') && /\d+\.\s+/.test(str)) {
-        str = str.replace(/(?<=[^\n])\s+(?=\d+\.\s+)/g, '\n');
-      }
-      return str.trim();
+      str = str.replace(/(?<=[^\n])\s*(?=\b\d+\.\s+)/g, '\n');
+      return str.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
     };
 
     const cleanTerms = normalizeMultiline(settingsPayload.termsTemplate);

@@ -62,10 +62,8 @@ export default function SettingsModule({
     let str = String(val);
     str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
     str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    if (!str.includes('\n') && /\d+\.\s+/.test(str)) {
-      str = str.replace(/(?<=[^\n])\s+(?=\d+\.\s+)/g, '\n');
-    }
-    return str.trim();
+    str = str.replace(/(?<=[^\n])\s*(?=\b\d+\.\s+)/g, '\n');
+    return str.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
   };
 
   // Fields state synced safely with companySettings prop

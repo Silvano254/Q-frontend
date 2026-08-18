@@ -23,7 +23,8 @@ import {
   askGeminiAssistant, 
   ChatMessage, 
   SaaSContext,
-  AgentAction 
+  AgentAction,
+  cleanAiResponse 
 } from "../services/geminiService";
 
 interface BintiAiAssistantModalProps {
@@ -65,12 +66,13 @@ const QUICK_CARDS = [
  * Clean Formatter: Executive-grade renderer without horizontal lines or markdown clutter
  */
 function CleanResponseRenderer({ content, isUser }: { content: string; isUser: boolean }) {
+  const sanitized = cleanAiResponse(content);
   if (isUser) {
-    return <div className="whitespace-pre-wrap">{content}</div>;
+    return <div className="whitespace-pre-wrap">{sanitized}</div>;
   }
 
   // Strip any raw horizontal rule markdown syntax (---, ***, ___)
-  const cleanContent = content
+  const cleanContent = sanitized
     .replace(/^[-*_]{3,}$/gm, '')
     .replace(/\n{3,}/g, '\n\n');
 

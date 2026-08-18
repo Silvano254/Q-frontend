@@ -47,7 +47,9 @@ export function cleanAiResponse(text: string): string {
   if (!text) return "";
   return text
     .replace(/Binti Events Corporate Suite/gi, 'Binti Events Management System')
+    .replace(/Binti Events Suite/gi, 'Binti Events Management System')
     .replace(/Corporate Suite/gi, 'Management System')
+    .replace(/\bSuite\b/g, 'Management System')
     .replace(/corporate event clients/gi, 'event clients')
     .replace(/corporate clients/gi, 'clients')
     .replace(/corporate client/gi, 'client')
@@ -62,7 +64,10 @@ export function cleanAiResponse(text: string): string {
     .replace(/corporate guidelines/gi, 'company guidelines')
     .replace(/corporate setup/gi, 'company setup')
     .replace(/corporate business/gi, 'event business')
-    .replace(/\bcorporate\b/gi, 'business');
+    .replace(/corporate operations/gi, 'event operations')
+    .replace(/corporate affairs/gi, 'business affairs')
+    .replace(/corporate sector/gi, 'event sector')
+    .replace(/corporate/gi, 'business');
 }
 
 /**
@@ -73,19 +78,25 @@ export async function askGeminiAssistant(
   chatHistory: ChatMessage[] = [],
   saasContext?: SaaSContext
 ): Promise<AssistantResponse> {
+  const cleanPrompt = cleanAiResponse(prompt.trim());
+  const cleanHistory = chatHistory.map(h => ({
+    role: h.role,
+    content: cleanAiResponse(h.content)
+  }));
+
   try {
     const data = await apiRequest<{ success: boolean; reply?: string; actions?: AgentAction[] }>('/api/ai/chat', {
       method: "POST",
       body: JSON.stringify({
-        prompt,
-        history: chatHistory.map(h => ({ role: h.role, content: h.content })),
+        prompt: cleanPrompt,
+        history: cleanHistory,
         context: saasContext,
-        systemInstruction: "You are Binti, the intelligent assistant for Binti Events Management System. Always refer to the system as Binti Events Management System or Binti Events. Do NOT use the words 'Corporate Suite' or 'corporate'. Use 'business', 'company', or 'events' instead."
+        systemInstruction: "You are Binti, the intelligent assistant for Binti Events Management System. Always refer to the system as Binti Events Management System or Binti Events. Strictly NEVER use the words 'Corporate Suite', 'Suite', or 'corporate'. Refer to clients as clients or organizations, and services as event management or event hire."
       })
     });
     if (data.success && data.reply) {
       const sanitizedReply = cleanAiResponse(data.reply);
-      const actions = data.actions || extractActionsFromPrompt(prompt, saasContext);
+      const actions = data.actions || extractActionsFromPrompt(cleanPrompt, saasContext);
       return { reply: sanitizedReply, actions };
     }
   } catch (error) {
@@ -93,7 +104,7 @@ export async function askGeminiAssistant(
   }
 
   // Instant local intelligent agentic fallback (works 100% offline at no cost)
-  const localRes = getLocalIntelligentFallback(prompt, saasContext);
+  const localRes = getLocalIntelligentFallback(cleanPrompt, saasContext);
   return {
     reply: cleanAiResponse(localRes.reply),
     actions: localRes.actions

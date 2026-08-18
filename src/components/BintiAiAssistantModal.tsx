@@ -214,31 +214,31 @@ export default function BintiAiAssistantModal({
   onExecuteAction
 }: BintiAiAssistantModalProps) {
   const [inputMessage, setInputMessage] = useState<string>("");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      role: "model",
-      content: `Hi! I'm Binti, your event assistant. How can I help you manage your quotations, billing ledgers, or client records today?`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const centerInputRef = useRef<HTMLInputElement>(null);
+  const bottomInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       if (initialPrompt && initialPrompt.trim().length > 0) {
         handleSendMessage(initialPrompt);
+      } else {
+        setTimeout(() => {
+          centerInputRef.current?.focus();
+        }, 150);
       }
     }
   }, [isOpen, initialPrompt]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && messages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      bottomInputRef.current?.focus();
     }
   }, [messages, isOpen]);
 
@@ -254,7 +254,7 @@ export default function BintiAiAssistantModal({
     };
 
     setMessages(prev => [...prev, userMsg]);
-    if (!textToSend) setInputMessage("");
+    setInputMessage("");
     setLoading(true);
     setErrorMsg(null);
 
@@ -288,19 +288,17 @@ export default function BintiAiAssistantModal({
   };
 
   const handleClearChat = () => {
-    setMessages([
-      {
-        role: "model",
-        content: `Conversation reset. How can I assist you in Binti Events today?`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ]);
+    setMessages([]);
     setErrorMsg(null);
+    setInputMessage("");
+    setTimeout(() => {
+      centerInputRef.current?.focus();
+    }, 100);
   };
 
   if (!isOpen) return null;
 
-  const isFreshChat = messages.length <= 1;
+  const isFreshChat = messages.length === 0;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-black/40 backdrop-blur-sm transition-opacity duration-300">
@@ -333,13 +331,15 @@ export default function BintiAiAssistantModal({
 
           {/* Action Tools */}
           <div className="flex items-center space-x-2 relative z-10">
-            <button
-              onClick={handleClearChat}
-              title="Reset Conversation"
-              className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            {!isFreshChat && (
+              <button
+                onClick={handleClearChat}
+                title="Reset to New Conversation"
+                className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            )}
 
             <button
               onClick={onClose}
@@ -381,37 +381,67 @@ export default function BintiAiAssistantModal({
           </div>
         )}
 
-        {/* Chat History Area */}
-        <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gradient-to-b from-[#FDFBFD] to-white">
-          {/* Welcome Screen & Cards for Fresh Chat */}
+        {/* Main Content Area */}
+        <div className="flex-1 p-4 overflow-y-auto space-y-4 bg-gradient-to-b from-[#FDFBFD] to-white flex flex-col justify-between">
+          
+          {/* FRESH STATE: Centered Greeting + Centered Input Field + Quick Prompt Buttons */}
           {isFreshChat && (
-            <div className="py-4 space-y-5 animate-fade-in">
-              <div className="text-center space-y-2 py-2">
-                <div className="w-14 h-14 mx-auto rounded-3xl bg-gradient-to-tr from-[#1F2937] via-[#2D1B4E] to-[#80237E] p-0.5 shadow-xl flex items-center justify-center border border-[#D4AF37]/40">
-                  <div className="w-full h-full bg-white rounded-[22px] flex items-center justify-center p-2">
+            <div className="my-auto py-2 space-y-6 animate-fade-in">
+              
+              {/* Header Greeting */}
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-[#1F2937] via-[#2D1B4E] to-[#80237E] p-0.5 shadow-xl flex items-center justify-center border border-[#D4AF37]/40">
+                  <div className="w-full h-full bg-white rounded-[22px] flex items-center justify-center p-2.5">
                     <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain" />
                   </div>
                 </div>
-                <h3 className="text-base font-bold text-gray-900 tracking-tight flex items-center justify-center space-x-1.5">
-                  <span>Hi! I'm Binti</span>
-                  <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+                <h3 className="text-xl font-extrabold text-gray-900 tracking-tight flex items-center justify-center space-x-2">
+                  <span>How can I help you today?</span>
                 </h3>
                 <p className="text-xs text-gray-500 max-w-xs mx-auto leading-relaxed">
-                  I can help you manage your events, bookings, quotations, tax invoices, and financial reports.
+                  Ask me to analyze your revenue, draft quotations, find invoices, or look up client records.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-2.5 pt-1">
+              {/* Centered Text Input Field */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendMessage();
+                }}
+                className="relative bg-white border-2 border-[#80237E]/20 hover:border-[#80237E]/40 focus-within:border-[#80237E] rounded-2xl shadow-lg shadow-purple-900/5 p-1.5 flex items-center space-x-2 transition-all"
+              >
+                <input
+                  ref={centerInputRef}
+                  type="text"
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  placeholder="Ask Binti anything..."
+                  disabled={loading}
+                  className="flex-1 px-3 py-2.5 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium"
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !inputMessage.trim()}
+                  className="px-4 py-2.5 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-95 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-900/15 flex items-center space-x-1.5 disabled:opacity-40 transition-all active:scale-95 shrink-0"
+                >
+                  <span>Send</span>
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+
+              {/* Quick Prompt Cards Underneath Input Field */}
+              <div className="grid grid-cols-1 gap-2 pt-1">
                 {QUICK_CARDS.map((card, cIdx) => {
                   const Icon = card.icon;
                   return (
                     <button
                       key={cIdx}
                       onClick={() => handleSendMessage(card.prompt)}
-                      className="p-3.5 bg-white hover:bg-purple-50/50 border border-gray-100 hover:border-[#80237E]/30 rounded-2xl text-left transition-all shadow-xs hover:shadow-md flex items-center justify-between group"
+                      className="p-3 bg-white hover:bg-purple-50/50 border border-gray-100 hover:border-[#80237E]/30 rounded-2xl text-left transition-all shadow-xs hover:shadow-md flex items-center justify-between group active:scale-[0.99]"
                     >
                       <div className="flex items-center space-x-3">
-                        <div className="w-9 h-9 rounded-xl bg-purple-50 text-[#80237E] group-hover:bg-[#80237E] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                        <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#80237E] group-hover:bg-[#80237E] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
                           <Icon className="w-4 h-4" />
                         </div>
                         <div>
@@ -426,142 +456,151 @@ export default function BintiAiAssistantModal({
                   );
                 })}
               </div>
+
             </div>
           )}
 
-          {/* Active Conversation Messages */}
-          {!isFreshChat && messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex items-start space-x-3 ${
-                msg.role === "user" ? "flex-row-reverse space-x-reverse" : ""
-              }`}
-            >
-              {/* Avatar */}
-              <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
-                  msg.role === "user"
-                    ? "bg-[#80237E] text-white"
-                    : "bg-[#1F2937] text-[#D4AF37] border border-[#D4AF37]/30"
-                }`}
-              >
-                {msg.role === "user" ? (
-                  <User className="w-4 h-4" />
-                ) : (
-                  <Sparkles className="w-4 h-4 text-[#D4AF37]" />
-                )}
-              </div>
-
-              {/* Message Bubble */}
-              <div className="max-w-[85%] group relative">
+          {/* ACTIVE CONVERSATION STATE: Chat Stream */}
+          {!isFreshChat && (
+            <div className="space-y-4">
+              {messages.map((msg, idx) => (
                 <div
-                  className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm ${
-                    msg.role === "user"
-                      ? "bg-[#80237E] text-white rounded-tr-none font-medium"
-                      : "bg-white border border-gray-100 text-gray-800 rounded-tl-none shadow-gray-100/50"
+                  key={idx}
+                  className={`flex items-start space-x-3 ${
+                    msg.role === "user" ? "flex-row-reverse space-x-reverse" : ""
                   }`}
                 >
-                  <CleanResponseRenderer content={msg.content} isUser={msg.role === "user"} />
-                </div>
-
-                {/* Interactive Action Cards */}
-                {msg.role === "model" && msg.actions && msg.actions.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5 animate-fade-in">
-                    {msg.actions.map((act, actIdx) => (
-                      <button
-                        key={actIdx}
-                        onClick={() => {
-                          if (onExecuteAction) {
-                            onExecuteAction(act);
-                            onClose();
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-gradient-to-r from-[#80237E]/10 to-[#6B46C1]/10 hover:from-[#80237E] hover:to-[#6B46C1] text-[#80237E] hover:text-white border border-[#80237E]/20 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center space-x-1.5 group/btn active:scale-95"
-                      >
-                        <Zap className="w-3.5 h-3.5 text-[#D4AF37] group-hover/btn:text-white group-hover/btn:scale-110 transition-transform shrink-0" />
-                        <span>{act.label}</span>
-                        <ArrowRight className="w-3 h-3 text-purple-400 group-hover/btn:text-white group-hover/btn:translate-x-0.5 transition-transform shrink-0" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Bubble Timestamp & Copy Action */}
-                <div
-                  className={`flex items-center space-x-2 mt-1 px-1 text-[10px] text-gray-400 ${
-                    msg.role === "user" ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  <span>{msg.timestamp}</span>
-                  <button
-                    onClick={() => handleCopy(msg.content, idx)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-gray-600"
-                    title="Copy text"
+                  {/* Avatar */}
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                      msg.role === "user"
+                        ? "bg-[#80237E] text-white"
+                        : "bg-[#1F2937] text-[#D4AF37] border border-[#D4AF37]/30"
+                    }`}
                   >
-                    {copiedIndex === idx ? (
-                      <Check className="w-3 h-3 text-emerald-500" />
+                    {msg.role === "user" ? (
+                      <User className="w-4 h-4" />
                     ) : (
-                      <Copy className="w-3 h-3" />
+                      <Sparkles className="w-4 h-4 text-[#D4AF37]" />
                     )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+                  </div>
 
-          {/* Loading Indicator */}
-          {loading && (
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 rounded-xl bg-[#1F2937] text-[#D4AF37] flex items-center justify-center shrink-0 border border-[#D4AF37]/30">
-                <Sparkles className="w-4 h-4 text-[#D4AF37] animate-spin" />
-              </div>
-              <div className="p-3 bg-white border border-gray-100 rounded-2xl rounded-tl-none text-xs text-gray-500 flex items-center space-x-2">
-                <div className="w-2 h-2 bg-[#80237E] rounded-full animate-ping" />
-                <span>Binti is processing...</span>
-              </div>
+                  {/* Message Bubble */}
+                  <div className="max-w-[85%] group relative">
+                    <div
+                      className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                        msg.role === "user"
+                          ? "bg-[#80237E] text-white rounded-tr-none font-medium"
+                          : "bg-white border border-gray-100 text-gray-800 rounded-tl-none shadow-gray-100/50"
+                      }`}
+                    >
+                      <CleanResponseRenderer content={msg.content} isUser={msg.role === "user"} />
+                    </div>
+
+                    {/* Interactive Action Cards */}
+                    {msg.role === "model" && msg.actions && msg.actions.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5 animate-fade-in">
+                        {msg.actions.map((act, actIdx) => (
+                          <button
+                            key={actIdx}
+                            onClick={() => {
+                              if (onExecuteAction) {
+                                onExecuteAction(act);
+                                onClose();
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-gradient-to-r from-[#80237E]/10 to-[#6B46C1]/10 hover:from-[#80237E] hover:to-[#6B46C1] text-[#80237E] hover:text-white border border-[#80237E]/20 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center space-x-1.5 group/btn active:scale-95"
+                          >
+                            <Zap className="w-3.5 h-3.5 text-[#D4AF37] group-hover/btn:text-white group-hover/btn:scale-110 transition-transform shrink-0" />
+                            <span>{act.label}</span>
+                            <ArrowRight className="w-3 h-3 text-purple-400 group-hover/btn:text-white group-hover/btn:translate-x-0.5 transition-transform shrink-0" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Bubble Timestamp & Copy Action */}
+                    <div
+                      className={`flex items-center space-x-2 mt-1 px-1 text-[10px] text-gray-400 ${
+                        msg.role === "user" ? "justify-end" : "justify-start"
+                      }`}
+                    >
+                      <span>{msg.timestamp}</span>
+                      <button
+                        onClick={() => handleCopy(msg.content, idx)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-gray-600"
+                        title="Copy text"
+                      >
+                        {copiedIndex === idx ? (
+                          <Check className="w-3 h-3 text-emerald-500" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Loading Indicator */}
+              {loading && (
+                <div className="flex items-center space-x-3 animate-fade-in">
+                  <div className="w-8 h-8 rounded-xl bg-[#1F2937] text-[#D4AF37] flex items-center justify-center shrink-0 border border-[#D4AF37]/30">
+                    <Sparkles className="w-4 h-4 text-[#D4AF37] animate-spin" />
+                  </div>
+                  <div className="p-3 bg-white border border-gray-100 rounded-2xl rounded-tl-none text-xs text-gray-500 flex items-center space-x-2 shadow-xs">
+                    <div className="w-2 h-2 bg-[#80237E] rounded-full animate-ping" />
+                    <span>Binti is thinking...</span>
+                  </div>
+                </div>
+              )}
+
+              <div ref={messagesEndRef} />
             </div>
           )}
 
-          <div ref={messagesEndRef} />
         </div>
 
-        {/* Chat Input Field */}
-        <div className="p-4 bg-white border-t border-gray-100">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSendMessage();
-            }}
-            className="flex items-center space-x-2"
-          >
-            <input
-              type="text"
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="Ask Binti anything..."
-              disabled={loading}
-              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] bg-gray-50/50 disabled:opacity-60 transition-all font-medium"
-            />
-            <button
-              type="submit"
-              disabled={loading || !inputMessage.trim()}
-              className="px-4 py-2.5 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-90 text-white font-semibold rounded-xl text-xs shadow-md shadow-purple-900/10 flex items-center space-x-1.5 disabled:opacity-50 transition-all"
+        {/* BOTTOM DOCKED INPUT BAR: Only shown once conversation has started */}
+        {!isFreshChat && (
+          <div className="p-4 bg-white border-t border-gray-100 animate-slide-up">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              className="flex items-center space-x-2"
             >
-              <span>Send</span>
-              <Send className="w-3.5 h-3.5" />
-            </button>
-          </form>
-          <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400 px-1">
-            <span className="flex items-center space-x-1">
-              <Sparkles className="w-3 h-3 text-[#D4AF37]" />
-              <span>Powered by Gemini</span>
-            </span>
-            <span className="flex items-center space-x-1 text-emerald-600 font-medium">
-              <ShieldCheck className="w-3 h-3" />
-              <span>Active Context</span>
-            </span>
+              <input
+                ref={bottomInputRef}
+                type="text"
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder="Ask Binti a follow up..."
+                disabled={loading}
+                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] bg-gray-50/50 disabled:opacity-60 transition-all font-medium"
+              />
+              <button
+                type="submit"
+                disabled={loading || !inputMessage.trim()}
+                className="px-4 py-2.5 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-90 text-white font-semibold rounded-xl text-xs shadow-md shadow-purple-900/10 flex items-center space-x-1.5 disabled:opacity-50 transition-all active:scale-95"
+              >
+                <span>Send</span>
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+            <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400 px-1">
+              <span className="flex items-center space-x-1">
+                <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+                <span>Powered by Gemini</span>
+              </span>
+              <span className="flex items-center space-x-1 text-emerald-600 font-medium">
+                <ShieldCheck className="w-3 h-3" />
+                <span>Active Context</span>
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
       </div>
     </div>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Sparkles, Shield, User, Lock, ArrowRight, RefreshCw, AlertTriangle, Eye, EyeOff, Fingerprint, KeyRound, X, CheckCircle2, Loader2, Clock } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Sparkles, RefreshCw, Eye, X } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import Dashboard from "./components/Dashboard";
@@ -10,24 +10,21 @@ import ProductsModule from "./components/ProductsModule";
 import PaymentsModule from "./components/PaymentsModule";
 import ReportsAnalyticsModule from "./components/ReportsAnalyticsModule";
 import SettingsModule from "./components/SettingsModule";
+import LoginScreen from "./components/LoginScreen";
 import BintiAiAssistantModal from "./components/BintiAiAssistantModal";
 import { apiRequest, clearAuthToken, setAuthToken } from "./services/apiClient";
 import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "./types";
 import { AgentAction } from "./services/geminiService";
+import { normalizeMultilineText, generateNextDocumentNumber } from "./utils/text";
 
 export default function App() {
-  // 100% Real Supabase Authentication State
+  // Authentication State
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return false;
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(() => {
     const saved = localStorage.getItem("binti_user");
     return saved ? JSON.parse(saved) : null;
   });
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccessMsg, setAuthSuccessMsg] = useState<string | null>(null);
@@ -35,18 +32,9 @@ export default function App() {
     return localStorage.getItem("binti_session_timeout_msg");
   });
 
-  // Biometric & Password Recovery States
-  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetOtp, setResetOtp] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [resetStep, setResetStep] = useState<"request" | "verify">("request");
-  const [resetMessage, setResetMessage] = useState<string | null>(null);
-  const [resetError, setResetError] = useState<string | null>(null);
-
-  // Custom Toast State
+  // Custom Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" } | null>(null);
-  const [toastTimeoutId, setToastTimeoutId] = useState<any>(null);
+  const toastTimeoutId = useRef<any>(null);
 
   // Theme State (Light / Dark mode)
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -62,14 +50,13 @@ export default function App() {
     }
   }, [theme]);
 
-  const showToast = (message: string, type: "success" | "warning" = "success") => {
-    if (toastTimeoutId) clearTimeout(toastTimeoutId);
-    setToast({ message: message.toLowerCase(), type });
-    const id = setTimeout(() => {
+  const showToast = useCallback((message: string, type: "success" | "warning" = "success") => {
+    if (toastTimeoutId.current) clearTimeout(toastTimeoutId.current);
+    setToast({ message, type });
+    toastTimeoutId.current = setTimeout(() => {
       setToast(null);
     }, 2500);
-    setToastTimeoutId(id);
-  };
+  }, []);
 
   // AI Assistant Drawer & Onboarding States
   const [isAiAssistantOpen, setIsAiAssistantOpen] = useState(false);
@@ -116,13 +103,10 @@ export default function App() {
     };
   });
 
-  // Cross-Module Selected States
+  // Cross-Module Selection States
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-
-  // Global Search & Notification lists
   const [globalSearch, setGlobalSearch] = useState("");
-  const [loading, setLoading] = useState(false);
   const [notifications, setNotifications] = useState<Array<{
     id: string;
     type: "overdue" | "upcoming" | "unpaid" | "payment" | "client";
@@ -132,16 +116,19 @@ export default function App() {
     unread: boolean;
   }>>([]);
 
-  // Load all persisted data through the authenticated backend.
-  const fetchAllData = async () => {
-    setLoading(true);
-    try {
-      let resClients: any[] = [];
-      let resProducts: any[] = [];
-      let resQuotes: any[] = [];
-      let resInvoices: any[] = [];
-      let resSettings: any = null;
+  // Refs for tracking active state in timer callbacks without re-triggering effects
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const selectedQuoteRef = useRef(selectedQuote);
+  selectedQuoteRef.current = selectedQuote;
+  const selectedInvoiceRef = useRef(selectedInvoice);
+  selectedInvoiceRef.current = selectedInvoice;
+  const globalSearchRef = useRef(globalSearch);
+  globalSearchRef.current = globalSearch;
 
+  // Load all persisted data on initial login or explicit reload
+  const fetchAllData = useCallback(async () => {
+    try {
       const [apiClients, apiProducts, apiQuotes, apiInvoices, apiSettings] = await Promise.all([
         apiRequest<Client[]>('/api/clients'),
         apiRequest<ProductService[]>('/api/products'),
@@ -149,9 +136,7 @@ export default function App() {
         apiRequest<Invoice[]>('/api/invoices'),
         apiRequest<CompanySettings>('/api/settings')
       ]);
-      resClients = apiClients;
-      resQuotes = apiQuotes;
-      
+
       const normalizedProducts: ProductService[] = (apiProducts || []).map((p: any) => ({
         id: p.id,
         name: p.name || '',
@@ -163,8 +148,6 @@ export default function App() {
         status: (p.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive'
       }));
 
-      resProducts = normalizedProducts;
-      
       const normalizedInvoices: Invoice[] = (apiInvoices || []).map((inv: any) => {
         const grandTotal = Number(inv.grandTotal ?? inv.grandtotal ?? inv.grand_total ?? 0);
         const payments = inv.payments || [];
@@ -185,18 +168,15 @@ export default function App() {
         };
       });
 
-      resInvoices = normalizedInvoices;
-      resSettings = apiSettings;
-
-      setClients(resClients);
+      setClients(apiClients || []);
       setProducts(normalizedProducts);
-      setQuotes(resQuotes);
+      setQuotes(apiQuotes || []);
       setInvoices(normalizedInvoices);
 
       // Restore selected quote or invoice from saved session timeout state
       const restoreQuoteId = sessionStorage.getItem("binti_restore_quote_id");
       if (restoreQuoteId) {
-        const found = resQuotes.find((q: Quote) => q.id === restoreQuoteId);
+        const found = (apiQuotes || []).find((q: Quote) => q.id === restoreQuoteId);
         if (found) setSelectedQuote(found);
         sessionStorage.removeItem("binti_restore_quote_id");
       }
@@ -207,30 +187,12 @@ export default function App() {
         if (found) setSelectedInvoice(found);
         sessionStorage.removeItem("binti_restore_invoice_id");
       }
-      if (resSettings) {
+
+      if (apiSettings) {
         setCompanySettings(prev => {
-          const raw = resSettings as any;
-          const normalizeMultiline = (val: any): string => {
-            if (val === null || val === undefined) return "";
-            let str = String(val);
-            str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
-            str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-            // Split squashed numbered clauses (e.g. "...crew.2. 20%..." or "...crew. 2. 20%...")
-            str = str.replace(/(?<=[^\n])\s*(?=\b\d+\.\s+)/g, '\n');
-            return str.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
-          };
-
-          const rawTerms = (raw.termsTemplate !== undefined && raw.termsTemplate !== null)
-            ? raw.termsTemplate
-            : ((raw.terms_template !== undefined && raw.terms_template !== null)
-                ? raw.terms_template
-                : (prev.termsTemplate || ""));
-
-          const rawBank = (raw.bankDetails !== undefined && raw.bankDetails !== null)
-            ? raw.bankDetails
-            : ((raw.bank_details !== undefined && raw.bank_details !== null)
-                ? raw.bank_details
-                : (prev.bankDetails || ""));
+          const raw = apiSettings as any;
+          const rawTerms = raw.termsTemplate ?? raw.terms_template ?? prev.termsTemplate ?? "";
+          const rawBank = raw.bankDetails ?? raw.bank_details ?? prev.bankDetails ?? "";
 
           const merged: CompanySettings = {
             ...prev,
@@ -239,53 +201,31 @@ export default function App() {
             phone: raw.phone !== undefined ? raw.phone : (prev.phone || ""),
             address: raw.address !== undefined ? raw.address : (prev.address || ""),
             taxNumber: raw.taxNumber || raw.tax_number || prev.taxNumber || "",
-            bankDetails: normalizeMultiline(rawBank),
+            bankDetails: normalizeMultilineText(rawBank),
             currency: raw.currency || prev.currency || "KES",
             invoiceFormat: raw.invoiceFormat || raw.invoice_format || prev.invoiceFormat || "INV-2026-{SEQ}",
             quoteFormat: raw.quoteFormat || raw.quote_format || prev.quoteFormat || "QT-2026-{SEQ}",
-            termsTemplate: normalizeMultiline(rawTerms),
-            emailTemplate: (raw.emailTemplate !== undefined && raw.emailTemplate !== null)
-              ? raw.emailTemplate
-              : ((raw.email_template !== undefined && raw.email_template !== null)
-                  ? raw.email_template
-                  : (prev.emailTemplate || ""))
+            termsTemplate: normalizeMultilineText(rawTerms),
+            emailTemplate: raw.emailTemplate ?? raw.email_template ?? prev.emailTemplate ?? ""
           };
           localStorage.setItem("binti_company_settings", JSON.stringify(merged));
           return merged;
         });
       }
 
-      // Generate dynamic notifications based on real status
+      // Generate dynamic notifications
       const generatedAlerts: typeof notifications = [];
-      
-      const dismissedRaw = localStorage.getItem("binti_dismissed_notifications");
-      let dismissedSet = new Set<string>();
-      if (dismissedRaw) {
-        try {
-          const parsed = JSON.parse(dismissedRaw);
-          if (Array.isArray(parsed)) dismissedSet = new Set(parsed);
-        } catch (e) {
-          console.error("Failed to parse dismissed notifications", e);
-        }
-      }
-
       const readRaw = localStorage.getItem("binti_read_notifications");
       let readSet = new Set<string>();
       if (readRaw) {
         try {
           const parsed = JSON.parse(readRaw);
           if (Array.isArray(parsed)) readSet = new Set(parsed);
-        } catch (e) {
-          console.error("Failed to parse read notifications", e);
-        }
+        } catch (e) {}
       }
 
-      const clearedAtStr = localStorage.getItem("binti_notifications_cleared_at");
-      const clearedAtTime = clearedAtStr ? new Date(clearedAtStr).getTime() : 0;
       const now = new Date();
-
-      // 1. Check overdue invoices (only with active due balance)
-      resInvoices.forEach((inv: Invoice) => {
+      normalizedInvoices.forEach((inv: Invoice) => {
         const remaining = Number(inv.balanceRemaining ?? inv.grandTotal ?? 0);
         if (inv.status !== "paid" && remaining > 0 && inv.dueDate) {
           const due = new Date(inv.dueDate);
@@ -295,7 +235,7 @@ export default function App() {
               id: notifId,
               type: "overdue",
               title: `Invoice Overdue: ${inv.invoiceNumber}`,
-              description: `${inv.clientName} is yet to clear KES ${remaining.toLocaleString()}.`,
+              description: `${inv.clientName || 'Client'} is yet to clear ${(companySettings.currency || 'KES')} ${remaining.toLocaleString()}.`,
               time: `Due on ${inv.dueDate.split('T')[0]}`,
               unread: !readSet.has(notifId)
             });
@@ -303,92 +243,42 @@ export default function App() {
         }
       });
 
-      // 2. Upcoming due date warnings (only if due in 0-3 days and has active due balance)
-      resInvoices.forEach((inv: Invoice) => {
-        const remaining = Number(inv.balanceRemaining ?? inv.grandTotal ?? 0);
-        if (inv.status !== "paid" && remaining > 0 && inv.dueDate) {
-          const due = new Date(inv.dueDate);
-          const diffDays = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays >= 0 && diffDays <= 3) {
-            const notifId = `notif-due-${inv.id || inv.invoiceNumber}`;
-            generatedAlerts.push({
-              id: notifId,
-              type: "upcoming",
-              title: `Invoice Due Soon: ${inv.invoiceNumber}`,
-              description: `${inv.clientName}'s invoice ${inv.invoiceNumber} is due in ${diffDays === 0 ? 'today' : `${diffDays} day${diffDays > 1 ? 's' : ''}`}.`,
-              time: `Due on ${inv.dueDate.split('T')[0]}`,
-              unread: !readSet.has(notifId)
-            });
-          }
+      setNotifications(generatedAlerts);
+    } catch (error) {
+      console.error("Failed to load platform data:", error);
+    }
+  }, [companySettings.currency]);
+
+  // Initial Auth Verification
+  useEffect(() => {
+    const verifyInitialAuth = async () => {
+      setIsAuthChecking(true);
+      try {
+        const data = await apiRequest<{ valid: boolean; user: { name: string; role: string; email: string } }>(
+          '/api/auth/verify', { method: 'GET' }, true
+        );
+        if (data && data.valid) {
+          setIsAuthenticated(true);
+          setCurrentUser(data.user);
+          localStorage.setItem("binti_user", JSON.stringify(data.user));
+          await fetchAllData();
+        } else {
+          setIsAuthenticated(false);
         }
-      });
+      } catch (err) {
+        setIsAuthenticated(false);
+      } finally {
+        setIsAuthChecking(false);
+      }
+    };
+    verifyInitialAuth();
+  }, [fetchAllData]);
 
-      // 3. Recent payment notification
-      resInvoices.forEach((inv: Invoice) => {
-        (inv.payments || []).forEach((p: any, idx: number) => {
-          const payDate = p.paymentDate || p.created_at || inv.issueDate || "";
-          const payTime = payDate ? new Date(payDate).getTime() : now.getTime();
-          if (clearedAtTime && payTime <= clearedAtTime) return;
-
-          const pKey = p.id || p.referenceNumber || `${p.amountPaid}_${idx}`;
-          const notifId = `notif-pm-${inv.id || inv.invoiceNumber}-${pKey}`;
-          generatedAlerts.push({
-            id: notifId,
-            type: "payment",
-            title: `Payment Received - ${inv.invoiceNumber || 'INV'}`,
-            description: `Manual receipt registered for ${inv.clientName || 'Client'}: KES ${(Number(p.amountPaid) || 0).toLocaleString()} paid via ${(p.paymentMethod || "other").replace(/_/g, " ")}.`,
-            time: (p.paymentDate || "").split('T')[0] || "Recent",
-            unread: !readSet.has(notifId)
-          });
-        });
-      });
-
-      const activeAlerts = generatedAlerts.filter(a => !dismissedSet.has(a.id));
-      setNotifications(activeAlerts);
-    } catch (err) {
-      console.error("Failed to load initial database:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Verify Token & Run on Mount if authenticated
-  useEffect(() => {
-    const token = localStorage.getItem("binti_token");
-    if (token) {
-      apiRequest<{ success: boolean; user: { name: string; role: string; email: string } }>("/api/auth/verify", {
-        method: "POST", body: JSON.stringify({ token })
-      }, false)
-        .then(data => {
-          if (data.success) {
-            setIsAuthenticated(true);
-            setCurrentUser(data.user);
-            localStorage.setItem("binti_authenticated", "true");
-            localStorage.setItem("binti_user", JSON.stringify(data.user));
-          } else {
-            handleLogout();
-          }
-        })
-        .catch(() => handleLogout())
-        .finally(() => setIsAuthChecking(false));
-    } else {
-      setIsAuthChecking(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchAllData();
-    }
-  }, [isAuthenticated]);
-
-  // Session Inactivity Timeout (15 minutes) with Workspace State Preservation
-  const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
-
+  // Session Inactivity Auto-Timeout (15 minutes, single optimized effect)
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // Initialize/refresh user activity timestamp
+    const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
     localStorage.setItem("binti_last_activity", Date.now().toString());
 
     let lastRecorded = Date.now();
@@ -403,85 +293,71 @@ export default function App() {
     const events = ["mousedown", "mousemove", "keydown", "touchstart", "scroll", "click"];
     events.forEach(event => window.addEventListener(event, handleUserActivity, { passive: true }));
 
-    // Periodic check for inactivity every 10 seconds
     const interval = setInterval(() => {
       const lastActStr = localStorage.getItem("binti_last_activity");
       const lastAct = lastActStr ? parseInt(lastActStr, 10) : Date.now();
       
       if (Date.now() - lastAct >= INACTIVITY_TIMEOUT_MS) {
-        // Save current workspace state before logging out
         const sessionState = {
-          activeTab,
-          selectedQuoteId: selectedQuote?.id || null,
-          selectedInvoiceId: selectedInvoice?.id || null,
-          globalSearch,
+          activeTab: activeTabRef.current,
+          selectedQuoteId: selectedQuoteRef.current?.id || null,
+          selectedInvoiceId: selectedInvoiceRef.current?.id || null,
+          globalSearch: globalSearchRef.current,
           timestamp: Date.now()
         };
         localStorage.setItem("binti_saved_session_state", JSON.stringify(sessionState));
         
-        const timeoutMsg = "You were automatically signed out after 15 minutes of inactivity for security. Sign in to resume where you left off.";
+        const timeoutMsg = "You were automatically signed out after 15 minutes of inactivity for security. Sign in to resume your session.";
         localStorage.setItem("binti_session_timeout_msg", timeoutMsg);
         setSessionTimeoutMsg(timeoutMsg);
 
-        // Perform session timeout logout
         setIsAuthenticated(false);
         setCurrentUser(null);
-        localStorage.removeItem("binti_authenticated");
         localStorage.removeItem("binti_user");
         clearAuthToken();
       }
-    }, 10000);
+    }, 15000);
 
     return () => {
       events.forEach(event => window.removeEventListener(event, handleUserActivity));
       clearInterval(interval);
     };
-  }, [isAuthenticated, activeTab, selectedQuote, selectedInvoice, globalSearch]);
+  }, [isAuthenticated]);
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (email: string, pass: string) => {
     setAuthError(null);
     setAuthSuccessMsg(null);
     setIsSigningIn(true);
 
     try {
       const data = await apiRequest<{ success: boolean; token: string; user: { name: string; role: string; email: string } }>(
-        '/api/auth/login', { method: 'POST', body: JSON.stringify({ email: authEmail, password: authPassword }) }, false
+        '/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password: pass }) }, false
       );
       setAuthToken(data.token);
       setIsAuthenticated(true);
       setCurrentUser(data.user);
-      localStorage.setItem('binti_authenticated', 'true');
       localStorage.setItem('binti_user', JSON.stringify(data.user));
 
-      // Restore previous workspace state if user timed out
+      // Restore session state if returning from timeout
       const savedStateRaw = localStorage.getItem("binti_saved_session_state");
       if (savedStateRaw) {
         try {
           const savedState = JSON.parse(savedStateRaw);
-          if (savedState.activeTab) {
-            setActiveTab(savedState.activeTab);
-          }
-          if (savedState.globalSearch) {
-            setGlobalSearch(savedState.globalSearch);
-          }
-          if (savedState.selectedQuoteId) {
-            sessionStorage.setItem("binti_restore_quote_id", savedState.selectedQuoteId);
-          }
-          if (savedState.selectedInvoiceId) {
-            sessionStorage.setItem("binti_restore_invoice_id", savedState.selectedInvoiceId);
-          }
+          if (savedState.activeTab) setActiveTab(savedState.activeTab);
+          if (savedState.globalSearch) setGlobalSearch(savedState.globalSearch);
+          if (savedState.selectedQuoteId) sessionStorage.setItem("binti_restore_quote_id", savedState.selectedQuoteId);
+          if (savedState.selectedInvoiceId) sessionStorage.setItem("binti_restore_invoice_id", savedState.selectedInvoiceId);
           localStorage.removeItem("binti_saved_session_state");
           localStorage.removeItem("binti_session_timeout_msg");
           setSessionTimeoutMsg(null);
-          showToast("Welcome back! Your previous workspace state has been restored.");
-        } catch (e) {
-          console.error("Failed to restore session state", e);
-        }
+          showToast("Welcome back! Workspace state restored.");
+        } catch (e) {}
       } else {
         localStorage.removeItem("binti_session_timeout_msg");
         setSessionTimeoutMsg(null);
       }
+
+      await fetchAllData();
     } catch (error: any) {
       setAuthError(error.message || 'Unable to sign in.');
     } finally {
@@ -489,11 +365,9 @@ export default function App() {
     }
   };
 
-  // LOGOUT OPERATION
   const handleLogout = async () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
-    localStorage.removeItem("binti_authenticated");
     localStorage.removeItem("binti_user");
     localStorage.removeItem("binti_saved_session_state");
     localStorage.removeItem("binti_session_timeout_msg");
@@ -503,55 +377,42 @@ export default function App() {
     clearAuthToken();
   };
 
-  // BIOMETRIC FINGERPRINT LOGIN HANDLER
-  const handleBiometricLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError(null);
-    try {
-      setAuthError('Biometric sign-in is not configured. Use your administrator credentials.');
-    } catch {}
-  };
-
-  // REQUEST PASSWORD RESET PIN HANDLER
-  const handleRequestResetOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setResetMessage(null);
-    setResetError(null);
-    setResetError('Password reset is not configured. Contact an administrator.');
-  };
-
-  // RESET PASSWORD SUBMIT HANDLER
-  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setResetMessage(null);
-    setResetError(null);
-    setResetError('Password reset is not configured. Contact an administrator.');
-  };
-
   // ==========================================
-  // REAL SUPABASE ACTION DISPATCHERS
+  // OPTIMISTIC / ATOMIC CRUD MUTATION HANDLERS
   // ==========================================
 
-  // Clients CRUD Sync
+  // Clients CRUD
   const handleCreateClient = async (clientPayload: Partial<Client>) => {
-    await apiRequest('/api/clients', { method: 'POST', body: JSON.stringify(clientPayload) });
-    showToast(`Client ${clientPayload.name} created successfully.`);
-    fetchAllData();
+    const created = await apiRequest<Client>('/api/clients', { method: 'POST', body: JSON.stringify(clientPayload) });
+    const normalized: Client = {
+      id: created?.id || Math.random().toString(),
+      name: created?.name || clientPayload.name || 'New Client',
+      company: created?.company || clientPayload.company || '',
+      phone: created?.phone || clientPayload.phone || '',
+      email: created?.email || clientPayload.email || '',
+      address: created?.address || clientPayload.address || '',
+      taxNumber: created?.taxNumber || clientPayload.taxNumber || '',
+      notes: created?.notes || clientPayload.notes || '',
+      status: (created?.status || clientPayload.status || 'active') as 'active' | 'inactive',
+      revenue: Number(created?.revenue || clientPayload.revenue || 0)
+    };
+    setClients(prev => [...prev.filter(c => c.id !== normalized.id), normalized]);
+    showToast(`Client ${normalized.name} registered successfully.`);
   };
 
   const handleUpdateClient = async (id: string, clientPayload: Partial<Client>) => {
-    await apiRequest(`/api/clients/${id}`, { method: 'PUT', body: JSON.stringify(clientPayload) });
+    const updated = await apiRequest<Client>(`/api/clients/${id}`, { method: 'PUT', body: JSON.stringify(clientPayload) });
+    setClients(prev => prev.map(c => c.id === id ? { ...c, ...clientPayload, ...(updated && updated.id ? updated : {}) } : c));
     showToast("Client profile updated successfully.");
-    fetchAllData();
   };
 
   const handleDeleteClient = async (id: string) => {
     await apiRequest(`/api/clients/${id}`, { method: 'DELETE' });
+    setClients(prev => prev.filter(c => c.id !== id));
     showToast("Client profile deleted.", "warning");
-    fetchAllData();
   };
 
-  // Products CRUD Sync
+  // Products CRUD
   const handleCreateProduct = async (prodPayload: Partial<ProductService>) => {
     const payload = {
       ...prodPayload,
@@ -561,9 +422,19 @@ export default function App() {
       unit_type: prodPayload.unitType,
       tax_rate: prodPayload.taxRate
     };
-    await apiRequest('/api/products', { method: 'POST', body: JSON.stringify(payload) });
+    const created = await apiRequest<ProductService>('/api/products', { method: 'POST', body: JSON.stringify(payload) });
+    const normalized: ProductService = {
+      id: created?.id || Math.random().toString(),
+      name: created?.name || prodPayload.name || '',
+      description: created?.description || prodPayload.description || '',
+      category: created?.category || prodPayload.category || 'General',
+      unitType: prodPayload.unitType || 'Day',
+      unitPrice: Number(prodPayload.unitPrice || 0),
+      taxRate: Number(prodPayload.taxRate || 16),
+      status: (prodPayload.status === 'inactive' ? 'inactive' : 'active')
+    };
+    setProducts(prev => [...prev.filter(p => p.id !== normalized.id), normalized]);
     showToast(`Catalog item ${prodPayload.name} added.`);
-    fetchAllData();
   };
 
   const handleUpdateProduct = async (id: string, prodPayload: Partial<ProductService>) => {
@@ -576,41 +447,133 @@ export default function App() {
       tax_rate: prodPayload.taxRate
     };
     await apiRequest(`/api/products/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...prodPayload } : p));
     showToast("Catalog item updated.");
-    fetchAllData();
   };
 
   const handleDeleteProduct = async (id: string) => {
     await apiRequest(`/api/products/${id}`, { method: 'DELETE' });
+    setProducts(prev => prev.filter(p => p.id !== id));
     showToast("Catalog item removed.", "warning");
-    fetchAllData();
   };
 
-  // Quotes CRUD Sync
+  // Quotes CRUD
   const handleCreateQuote = async (quotePayload: Partial<Quote>) => {
-    const qNum = quotePayload.quoteNumber || `QT-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    await apiRequest('/api/quotes', { method: 'POST', body: JSON.stringify({ ...quotePayload, quoteNumber: qNum }) });
-    showToast(`Quotation ${qNum} issued successfully.`);
-    fetchAllData();
+    const nextQuoteNumber = quotePayload.quoteNumber || generateNextDocumentNumber(
+      companySettings.quoteFormat,
+      quotes.map(q => q.quoteNumber),
+      "QT"
+    );
+    const created = await apiRequest<Quote>('/api/quotes', { 
+      method: 'POST', 
+      body: JSON.stringify({ ...quotePayload, quoteNumber: nextQuoteNumber }) 
+    });
+    const normalizedQuote: Quote = {
+      ...(created && created.id ? created : (quotePayload as Quote)),
+      id: created?.id || (quotePayload.id as string) || Math.random().toString(),
+      quoteNumber: nextQuoteNumber,
+      clientId: quotePayload.clientId || '',
+      clientName: quotePayload.clientName || 'Client',
+      items: quotePayload.items || [],
+      grandTotal: Number(quotePayload.grandTotal || 0),
+      status: quotePayload.status || 'draft'
+    };
+    setQuotes(prev => [normalizedQuote, ...prev.filter(q => q.id !== normalizedQuote.id)]);
+    showToast(`Quotation ${nextQuoteNumber} issued successfully.`);
   };
 
   const handleUpdateQuote = async (id: string, quotePayload: Partial<Quote>) => {
-    await apiRequest(`/api/quotes/${id}`, { method: 'PUT', body: JSON.stringify(quotePayload) });
+    const updated = await apiRequest<Quote>(`/api/quotes/${id}`, { method: 'PUT', body: JSON.stringify(quotePayload) });
+    setQuotes(prev => prev.map(q => q.id === id ? { ...q, ...quotePayload, ...(updated && updated.id ? updated : {}) } : q));
+    if (selectedQuote && selectedQuote.id === id) {
+      setSelectedQuote(prev => prev ? { ...prev, ...quotePayload } : null);
+    }
     showToast("Quotation updated.");
-    fetchAllData();
   };
 
   const handleDeleteQuote = async (id: string) => {
     await apiRequest(`/api/quotes/${id}`, { method: 'DELETE' });
+    setQuotes(prev => prev.filter(q => q.id !== id));
+    if (selectedQuote?.id === id) setSelectedQuote(null);
     showToast("Quotation deleted.", "warning");
-    fetchAllData();
+  };
+
+  // Invoices CRUD
+  const handleCreateInvoice = async (invoicePayload: Partial<Invoice>) => {
+    const nextInvoiceNumber = invoicePayload.invoiceNumber || generateNextDocumentNumber(
+      companySettings.invoiceFormat,
+      invoices.map(i => i.invoiceNumber),
+      "INV"
+    );
+    const created = await apiRequest<Invoice>('/api/invoices', {
+      method: 'POST',
+      body: JSON.stringify({ ...invoicePayload, invoiceNumber: nextInvoiceNumber })
+    });
+    const grandTotal = Number(invoicePayload.grandTotal || 0);
+    const payments = invoicePayload.payments || [];
+    const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+    const balanceRemaining = Math.max(0, grandTotal - totalPaid);
+    let status = invoicePayload.status || 'pending';
+    if (balanceRemaining <= 0 && grandTotal > 0 && payments.length > 0) {
+      status = 'paid';
+    } else if (totalPaid > 0 && balanceRemaining > 0) {
+      status = 'partially_paid';
+    }
+    const normalizedInvoice: Invoice = {
+      ...(created && created.id ? created : (invoicePayload as Invoice)),
+      id: created?.id || (invoicePayload.id as string) || Math.random().toString(),
+      invoiceNumber: nextInvoiceNumber,
+      clientId: invoicePayload.clientId || '',
+      clientName: invoicePayload.clientName || 'Client',
+      grandTotal,
+      balanceRemaining,
+      status,
+      payments,
+      items: invoicePayload.items || []
+    };
+    setInvoices(prev => [normalizedInvoice, ...prev.filter(i => i.id !== normalizedInvoice.id)]);
+    showToast(`Tax Invoice ${nextInvoiceNumber} created.`);
+  };
+
+  const handleUpdateInvoice = async (id: string, invoicePayload: Partial<Invoice>) => {
+    const updated = await apiRequest<Invoice>(`/api/invoices/${id}`, { method: 'PUT', body: JSON.stringify(invoicePayload) });
+    setInvoices(prev => prev.map(inv => {
+      if (inv.id !== id) return inv;
+      const merged = { ...inv, ...invoicePayload, ...(updated && updated.id ? updated : {}) };
+      const grandTotal = Number(merged.grandTotal || 0);
+      const payments = merged.payments || [];
+      const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+      const balanceRemaining = Math.max(0, grandTotal - totalPaid);
+      let status = merged.status || 'pending';
+      if (balanceRemaining <= 0 && grandTotal > 0 && payments.length > 0) {
+        status = 'paid';
+      } else if (totalPaid > 0 && balanceRemaining > 0) {
+        status = 'partially_paid';
+      }
+      return { ...merged, grandTotal, balanceRemaining, status, payments };
+    }));
+    if (selectedInvoice && selectedInvoice.id === id) {
+      setSelectedInvoice(prev => prev ? { ...prev, ...invoicePayload } : null);
+    }
+    showToast("Invoice updated.");
+  };
+
+  const handleDeleteInvoice = async (id: string) => {
+    await apiRequest(`/api/invoices/${id}`, { method: 'DELETE' });
+    setInvoices(prev => prev.filter(i => i.id !== id));
+    if (selectedInvoice?.id === id) setSelectedInvoice(null);
+    showToast("Invoice deleted.", "warning");
   };
 
   // Convert Quote into an Invoice
   const handleConvertQuoteToInvoice = async (quote: Quote) => {
-    const invNum = `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    const nextInvoiceNumber = generateNextDocumentNumber(
+      companySettings.invoiceFormat,
+      invoices.map(i => i.invoiceNumber),
+      "INV"
+    );
     const invoicePayload: Partial<Invoice> = {
-      invoiceNumber: invNum,
+      invoiceNumber: nextInvoiceNumber,
       quoteId: quote.id,
       quoteNumber: quote.quoteNumber,
       clientId: quote.clientId,
@@ -631,50 +594,63 @@ export default function App() {
 
     await handleUpdateQuote(quote.id, { status: "converted" });
     await handleCreateInvoice(invoicePayload);
-    showToast(`Quote ${quote.quoteNumber} converted to active invoice ${invNum} successfully.`);
+    showToast(`Quote ${quote.quoteNumber} converted to active invoice ${nextInvoiceNumber} successfully.`);
     setActiveTab("invoices");
   };
 
-  // Invoices CRUD Sync
-  const handleCreateInvoice = async (invoicePayload: Partial<Invoice>) => {
-    const invNum = invoicePayload.invoiceNumber || `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`;
-    await apiRequest('/api/invoices', { method: 'POST', body: JSON.stringify({ ...invoicePayload, invoiceNumber: invNum }) });
-    showToast(`Tax Invoice ${invNum} created.`);
-    fetchAllData();
-  };
-
-  const handleUpdateInvoice = async (id: string, invoicePayload: Partial<Invoice>) => {
-    await apiRequest(`/api/invoices/${id}`, { method: 'PUT', body: JSON.stringify(invoicePayload) });
-    showToast("Invoice updated.");
-    fetchAllData();
-  };
-
-  const handleDeleteInvoice = async (id: string) => {
-    await apiRequest(`/api/invoices/${id}`, { method: 'DELETE' });
-    showToast("Invoice deleted.", "warning");
-    fetchAllData();
-  };
-
-  // Record manual cash payment
+  // Record manual cash / transfer payment
   const handleRecordPayment = async (invoiceId: string, paymentPayload: Partial<PaymentRecord>) => {
-    await apiRequest(`/api/invoices/${invoiceId}/payments`, { method: 'POST', body: JSON.stringify(paymentPayload) });
+    const updated = await apiRequest<Invoice>(`/api/invoices/${invoiceId}/payments`, {
+      method: 'POST',
+      body: JSON.stringify(paymentPayload)
+    });
+    setInvoices(prev => prev.map(inv => {
+      if (inv.id !== invoiceId) return inv;
+      if (updated && updated.id) {
+        const grandTotal = Number(updated.grandTotal || 0);
+        const payments = updated.payments || [];
+        const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+        const balanceRemaining = Math.max(0, grandTotal - totalPaid);
+        let status = updated.status || 'pending';
+        if (balanceRemaining <= 0 && grandTotal > 0 && payments.length > 0) {
+          status = 'paid';
+        } else if (totalPaid > 0 && balanceRemaining > 0) {
+          status = 'partially_paid';
+        }
+        return { ...updated, grandTotal, balanceRemaining, status, payments };
+      }
+      const newPayment: PaymentRecord = {
+        id: Math.random().toString(),
+        paymentDate: paymentPayload.paymentDate || new Date().toISOString(),
+        paymentMethod: paymentPayload.paymentMethod || 'cash',
+        referenceNumber: paymentPayload.referenceNumber || '',
+        amountPaid: Number(paymentPayload.amountPaid || 0),
+        notes: paymentPayload.notes
+      };
+      const updatedPayments = [...(inv.payments || []), newPayment];
+      const grandTotal = Number(inv.grandTotal || 0);
+      const totalPaid = updatedPayments.reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+      const balanceRemaining = Math.max(0, grandTotal - totalPaid);
+      let status = inv.status;
+      if (balanceRemaining <= 0 && grandTotal > 0) {
+        status = 'paid';
+      } else if (totalPaid > 0) {
+        status = 'partially_paid';
+      }
+      return {
+        ...inv,
+        payments: updatedPayments,
+        balanceRemaining,
+        status
+      };
+    }));
     showToast("Manual payment registered, ledger statistics updated.");
-    fetchAllData();
   };
 
   // Settings Configuration Update
   const handleUpdateSettings = async (settingsPayload: CompanySettings) => {
-    const normalizeMultiline = (val: any): string => {
-      if (val === null || val === undefined) return "";
-      let str = String(val);
-      str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
-      str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      str = str.replace(/(?<=[^\n])\s*(?=\b\d+\.\s+)/g, '\n');
-      return str.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
-    };
-
-    const cleanTerms = normalizeMultiline(settingsPayload.termsTemplate);
-    const cleanBank = normalizeMultiline(settingsPayload.bankDetails);
+    const cleanTerms = normalizeMultilineText(settingsPayload.termsTemplate);
+    const cleanBank = normalizeMultilineText(settingsPayload.bankDetails);
 
     const normalizedSettings: CompanySettings = {
       ...settingsPayload,
@@ -713,10 +689,9 @@ export default function App() {
       console.warn("Backend settings update note:", err);
       showToast("Billing settings saved locally.");
     }
-    await fetchAllData();
   };
 
-  // Database Hard Wiping and Presets seed
+  // Database Hard Wiping with Partial Failure Inspection
   const handleResetDatabase = async () => {
     try {
       let resetSucceeded = false;
@@ -730,18 +705,15 @@ export default function App() {
         console.warn("Direct /api/settings/reset endpoint unavailable, falling back to resource cascade wipe:", endpointErr);
       }
 
-      // If backend reset endpoint is not implemented or threw "Failed to update settings", perform cascade wipe
       if (!resetSucceeded) {
-        // 1. Delete all invoices
-        await Promise.allSettled(invoices.map(inv => apiRequest(`/api/invoices/${inv.id}`, { method: 'DELETE' })));
-        // 2. Delete all quotes
-        await Promise.allSettled(quotes.map(q => apiRequest(`/api/quotes/${q.id}`, { method: 'DELETE' })));
-        // 3. Delete all products
-        await Promise.allSettled(products.map(p => apiRequest(`/api/products/${p.id}`, { method: 'DELETE' })));
-        // 4. Delete all clients
-        await Promise.allSettled(clients.map(c => apiRequest(`/api/clients/${c.id}`, { method: 'DELETE' })));
+        const invResults = await Promise.allSettled(invoices.map(inv => apiRequest(`/api/invoices/${inv.id}`, { method: 'DELETE' })));
+        const quoteResults = await Promise.allSettled(quotes.map(q => apiRequest(`/api/quotes/${q.id}`, { method: 'DELETE' })));
+        const prodResults = await Promise.allSettled(products.map(p => apiRequest(`/api/products/${p.id}`, { method: 'DELETE' })));
+        const clientResults = await Promise.allSettled(clients.map(c => apiRequest(`/api/clients/${c.id}`, { method: 'DELETE' })));
 
-        // 5. Restore pristine company settings with valid payload
+        const allResults = [...invResults, ...quoteResults, ...prodResults, ...clientResults];
+        const failedCount = allResults.filter(r => r.status === 'rejected').length;
+
         const pristineSettings: CompanySettings = {
           companyName: "Binti Events",
           email: "info@bintievents.co.ke",
@@ -756,9 +728,16 @@ export default function App() {
           emailTemplate: "Dear {CLIENT_NAME},\n\nPlease find attached {TYPE} #{NUMBER} from Binti Events.\n\nBest regards,\nBinti Events Team"
         };
         await handleUpdateSettings(pristineSettings);
+
+        if (failedCount > 0) {
+          showToast(`Database reset with ${failedCount} item warnings.`, "warning");
+        } else {
+          showToast("Cloud database reset and cleared successfully.");
+        }
+      } else {
+        showToast("Cloud database reset and cleared successfully.");
       }
 
-      // Clean up all local cache / session entries
       setInvoices([]);
       setQuotes([]);
       setProducts([]);
@@ -770,7 +749,6 @@ export default function App() {
       sessionStorage.removeItem("binti_restore_quote_id");
       sessionStorage.removeItem("binti_restore_invoice_id");
       
-      showToast("Cloud database reset and cleared successfully.");
       await fetchAllData();
     } catch (err: any) {
       console.error("Database reset error:", err);
@@ -825,10 +803,8 @@ export default function App() {
     }
   };
 
-  // Handles clicking on TopBar unread warnings
-  // Handles clicking on TopBar unread warnings
+  // Notification Click Navigation
   const handleNotificationClick = (notifId: string) => {
-    // Persist read status locally
     setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, unread: false } : n));
     try {
       const readRaw = localStorage.getItem("binti_read_notifications");
@@ -836,11 +812,8 @@ export default function App() {
       if (!readList.includes(notifId)) {
         localStorage.setItem("binti_read_notifications", JSON.stringify([...readList, notifId]));
       }
-    } catch (e) {
-      console.error("Failed to persist read notification", e);
-    }
+    } catch (e) {}
     
-    // Jump to modules based on type
     if (notifId.includes("overdue") || notifId.includes("due")) {
       setActiveTab("invoices");
     } else if (notifId.includes("pm")) {
@@ -848,7 +821,6 @@ export default function App() {
     }
   };
 
-  // Clear all notifications persistently
   const handleClearNotifications = () => {
     try {
       localStorage.setItem("binti_notifications_cleared_at", new Date().toISOString());
@@ -856,14 +828,11 @@ export default function App() {
       const existing: string[] = dismissedRaw ? JSON.parse(dismissedRaw) : [];
       const updated = Array.from(new Set([...existing, ...notifications.map(n => n.id)]));
       localStorage.setItem("binti_dismissed_notifications", JSON.stringify(updated));
-    } catch (e) {
-      console.error("Failed to persist cleared notifications", e);
-    }
+    } catch (e) {}
     setNotifications([]);
     showToast("All notifications cleared.");
   };
 
-  // Dismiss a specific notification persistently
   const handleDismissNotification = (notifId: string) => {
     try {
       const dismissedRaw = localStorage.getItem("binti_dismissed_notifications");
@@ -871,24 +840,22 @@ export default function App() {
       if (!existing.includes(notifId)) {
         localStorage.setItem("binti_dismissed_notifications", JSON.stringify([...existing, notifId]));
       }
-    } catch (e) {
-      console.error("Failed to persist dismissed notification", e);
-    }
+    } catch (e) {}
     setNotifications(prev => prev.filter(n => n.id !== notifId));
   };
 
-  // Global searching cross-filtering logic
-  const filteredQuotes = quotes.filter(q => 
-    q.quoteNumber.toLowerCase().includes(globalSearch.toLowerCase()) ||
-    q.clientName.toLowerCase().includes(globalSearch.toLowerCase())
-  );
+  // Safe global search filtering (guards against undefined fields)
+  const searchLower = (globalSearch || '').toLowerCase().trim();
+  const filteredQuotes = searchLower ? quotes.filter(q => 
+    (q.quoteNumber || '').toLowerCase().includes(searchLower) ||
+    (q.clientName || '').toLowerCase().includes(searchLower)
+  ) : [];
 
-  const filteredInvoices = invoices.filter(inv => 
-    inv.invoiceNumber.toLowerCase().includes(globalSearch.toLowerCase()) ||
-    inv.clientName.toLowerCase().includes(globalSearch.toLowerCase())
-  );
+  const filteredInvoices = searchLower ? invoices.filter(inv => 
+    (inv.invoiceNumber || '').toLowerCase().includes(searchLower) ||
+    (inv.clientName || '').toLowerCase().includes(searchLower)
+  ) : [];
 
-  // ==========================================
   // ==========================================
   // VIEW RENDERING SELECTOR
   // ==========================================
@@ -897,7 +864,6 @@ export default function App() {
     const safeQuotesList = Array.isArray(quotes) ? quotes : [];
     const safeClientsList = Array.isArray(clients) ? clients : [];
 
-    // Calculate dashboard statistics on-the-fly from active client state
     const totalInvoicesValue = safeInvoicesList.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
     const totalPaid = safeInvoicesList.reduce((sum, inv) => {
       const pSum = (inv.payments || []).reduce((pSumAcc, pm) => pSumAcc + (pm.amountPaid || 0), 0);
@@ -1029,16 +995,7 @@ export default function App() {
       case "settings":
         return (
           <SettingsModule 
-            companySettings={companySettings || {
-              companyName: "Binti Events",
-              taxNumber: "",
-              address: "",
-              bankDetails: "",
-              currency: "KES",
-              termsTemplate: "",
-              email: "",
-              phone: ""
-            }}
+            companySettings={companySettings}
             onUpdateSettings={handleUpdateSettings}
             onResetDatabase={handleResetDatabase}
             currentUser={currentUser}
@@ -1059,9 +1016,7 @@ export default function App() {
     }
   };
 
-  // ==========================================
-  // AUTH INITIALIZING SPINNER (prevents login screen flash)
-  // ==========================================
+  // Auth Initializing Loader
   if (isAuthChecking) {
     return (
       <div className="min-h-screen w-full bg-slate-900 flex flex-col items-center justify-center font-sans">
@@ -1076,301 +1031,24 @@ export default function App() {
     );
   }
 
-  // ==========================================
-  // LOGIN SCREEN DISPLAY
-  // ==========================================
+  // Unauthenticated Login Screen
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen w-full bg-white flex flex-col justify-between p-4 sm:p-8 md:p-12 font-sans relative overflow-x-hidden">
-        {/* Top gold accent line across top of screen */}
-        <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-[#D4AF37] via-amber-200 to-[#80237E]" />
-
-        {/* Full Screen Centered Content Container */}
-        <div className="w-full max-w-[480px] mx-auto flex flex-col justify-between flex-1 py-6 sm:py-10 relative z-10 animate-fade-in">
-          <div>
-            {/* 1. Large Logo / Brand Graphic at top center with generous whitespace */}
-            <div className="text-center pt-4 mb-8">
-              <div className="w-24 h-24 sm:w-28 sm:h-28 mx-auto rounded-3xl bg-white p-3 border-2 border-[#D4AF37]/40 shadow-lg flex items-center justify-center mb-6 transition-transform hover:scale-105">
-                <img src="/logo.jpeg" alt="Binti Tents & Events" className="w-full h-full object-contain rounded-2xl" />
-              </div>
-              
-              {/* 2. Large welcoming headline similar to "Log in to keep track of your..." */}
-              <h1 className="text-2xl sm:text-3xl font-serif font-bold text-gray-900 leading-tight tracking-tight px-2">
-                Log in to keep track of your{" "}
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#80237E] to-[#D4AF37]">
-                  events with ease!
-                </span>
-              </h1>
-            </div>
-
-            {/* Session Inactivity Timeout Banner */}
-            {sessionTimeoutMsg && (
-              <div className="mb-6 p-4 bg-amber-50/90 border border-amber-200 rounded-2xl flex items-start space-x-3 text-xs text-amber-900 animate-fade-in shadow-xs">
-                <Clock className="w-5 h-5 text-[#D4AF37] shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="font-bold text-amber-950">Session Timed Out</p>
-                  <p className="leading-relaxed text-amber-800">{sessionTimeoutMsg}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Error Notification */}
-            {authError && (
-              <div className="mb-6 p-3.5 bg-red-50 border border-red-200 rounded-2xl flex items-start space-x-2.5 text-xs text-red-700 animate-shake">
-                <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                <span className="font-medium leading-normal">{authError}</span>
-              </div>
-            )}
-
-            {/* Success Notification */}
-            {authSuccessMsg && (
-              <div className="mb-6 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start space-x-2.5 text-xs text-emerald-700 animate-fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                <span className="font-medium leading-normal">{authSuccessMsg}</span>
-              </div>
-            )}
-
-            {/* 3. Form elements stacked vertically */}
-            <form onSubmit={handleLoginSubmit} className="w-[92%] sm:w-[90%] mx-auto space-y-6">
-              {/* Field 1: Email */}
-              <div>
-                <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-2">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-gray-400">
-                    <User className="w-4 h-4 text-[#80237E]" />
-                  </span>
-                  <input
-                    type="email"
-                    required
-                    placeholder="name@bintievents.co.ke"
-                    value={authEmail}
-                    onChange={(e) => setAuthEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3.5 min-h-[48px] border border-gray-200 rounded-2xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] font-semibold text-gray-800 bg-gray-50/50 transition-all"
-                  />
-                </div>
-              </div>
-
-              {/* Field 2: Password & Right-Aligned "Forgot Password?" Link */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider">
-                    Password
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setResetEmail(authEmail || "");
-                      setShowForgotPasswordModal(true);
-                    }}
-                    className="text-xs font-bold text-[#80237E] hover:text-[#6B46C1] hover:underline transition-colors"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-gray-400">
-                    <Lock className="w-4 h-4 text-[#80237E]" />
-                  </span>
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    placeholder="Enter your password"
-                    value={authPassword}
-                    onChange={(e) => setAuthPassword(e.target.value)}
-                    className="w-full pl-10 pr-11 py-3.5 min-h-[48px] border border-gray-200 rounded-2xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] font-semibold text-gray-800 bg-gray-50/50 transition-all"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(prev => !prev)}
-                    className="absolute inset-y-0 right-3.5 flex items-center text-gray-400 hover:text-gray-600 transition-colors p-1"
-                    aria-label="Toggle password visibility"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-xs pt-1 text-gray-500 font-medium">Administrator accounts are provisioned by the system owner.</p>
-
-              {/* 4. Action Row */}
-              <div className="flex items-center space-x-3 pt-2">
-                <button
-                  type="submit"
-                  disabled={isSigningIn}
-                  className="flex-1 min-h-[48px] py-3.5 bg-gradient-to-r from-[#80237E] via-[#6B46C1] to-[#55369b] hover:opacity-95 text-[#ffffff] rounded-2xl text-xs sm:text-sm font-extrabold tracking-wide transition-all shadow-lg shadow-[#80237E]/25 flex items-center justify-center space-x-2 active:scale-[0.99] disabled:opacity-75 disabled:cursor-not-allowed"
-                >
-                  {isSigningIn ? (
-                    <>
-                      <Loader2 className="w-4 h-4 text-[#EAB308] animate-spin" />
-                      <span>Signing in...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Sign In</span>
-                      <ArrowRight className="w-4 h-4 text-[#EAB308]" />
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  disabled={isSigningIn}
-                  onClick={handleBiometricLoginSubmit}
-                  title="Biometric Fingerprint / Passkey Login"
-                  className="w-12 h-12 min-h-[48px] shrink-0 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-2xl flex items-center justify-center text-[#80237E] shadow-sm transition-all active:scale-95 disabled:opacity-50"
-                >
-                  <Fingerprint className="w-5 h-5 text-[#EC4899]" />
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* 6. Centered bottom links bar matching reference design */}
-          <div className="pt-8 mt-10 border-t border-gray-100 flex items-center justify-center space-x-4 text-[10px] sm:text-xs text-gray-400 font-semibold uppercase tracking-wider">
-            <button 
-              type="button" 
-              onClick={() => {
-                setResetEmail(authEmail || "");
-                setShowForgotPasswordModal(true);
-              }}
-              className="hover:text-[#80237E] transition-colors"
-            >
-              Self Service
-            </button>
-            <span>•</span>
-            <span className="flex items-center space-x-1">
-              <Shield className="w-3.5 h-3.5 text-emerald-500" />
-              <span>AES-256</span>
-            </span>
-            <span>•</span>
-            <button 
-              type="button" 
-              onClick={() => {
-                setResetEmail(authEmail || "");
-                setShowForgotPasswordModal(true);
-              }}
-              className="hover:text-[#80237E] transition-colors"
-            >
-              Discover
-            </button>
-          </div>
-        </div>
-
-        {/* Forgot Password Recovery Modal */}
-        {showForgotPasswordModal && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white w-full max-w-md rounded-3xl border border-gray-100 shadow-2xl p-6 relative overflow-hidden space-y-4">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                <div className="flex items-center space-x-2">
-                  <KeyRound className="w-5 h-5 text-[#80237E]" />
-                  <h3 className="font-extrabold text-base text-gray-900">Passcode Recovery</h3>
-                </div>
-                <button 
-                  onClick={() => {
-                    setShowForgotPasswordModal(false);
-                    setResetStep("request");
-                    setResetError(null);
-                    setResetMessage(null);
-                  }}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {resetError && (
-                <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 flex items-center space-x-2">
-                  <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
-                  <span>{resetError}</span>
-                </div>
-              )}
-
-              {resetMessage && (
-                <div className="p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-[#80237E] flex items-center space-x-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span>{resetMessage}</span>
-                </div>
-              )}
-
-              {resetStep === "request" ? (
-                <form onSubmit={handleRequestResetOtp} className="space-y-4">
-                  <p className="text-xs text-gray-500">
-                    Enter your registered email address below. A 6-digit security recovery PIN will be generated.
-                  </p>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Email Address</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="name@company.com"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E]"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="w-full py-2.5 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all"
-                  >
-                    Send Recovery PIN
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">6-Digit Security PIN</label>
-                    <input
-                      type="text"
-                      required
-                      maxLength={6}
-                      placeholder="884920"
-                      value={resetOtp}
-                      onChange={(e) => setResetOtp(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-mono font-bold tracking-widest text-gray-900 focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">New Passcode</label>
-                    <input
-                      type="password"
-                      required
-                      minLength={4}
-                      placeholder="Enter new passcode"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs font-semibold text-gray-800 focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E]"
-                    />
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setResetStep("request")}
-                      className="w-1/3 py-2.5 border border-gray-200 hover:bg-gray-50 text-gray-600 rounded-xl text-xs font-bold"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      className="w-2/3 py-2.5 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all"
-                    >
-                      Update & Login
-                    </button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        )}
-      </div>
+      <LoginScreen
+        onLogin={handleLogin}
+        isSigningIn={isSigningIn}
+        authError={authError}
+        authSuccessMsg={authSuccessMsg}
+        sessionTimeoutMsg={sessionTimeoutMsg}
+        clearSessionTimeoutMsg={() => {
+          localStorage.removeItem("binti_session_timeout_msg");
+          setSessionTimeoutMsg(null);
+        }}
+      />
     );
   }
 
-  // ==========================================
-  // LIVE APPLICATION DESKTOP LAYOUT
-  // ==========================================
+  // Live Application Workspace Layout
   return (
     <div className="flex h-screen bg-[#F8F9FA] overflow-hidden font-sans">
       {/* Sidebar Navigation Panel */}
@@ -1378,7 +1056,6 @@ export default function App() {
         activeTab={activeTab} 
         setActiveTab={(tab) => {
           setActiveTab(tab);
-          // Auto-clear preview drill-downs on tab change & close mobile drawer
           setSelectedInvoice(null);
           setSelectedQuote(null);
           setIsMobileMenuOpen(false);
@@ -1407,12 +1084,12 @@ export default function App() {
 
         {/* Dynamic Workspace Area */}
         <main className="flex-1 overflow-y-auto p-4 md:p-8 relative">
-          {/* Global search overlay results portal */}
+          {/* Global search overlay portal */}
           {globalSearch ? (
             <div className="bg-white border border-gray-100 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-xl space-y-4 animate-fade-in absolute inset-x-3 sm:inset-x-8 top-4 md:top-8 z-40">
               <div className="flex items-center justify-between border-b border-gray-50 pb-3">
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-wider block">
-                  Cross-Search Portal Results for "{globalSearch}"
+                  Search Results for "{globalSearch}"
                 </span>
                 <button 
                   onClick={() => setGlobalSearch("")}
@@ -1423,11 +1100,11 @@ export default function App() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Quotes found */}
+                {/* Quotes matched */}
                 <div className="space-y-2">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Matched Quotes ({filteredQuotes.length})</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Quotes ({filteredQuotes.length})</span>
                   {filteredQuotes.length === 0 ? (
-                    <p className="text-xs text-gray-400">No quotes found.</p>
+                    <p className="text-xs text-gray-400">No quotes matched.</p>
                   ) : (
                     <div className="space-y-1">
                       {filteredQuotes.map(q => (
@@ -1453,11 +1130,11 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Invoices found */}
+                {/* Invoices matched */}
                 <div className="space-y-2">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Matched Tax Invoices ({filteredInvoices.length})</span>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Tax Invoices ({filteredInvoices.length})</span>
                   {filteredInvoices.length === 0 ? (
-                    <p className="text-xs text-gray-400">No invoices found.</p>
+                    <p className="text-xs text-gray-400">No invoices matched.</p>
                   ) : (
                     <div className="space-y-1">
                       {filteredInvoices.map(inv => (
@@ -1493,8 +1170,7 @@ export default function App() {
 
       {/* Floating Binti Bottom-Right Action Container */}
       <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end space-y-2 pointer-events-auto select-none font-sans">
-        
-        {/* 1. First-time Non-blocking Onboarding Welcome Card */}
+        {/* Onboarding Welcome Card */}
         {showBintiWelcome && (
           <div className="w-72 p-4 bg-white border border-gray-100 rounded-3xl shadow-2xl space-y-3 animate-fade-in border-t-4 border-t-[#80237E] relative">
             <button
@@ -1517,7 +1193,7 @@ export default function App() {
               </div>
             </div>
             <p className="text-xs text-gray-600 leading-relaxed">
-              I can help you manage your quotations, billing invoices, bookings, and financial reports.
+              I can help you manage quotations, tax invoices, bookings, and financial reports.
             </p>
             <div className="flex items-center justify-end space-x-2 pt-1">
               <button
@@ -1537,7 +1213,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 2. Contextual Helper Hint Bubble (shown when welcome card is dismissed) */}
+        {/* Contextual Helper Hint Bubble */}
         {!showBintiWelcome && activeTab && (
           <div 
             onClick={() => {
@@ -1563,7 +1239,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 3. Sleek Floating Pill Button "✨ Binti" */}
+        {/* Floating Button "✨ Binti" */}
         <button
           onClick={() => {
             setBintiInitialPrompt("");
@@ -1580,7 +1256,6 @@ export default function App() {
             <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] group-hover:scale-110 transition-transform" />
           </span>
         </button>
-
       </div>
 
       {/* Binti AI Assistant Slide-over Drawer Modal */}
@@ -1593,24 +1268,24 @@ export default function App() {
         initialPrompt={bintiInitialPrompt}
         onExecuteAction={handleExecuteAiAction}
         saasContext={{
-          clientCount: (Array.isArray(clients) ? clients : []).length,
-          totalQuotes: (Array.isArray(quotes) ? quotes : []).length,
-          totalInvoices: (Array.isArray(invoices) ? invoices : []).length,
-          totalRevenue: (Array.isArray(invoices) ? invoices : []).reduce((sum, inv) => {
+          clientCount: clients.length,
+          totalQuotes: quotes.length,
+          totalInvoices: invoices.length,
+          totalRevenue: invoices.reduce((sum, inv) => {
             const pSum = (inv.payments || []).reduce((pSumAcc, pm) => pSumAcc + (pm.amountPaid || 0), 0);
             return sum + (pSum > 0 ? pSum : Math.max(0, (inv.grandTotal || 0) - (inv.balanceRemaining || 0)));
           }, 0),
-          pendingBalance: (Array.isArray(invoices) ? invoices : []).reduce((sum, inv) => sum + (inv.balanceRemaining || 0), 0),
+          pendingBalance: invoices.reduce((sum, inv) => sum + (inv.balanceRemaining || 0), 0),
           currency: companySettings.currency,
           companyName: companySettings.companyName,
-          clientsSummary: (Array.isArray(clients) ? clients : []).map(c => ({
+          clientsSummary: clients.map(c => ({
             id: c.id,
             name: c.name,
             company: c.company,
             phone: c.phone,
             email: c.email
           })),
-          invoicesSummary: (Array.isArray(invoices) ? invoices : []).map(i => ({
+          invoicesSummary: invoices.map(i => ({
             id: i.id,
             invoiceNumber: i.invoiceNumber,
             clientName: i.clientName,
@@ -1619,25 +1294,26 @@ export default function App() {
             status: i.status,
             dueDate: i.dueDate
           })),
-          quotesSummary: (Array.isArray(quotes) ? quotes : []).map(q => ({
+          quotesSummary: quotes.map(q => ({
             id: q.id,
             quoteNumber: q.quoteNumber,
             clientName: q.clientName,
             grandTotal: q.grandTotal,
             status: q.status
           })),
-          productsCatalog: (Array.isArray(products) ? products : []).map(p => ({
+          productsCatalog: products.map(p => ({
             id: p.id,
             name: p.name,
             category: p.category,
-            price: p.unitPrice ?? (p as any).price ?? 0,
-            unit: p.unitType ?? (p as any).unit ?? 'unit'
+            price: p.unitPrice,
+            unit: p.unitType
           }))
         }}
       />
 
+      {/* Global Toast Alert */}
       {toast && (
-        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 text-[11px] font-extrabold tracking-wider lowercase pointer-events-none select-none ${toast.type === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 text-xs font-extrabold tracking-wide px-4 py-2 rounded-2xl bg-white shadow-xl border pointer-events-none select-none animate-fade-in ${toast.type === 'success' ? 'text-emerald-700 border-emerald-200' : 'text-rose-700 border-rose-200'}`}>
           {toast.message}
         </div>
       )}

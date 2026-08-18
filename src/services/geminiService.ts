@@ -76,8 +76,13 @@ export function cleanAiResponse(text: string): string {
 export async function askGeminiAssistant(
   prompt: string,
   chatHistory: ChatMessage[] = [],
-  saasContext?: SaaSContext
+  saasContext?: SaaSContext,
+  signal?: AbortSignal
 ): Promise<AssistantResponse> {
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
   const cleanPrompt = cleanAiResponse(prompt.trim());
   const cleanHistory = chatHistory.map(h => ({
     role: h.role,
@@ -87,6 +92,7 @@ export async function askGeminiAssistant(
   try {
     const data = await apiRequest<{ success: boolean; reply?: string; actions?: AgentAction[] }>('/api/ai/chat', {
       method: "POST",
+      signal,
       body: JSON.stringify({
         prompt: cleanPrompt,
         history: cleanHistory,
@@ -94,13 +100,25 @@ export async function askGeminiAssistant(
         systemInstruction: "You are Binti, the intelligent assistant for Binti Events Management System. Always refer to the system as Binti Events Management System or Binti Events. Strictly NEVER use the words 'Corporate Suite', 'Suite', or 'corporate'. Refer to clients as clients or organizations, and services as event management or event hire."
       })
     });
+
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
     if (data.success && data.reply) {
       const sanitizedReply = cleanAiResponse(data.reply);
       const actions = data.actions || extractActionsFromPrompt(cleanPrompt, saasContext);
       return { reply: sanitizedReply, actions };
     }
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === 'AbortError' || signal?.aborted) {
+      throw error;
+    }
     console.warn('AI API unavailable, using local fallback:', error);
+  }
+
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
   }
 
   // Instant local intelligent agentic fallback (works 100% offline at no cost)

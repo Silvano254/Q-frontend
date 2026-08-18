@@ -143,7 +143,7 @@ export default function ClientsModule({
         <div>
           <h2 className="text-xl font-bold text-gray-800 flex items-center space-x-2">
             <Users className="w-5 h-5 text-[#6B46C1]" />
-            <span>Corporate Client Management</span>
+            <span>Client Management</span>
           </h2>
           <p className="text-xs text-gray-500 mt-1">Nurture event leads, track account statements, and view historical revenues.</p>
         </div>
@@ -157,7 +157,7 @@ export default function ClientsModule({
             className="px-4 py-2 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold shadow-md flex items-center space-x-2 transition-all"
           >
             <Plus className="w-4 h-4" />
-            <span>Add New Corporate Client</span>
+            <span>Add New Client</span>
           </button>
         )}
       </div>
@@ -166,7 +166,7 @@ export default function ClientsModule({
       {(isCreating || isEditing) && (
         <div className="glass-card p-6 space-y-6 animate-fade-in">
           <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <h3 className="font-bold text-sm text-gray-800">{isEditing ? "Edit Corporate Client File" : "Create New Client Portfolio"}</h3>
+            <h3 className="font-bold text-sm text-gray-800">{isEditing ? "Edit Client File" : "Create New Client Portfolio"}</h3>
             <button
               onClick={() => {
                 setIsCreating(false);
@@ -285,7 +285,7 @@ export default function ClientsModule({
                     <span>{isEditing ? "Saving Changes..." : "Registering Client..."}</span>
                   </>
                 ) : (
-                  <span>{isEditing ? "Save Updated Profile" : "Register Corporate Client"}</span>
+                  <span>{isEditing ? "Save Updated Profile" : "Register Client"}</span>
                 )}
               </button>
               <button
@@ -516,7 +516,7 @@ export default function ClientsModule({
               <thead>
                 <tr className="bg-gray-50/80 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
                   <th className="p-4">Representative Name</th>
-                  <th className="p-4">Corporate Entity</th>
+                  <th className="p-4">Company / Organization</th>
                   <th className="p-4">Email Address</th>
                   <th className="p-4">Phone Number</th>
                   <th className="p-4 text-right">Settled Revenue</th>
@@ -528,7 +528,7 @@ export default function ClientsModule({
                 {filteredClients.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-8 text-center text-gray-400">
-                      No corporate event clients found.
+                      No event clients found.
                     </td>
                   </tr>
                 ) : (

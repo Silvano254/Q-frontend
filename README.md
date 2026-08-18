@@ -1,10 +1,10 @@
-# Binti Events Corporate Suite — Frontend Client
+# Binti Events Management System — Frontend Client
 
 > **Author:** Silvano Otieno  
 > **Repository:** [Silvano254/Q-frontend](https://github.com/Silvano254/Q-frontend.git)  
 > **Live Web Application:** [q-frontend-weld.vercel.app](https://q-frontend-weld.vercel.app)
 
-Binti Events Corporate Suite is a modern, high-performance web application engineered for event management companies, marquee equipment providers, and corporate event planners. It provides automated quotations, tax invoice generation, payment ledgers, client relationship management, and **Binti**—an AI assistant powered by Google Gemini.
+Binti Events Management System is a modern, high-performance web application engineered for event management operations, marquee equipment providers, and event planners. It provides automated quotations, tax invoice generation, payment ledgers, client relationship management, and **Binti**—an AI assistant powered by Google Gemini.
 
 ---
 
@@ -21,14 +21,14 @@ Binti Events Corporate Suite is a modern, high-performance web application engin
 - Proposal status tracking (*Draft*, *Sent*, *Converted*, *Expired*).
 - **1-Click Conversion**: Automatically convert approved Quotations into official Tax Invoices.
 - **Bank-Free Quotations**: Quotations strictly detail scope of work and pricing terms without bank/payment instructions.
-- PDF generation (Binti Signature & Classic Corporate templates) and client email/WhatsApp sharing utilities.
+- PDF generation (Binti Signature & Classic Formal templates) and client email/WhatsApp sharing utilities.
 
 ### 3. 💳 Tax Invoices & Billing Ledger
-- Official Tax Invoice generation with corporate tax numbers/PINs and due dates.
+- Official Tax Invoice generation with company tax numbers/PINs and due dates.
 - **Transport & Logistics Line Items**: Add custom transport amounts with auto-calculated VAT and totals.
 - **Conditional Banking Details**: Payment instructions and bank account details display **only** on invoices that have an active outstanding balance. Fully settled invoices omit banking details and reflect **Fully Paid / Settled** status.
 - Partial & full payment recording with automated balance deduction.
-- Dual PDF design exports (**Binti Signature** & **Classic Corporate**) and printable payment receipts.
+- Dual PDF design exports (**Binti Signature** & **Classic Formal**) and printable payment receipts.
 
 ### 4. 💰 Payments Ledger & Manual Receipts
 - Centralized tracking for M-Pesa, Bank Transfers, Cheques, and Cash payments.
@@ -36,7 +36,7 @@ Binti Events Corporate Suite is a modern, high-performance web application engin
 - Filter by payment method, date range, or client account.
 
 ### 5. 👥 Clients Directory
-- Corporate and individual client profiles with contact details, tax numbers, and communication history.
+- Client profiles with contact details, company information, tax numbers, and communication history.
 - Lifetime Value (LTV) revenue analytics and transaction histories per client.
 
 ### 6. 🎪 Products & Services Catalog
@@ -96,7 +96,7 @@ Create a `.env` file in the root directory:
 VITE_API_URL=https://ltinjyvcrgwcvudrnfby.supabase.co/functions/v1
 
 # Application Branding Title
-VITE_APP_NAME=Binti Events Corporate Suite
+VITE_APP_NAME=Binti Events Management System
 ```
 
 ### 4. Run Development Server

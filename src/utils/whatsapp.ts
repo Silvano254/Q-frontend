@@ -32,7 +32,7 @@ export function buildInvoiceWhatsAppMessage(
   const balanceText = isPaid 
     ? `${currency} 0 (Fully Paid)` 
     : (invoice.balanceRemaining !== undefined ? `${currency} ${invoice.balanceRemaining.toLocaleString()}` : `${currency} ${invoice.grandTotal.toLocaleString()}`);
-  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Corporate';
+  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
 
   return `📄 *INVOICE: #${invoice.invoiceNumber}*
 
@@ -66,7 +66,7 @@ export function buildQuoteWhatsAppMessage(
   const currency = companySettings?.currency || "KES";
   const quoteDateFormatted = quote.quoteDate ? quote.quoteDate.split("T")[0] : "N/A";
   const expiryDateFormatted = quote.expiryDate ? quote.expiryDate.split("T")[0] : "N/A";
-  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Corporate';
+  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
 
   return `📋 *QUOTATION: #${quote.quoteNumber}*
 

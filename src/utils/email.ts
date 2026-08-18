@@ -12,7 +12,7 @@ export function buildInvoiceEmailContent(
   const companyName = companySettings?.companyName || "Binti Events";
   const clientName = client?.name || invoice.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
-  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Corporate';
+  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
 
   const subject = `Invoice #${invoice.invoiceNumber} - ${companyName}`;
 
@@ -62,7 +62,7 @@ export function buildQuoteEmailContent(
   const companyName = companySettings?.companyName || "Binti Events";
   const clientName = client?.name || quote.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
-  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Corporate';
+  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
 
   const subject = `Quotation #${quote.quoteNumber} - ${companyName}`;
 

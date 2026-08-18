@@ -127,7 +127,7 @@ export default function ReportsAnalyticsModule({
     try {
       await new Promise(r => setTimeout(r, 80));
       let csv = "data:text/csv;charset=utf-8,";
-      csv += "Client Representative,Corporate Entity,Total Outstanding Balance,Email,Phone,Issued Invoices Count\n";
+      csv += "Client Representative,Company / Organization,Total Outstanding Balance,Email,Phone,Issued Invoices Count\n";
       
       clients.forEach(c => {
         const clientInvs = invoices.filter(i => i.clientId === c.id);
@@ -156,7 +156,7 @@ export default function ReportsAnalyticsModule({
       csv += "Category Line,Total Billed Value,Popularity Segment\n";
       
       Object.keys(categoryBillingMap).forEach(cat => {
-        csv += `"${cat}",${categoryBillingMap[cat]},"Corporate Hire"\n`;
+        csv += `"${cat}",${categoryBillingMap[cat]},"Event Hire"\n`;
       });
 
       const link = document.createElement("a");
@@ -240,7 +240,7 @@ export default function ReportsAnalyticsModule({
               <div>
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Billed Volume</span>
                 <span className="text-lg font-bold text-gray-800 block mt-1">{currency} {totalInvoicedSum.toLocaleString()}</span>
-                <span className="text-[10px] text-gray-400 mt-0.5 block font-semibold">{quotes.length} corporate proposal drafts</span>
+                <span className="text-[10px] text-gray-400 mt-0.5 block font-semibold">{quotes.length} proposal drafts</span>
               </div>
             </div>
 
@@ -377,7 +377,7 @@ export default function ReportsAnalyticsModule({
                 <AlertTriangle className="w-5 h-5 text-red-500" />
               </div>
               <h4 className="font-bold text-sm text-gray-800">Accounts Receivable Debtors Aging</h4>
-              <p className="text-xs text-gray-400">Extracts a complete breakdown of clients with unpaid outstanding balances, their corporate entities, phone numbers, and aged ledger values.</p>
+              <p className="text-xs text-gray-400">Extracts a complete breakdown of clients with unpaid outstanding balances, their company/organization, phone numbers, and aged ledger values.</p>
             </div>
             <button
               disabled={downloadingReport !== null}
@@ -430,7 +430,7 @@ export default function ReportsAnalyticsModule({
               <div className="w-10 h-10 bg-[#1F2937] text-[#D4AF37] rounded-xl flex items-center justify-center">
                 <Award className="w-5 h-5 text-[#D4AF37]" />
               </div>
-              <h4 className="font-bold text-sm text-gray-800">Annual Corporate Tax Ledger</h4>
+              <h4 className="font-bold text-sm text-gray-800">Annual Tax Ledger</h4>
               <p className="text-xs text-gray-400">Downloads a complete chronologically-sorted table of every issued tax invoice, client name, tax PIN, total amount, and balance due for the current year.</p>
             </div>
             <button

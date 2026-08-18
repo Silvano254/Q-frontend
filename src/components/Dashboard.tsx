@@ -307,13 +307,13 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
         </div>
         <div className="max-w-2xl relative z-10 space-y-3">
           <span className="bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37] px-3.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
-            Binti Events Suite
+            Binti Events Management System
           </span>
           <h2 className="text-3xl font-bold tracking-tight text-white font-sans">
             {getGreeting()}, {currentUser?.name || "Executive Admin"}
           </h2>
           <p className="text-gray-300 text-sm leading-relaxed">
-            Manage your high-end corporate events, stretch tents hire, and creative consulting invoicing from a single, beautiful unified workspace.
+            Manage your event operations, stretch tents hire, quotations, and invoicing from a single, beautiful unified workspace.
           </p>
           <div className="pt-2 flex items-center space-x-4">
             <button
@@ -454,7 +454,7 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
           <div className="flex items-center justify-between mb-5">
             <div>
               <h4 className="text-sm font-bold text-gray-800">Recent Event Quotes</h4>
-              <p className="text-xs text-gray-500 mt-1">Status of proposed weddings & corporate packages.</p>
+              <p className="text-xs text-gray-500 mt-1">Status of proposed event & hire packages.</p>
             </div>
             <button 
               onClick={() => setActiveTab("quotes")} 

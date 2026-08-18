@@ -109,7 +109,7 @@ export default function SettingsModule({
         termsTemplate: cleanTerms
       };
       await onUpdateSettings(payload);
-      showToast("Corporate billing settings saved successfully.");
+      showToast("Billing settings saved successfully.");
     } catch (err) {
       showToast("Failed to save settings.", "warning");
     } finally {
@@ -134,7 +134,7 @@ export default function SettingsModule({
         {/* Core Settings Form */}
         <div className="lg:col-span-2 glass-card p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Official Corporate Profile</span>
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Official Business Profile</span>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Company Name */}
@@ -171,7 +171,7 @@ export default function SettingsModule({
               <div>
                 <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 flex items-center space-x-1">
                   <Mail className="w-3.5 h-3.5" />
-                  <span>Corporate Billing Email</span>
+                  <span>Billing Email Address</span>
                 </label>
                 <input
                   type="email"
@@ -297,12 +297,12 @@ export default function SettingsModule({
         <div className="space-y-6">
           {/* Brand Info */}
           <div className="bg-[#1F2937] text-white p-6 rounded-2xl border border-[#6B46C1]/20 shadow-lg space-y-4">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Corporate Guidelines</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Company Guidelines</span>
             <p className="text-xs text-gray-300 leading-relaxed">
               Updating these fields instantly modifies the header blocks on generated **PDF Invoice files, Quotation files, and Email pitch drafts**.
             </p>
             <p className="text-xs text-gray-300 leading-relaxed">
-              Always ensure your **KRA PIN (VAT Registration)** matches your compliance certificates before issuing tax invoices to public corporate entities.
+              Always ensure your **KRA PIN (VAT Registration)** matches your compliance certificates before issuing tax invoices to clients.
             </p>
           </div>
 

@@ -84,7 +84,7 @@ All system operations and billing ledgers are currently up to date.`;
   if (p.includes("client") && (p.includes("find") || p.includes("search") || p.includes("cant") || p.includes("can't") || p.includes("look") || p.includes("where") || p.includes("missing"))) {
     return `To locate a client profile:
 1. Use the **Global Search Bar** at the top header.
-2. Or click **Clients** in the left sidebar menu to view your full address directory, corporate profiles, and billing timelines.`;
+2. Or click **Clients** in the left sidebar menu to view your full address directory, client profiles, and billing timelines.`;
   }
 
   // Terms & Policies

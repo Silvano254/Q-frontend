@@ -1572,7 +1572,7 @@ export default function QuotesModule({
                       }}
                       className="w-full px-2.5 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white focus:outline-none focus:border-[#6B46C1]"
                     >
-                      <option value="corporate">Classic Corporate (Purple/Gold)</option>
+                      <option value="corporate">Classic Formal (Purple/Gold)</option>
                       <option value="binti">Binti Signature (Pink Header/Logo/ThankYou)</option>
                     </select>
                   </div>
@@ -1889,7 +1889,7 @@ export default function QuotesModule({
                 <div>
                   <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
                   <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
-                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Corporate (Purple/Gold)'}
+                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Formal (Purple/Gold)'}
                   </p>
                 </div>
                 <button
@@ -1998,7 +1998,7 @@ export default function QuotesModule({
                 <div>
                   <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
                   <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
-                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Corporate (Purple/Gold)'}
+                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Formal (Purple/Gold)'}
                   </p>
                 </div>
                 <button

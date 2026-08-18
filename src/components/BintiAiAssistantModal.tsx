@@ -52,7 +52,7 @@ const QUICK_CARDS = [
   {
     icon: HelpCircle,
     title: "Ask me anything",
-    subtitle: "System navigation, terms & corporate setup",
+    subtitle: "System navigation, terms & company setup",
     prompt: "What standard payment terms and deposit policies should we use for event bookings?"
   }
 ];

@@ -813,7 +813,7 @@ export default function InvoicesModule({
     // PDF footer
     doc.setFontSize(7.5);
     doc.setTextColor(150, 150, 150);
-    doc.text("Thank you for your valuable corporate event business with Binti Events.", margin, pageHeight - 10);
+    doc.text("Thank you for partnering with Binti Events.", margin, pageHeight - 10);
     
     doc.save(`${invoice.invoiceNumber || 'INV'}-${(invoice.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
   };
@@ -1206,7 +1206,7 @@ export default function InvoicesModule({
             <Receipt className="w-5 h-5 text-[#6B46C1]" />
             <span>Tax Invoices</span>
           </h2>
-          <p className="text-xs text-gray-500 mt-1">Manage active corporate bills, record payments, and export PDFs.</p>
+          <p className="text-xs text-gray-500 mt-1">Manage active bills, record payments, and export PDFs.</p>
         </div>
         {!isCreating && !selectedInvoice && (
           <button
@@ -1226,7 +1226,7 @@ export default function InvoicesModule({
       {isCreating && (
         <div className="glass-card p-6 space-y-6 animate-fade-in">
           <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <h3 className="font-bold text-sm text-gray-800">New Corporate Invoice Builder</h3>
+            <h3 className="font-bold text-sm text-gray-800">New Invoice Builder</h3>
             <button 
               onClick={() => setIsCreating(false)}
               className="text-gray-400 hover:text-gray-600 text-xs flex items-center space-x-1"
@@ -1748,7 +1748,7 @@ export default function InvoicesModule({
                       }}
                       className="w-full px-2.5 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white focus:outline-none focus:border-[#6B46C1]"
                     >
-                      <option value="corporate">Classic Corporate (Purple/Gold)</option>
+                      <option value="corporate">Classic Formal (Purple/Gold)</option>
                       <option value="binti">Binti Signature (Pink Header/Logo/ThankYou)</option>
                     </select>
                   </div>
@@ -2052,7 +2052,7 @@ export default function InvoicesModule({
                 <div>
                   <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
                   <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
-                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Corporate (Purple/Gold)'}
+                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Formal (Purple/Gold)'}
                   </p>
                 </div>
                 <button
@@ -2161,7 +2161,7 @@ export default function InvoicesModule({
                 <div>
                   <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
                   <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
-                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Corporate (Purple/Gold)'}
+                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Formal (Purple/Gold)'}
                   </p>
                 </div>
                 <button

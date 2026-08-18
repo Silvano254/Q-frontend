@@ -345,7 +345,7 @@ export default function App() {
       const activeAlerts = generatedAlerts.filter(a => !dismissedSet.has(a.id));
       setNotifications(activeAlerts);
     } catch (err) {
-      console.error("Failed to load initial corporate database:", err);
+      console.error("Failed to load initial database:", err);
     } finally {
       setLoading(false);
     }
@@ -707,10 +707,10 @@ export default function App() {
         email_template: normalizedSettings.emailTemplate
       };
       await apiRequest('/api/settings', { method: 'PUT', body: JSON.stringify(payloadToSend) });
-      showToast("Corporate billing settings saved successfully.");
+      showToast("Billing settings saved successfully.");
     } catch (err) {
       console.warn("Backend settings update note:", err);
-      showToast("Corporate billing settings saved locally.");
+      showToast("Billing settings saved locally.");
     }
     await fetchAllData();
   };
@@ -1088,7 +1088,7 @@ export default function App() {
               {/* Field 1: Email */}
               <div>
                 <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-2">
-                  Corporate Email
+                  Email Address
                 </label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-gray-400">
@@ -1249,10 +1249,10 @@ export default function App() {
               {resetStep === "request" ? (
                 <form onSubmit={handleRequestResetOtp} className="space-y-4">
                   <p className="text-xs text-gray-500">
-                    Enter your registered corporate email address below. A 6-digit security recovery PIN will be generated.
+                    Enter your registered email address below. A 6-digit security recovery PIN will be generated.
                   </p>
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Corporate Email</label>
+                    <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Email Address</label>
                     <input
                       type="email"
                       required

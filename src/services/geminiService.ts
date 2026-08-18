@@ -41,6 +41,31 @@ export interface AssistantResponse {
 }
 
 /**
+ * Sanitizes any raw LLM text to ensure strict adherence to "Binti Events Management System" branding
+ */
+export function cleanAiResponse(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/Binti Events Corporate Suite/gi, 'Binti Events Management System')
+    .replace(/Corporate Suite/gi, 'Management System')
+    .replace(/corporate event clients/gi, 'event clients')
+    .replace(/corporate clients/gi, 'clients')
+    .replace(/corporate client/gi, 'client')
+    .replace(/corporate entities/gi, 'companies / organizations')
+    .replace(/corporate entity/gi, 'company / organization')
+    .replace(/corporate packages/gi, 'event packages')
+    .replace(/corporate package/gi, 'event package')
+    .replace(/corporate proposal/gi, 'proposal')
+    .replace(/corporate billing/gi, 'billing')
+    .replace(/corporate profile/gi, 'business profile')
+    .replace(/corporate profiles/gi, 'client profiles')
+    .replace(/corporate guidelines/gi, 'company guidelines')
+    .replace(/corporate setup/gi, 'company setup')
+    .replace(/corporate business/gi, 'event business')
+    .replace(/\bcorporate\b/gi, 'business');
+}
+
+/**
  * Send a chat message or prompt to Binti via Supabase Edge Function (Instant) or Backend API fallback.
  */
 export async function askGeminiAssistant(
@@ -54,20 +79,25 @@ export async function askGeminiAssistant(
       body: JSON.stringify({
         prompt,
         history: chatHistory.map(h => ({ role: h.role, content: h.content })),
-        context: saasContext
+        context: saasContext,
+        systemInstruction: "You are Binti, the intelligent assistant for Binti Events Management System. Always refer to the system as Binti Events Management System or Binti Events. Do NOT use the words 'Corporate Suite' or 'corporate'. Use 'business', 'company', or 'events' instead."
       })
     });
     if (data.success && data.reply) {
-      // Parse any client-side action suggestions from the reply if backend didn't attach structured actions
+      const sanitizedReply = cleanAiResponse(data.reply);
       const actions = data.actions || extractActionsFromPrompt(prompt, saasContext);
-      return { reply: data.reply, actions };
+      return { reply: sanitizedReply, actions };
     }
   } catch (error) {
     console.warn('AI API unavailable, using local fallback:', error);
   }
 
   // Instant local intelligent agentic fallback (works 100% offline at no cost)
-  return getLocalIntelligentFallback(prompt, saasContext);
+  const localRes = getLocalIntelligentFallback(prompt, saasContext);
+  return {
+    reply: cleanAiResponse(localRes.reply),
+    actions: localRes.actions
+  };
 }
 
 /**
@@ -405,7 +435,7 @@ export async function generateEmailDraft(params: {
     const data = await apiRequest<{ success: boolean; email: string }>('/api/ai/draft-email', {
       method: 'POST', body: JSON.stringify(params)
     });
-    if (data.success) return data.email;
+    if (data.success && data.email) return cleanAiResponse(data.email);
   } catch (error) {
     console.warn('Email drafting API unavailable:', error);
   }
@@ -467,7 +497,7 @@ export async function recommendTerms(clientName?: string, items?: Array<{ descri
     const data = await apiRequest<{ success: boolean; terms: string }>('/api/ai/recommend-terms', {
       method: 'POST', body: JSON.stringify({ clientName, items })
     });
-    if (data.success) return data.terms;
+    if (data.success && data.terms) return cleanAiResponse(data.terms);
   } catch (error) {
     console.warn('Terms recommendation API unavailable:', error);
   }

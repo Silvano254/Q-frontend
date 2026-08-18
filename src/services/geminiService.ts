@@ -1,8 +1,10 @@
 /**
  * Gemini Service for Binti Assistant
  * Communicates with zero-cold-start Supabase Edge Function & Backend REST Endpoints.
+ * Equipped with full agentic action capabilities and client-side execution engine.
  */
 
+import { apiRequest } from './apiClient';
 
 export interface SaaSContext {
   clientCount?: number;
@@ -12,15 +14,31 @@ export interface SaaSContext {
   pendingBalance?: number;
   currency?: string;
   companyName?: string;
+  clientsSummary?: Array<{ id: string; name: string; company?: string; phone?: string; email?: string }>;
+  invoicesSummary?: Array<{ id: string; invoiceNumber: string; clientName: string; grandTotal: number; balanceRemaining: number; status: string; dueDate?: string }>;
+  quotesSummary?: Array<{ id: string; quoteNumber: string; clientName: string; grandTotal: number; status: string }>;
+  productsCatalog?: Array<{ id: string; name: string; category: string; price: number; unit: string }>;
 }
 
 export interface ChatMessage {
   role: "user" | "model" | "system";
   content: string;
   timestamp?: string;
+  actions?: AgentAction[];
 }
 
-import { apiRequest } from './apiClient';
+export interface AgentAction {
+  id?: string;
+  type: "navigate" | "filter_invoices" | "create_quote" | "create_invoice" | "record_payment" | "open_client" | "open_settings";
+  label: string;
+  icon?: "file" | "credit-card" | "user" | "settings" | "filter" | "plus" | "trending";
+  payload?: Record<string, any>;
+}
+
+export interface AssistantResponse {
+  reply: string;
+  actions?: AgentAction[];
+}
 
 /**
  * Send a chat message or prompt to Binti via Supabase Edge Function (Instant) or Backend API fallback.
@@ -29,77 +47,345 @@ export async function askGeminiAssistant(
   prompt: string,
   chatHistory: ChatMessage[] = [],
   saasContext?: SaaSContext
-): Promise<string> {
+): Promise<AssistantResponse> {
   try {
-    const data = await apiRequest<{ success: boolean; reply?: string }>('/api/ai/chat', {
+    const data = await apiRequest<{ success: boolean; reply?: string; actions?: AgentAction[] }>('/api/ai/chat', {
       method: "POST",
       body: JSON.stringify({
         prompt,
-        history: chatHistory,
+        history: chatHistory.map(h => ({ role: h.role, content: h.content })),
         context: saasContext
       })
     });
-    if (data.success && data.reply) return data.reply;
+    if (data.success && data.reply) {
+      // Parse any client-side action suggestions from the reply if backend didn't attach structured actions
+      const actions = data.actions || extractActionsFromPrompt(prompt, saasContext);
+      return { reply: data.reply, actions };
+    }
   } catch (error) {
     console.warn('AI API unavailable, using local fallback:', error);
   }
 
-  // 2. Instant local fallback (no dead backend calls)
+  // Instant local intelligent agentic fallback (works 100% offline at no cost)
   return getLocalIntelligentFallback(prompt, saasContext);
 }
 
 /**
- * High-quality fallback response generator when API endpoints are initializing.
+ * Extrapolates client-side execution actions from natural language prompts and live context
  */
-function getLocalIntelligentFallback(prompt: string, context?: SaaSContext): string {
+function extractActionsFromPrompt(prompt: string, context?: SaaSContext): AgentAction[] {
   const p = prompt.toLowerCase();
+  const actions: AgentAction[] = [];
 
-  // Activity summary
-  if (p.includes("summary") || p.includes("summarize") || p.includes("today") || p.includes("activity")) {
-    return `Here is a summary of your platform status:
-• **Active Clients:** ${context?.clientCount ?? 0}
-• **Total Quotes Issued:** ${context?.totalQuotes ?? 0}
-• **Tax Invoices Generated:** ${context?.totalInvoices ?? 0}
-• **Revenue Collected:** ${context?.currency || 'KES'} ${(context?.totalRevenue || 0).toLocaleString()}
-• **Outstanding Receivables:** ${context?.currency || 'KES'} ${(context?.pendingBalance || 0).toLocaleString()}
-
-All system operations and billing ledgers are currently up to date.`;
+  // Overdue / Unpaid invoices
+  if (p.includes("overdue") || p.includes("unpaid") || p.includes("debt") || p.includes("debtor") || p.includes("owing")) {
+    actions.push({
+      type: "filter_invoices",
+      label: "Filter Overdue Invoices",
+      icon: "filter",
+      payload: { status: "overdue" }
+    });
+    actions.push({
+      type: "navigate",
+      label: "View Invoices & Ledger",
+      icon: "file",
+      payload: { tab: "invoices" }
+    });
   }
 
-  // Searching / Finding Invoices
-  if (p.includes("invoice") && (p.includes("find") || p.includes("search") || p.includes("cant") || p.includes("can't") || p.includes("look") || p.includes("where") || p.includes("missing"))) {
-    return `To locate or search for an invoice:
-1. **Global Search Bar**: Use the search input at the top header (*"Global search by client, inv #, quote #, email..."*) to search across all invoices instantly.
-2. **Invoices Module**: Click **Invoices & Ledger** in the left sidebar menu to view your full list of invoices, filter by status (*Paid, Unpaid, Overdue*), or export PDF copies.`;
+  // Create Quote
+  if (p.includes("create quote") || p.includes("draft quote") || p.includes("new quote") || p.includes("new proposal")) {
+    actions.push({
+      type: "create_quote",
+      label: "Open Quote Builder",
+      icon: "plus",
+      payload: { tab: "quotes", isCreating: true }
+    });
   }
 
-  // Searching / Finding Quotes
-  if ((p.includes("quote") || p.includes("proposal") || p.includes("quotation")) && (p.includes("find") || p.includes("search") || p.includes("cant") || p.includes("can't") || p.includes("look") || p.includes("where") || p.includes("missing"))) {
-    return `To locate a quote or proposal:
-1. **Global Search Bar**: Type the quote number (e.g. \`QT-2026-001\`) or client name in the top search bar.
-2. **Quotes Module**: Click **Quotes** in the left sidebar menu to view all active, draft, sent, or converted proposals.`;
+  // Create Invoice
+  if (p.includes("create invoice") || p.includes("draft invoice") || p.includes("new invoice") || p.includes("issue invoice")) {
+    actions.push({
+      type: "create_invoice",
+      label: "Open Invoice Builder",
+      icon: "plus",
+      payload: { tab: "invoices", isCreating: true }
+    });
   }
 
-  // Searching / Finding Clients
-  if (p.includes("client") && (p.includes("find") || p.includes("search") || p.includes("cant") || p.includes("can't") || p.includes("look") || p.includes("where") || p.includes("missing"))) {
-    return `To locate a client profile:
-1. Use the **Global Search Bar** at the top header.
-2. Or click **Clients** in the left sidebar menu to view your full address directory, client profiles, and billing timelines.`;
+  // Client lookup
+  if (p.includes("client") && context?.clientsSummary) {
+    const matchedClient = context.clientsSummary.find(c => 
+      p.includes(c.name.toLowerCase()) || (c.company && p.includes(c.company.toLowerCase()))
+    );
+    if (matchedClient) {
+      actions.push({
+        type: "open_client",
+        label: `Open Profile: ${matchedClient.name}`,
+        icon: "user",
+        payload: { clientId: matchedClient.id }
+      });
+      actions.push({
+        type: "create_quote",
+        label: `Draft Quote for ${matchedClient.name}`,
+        icon: "plus",
+        payload: { clientId: matchedClient.id, clientName: matchedClient.name }
+      });
+    }
   }
 
-  // Terms & Policies
-  if (p.includes("payment") || p.includes("term") || p.includes("deposit") || p.includes("policy")) {
-    return `**Recommended Standard Terms & Deposit Policies for Event Bookings:**
-
-1. **50% Commitment Deposit**: Required at booking to lock in your event date, tents, gear, and crew.
-2. **50% Final Settlement**: Due 7 days prior to installation and setup day.
-3. **Cancellation Policy**: Cancellations within 14 days of the event date forfeit the deposit.
-4. **Ground Access**: Client must guarantee site access and 15A power within 30 metres.`;
+  // Settings
+  if (p.includes("setting") || p.includes("kra") || p.includes("bank") || p.includes("tax pin") || p.includes("terms")) {
+    actions.push({
+      type: "open_settings",
+      label: "Open Billing Settings",
+      icon: "settings",
+      payload: { tab: "settings" }
+    });
   }
 
-  return `I am **Binti**, your assistant for **${context?.companyName || "Binti Events"}**.
+  return actions;
+}
 
-How can I assist you further with quotes, invoices, client records, or system settings today?`;
+/**
+ * High-quality agentic response generator with live context awareness and action dispatching.
+ */
+function getLocalIntelligentFallback(prompt: string, context?: SaaSContext): AssistantResponse {
+  const p = prompt.toLowerCase();
+  const curr = context?.currency || 'KES';
+  const actions: AgentAction[] = [];
+
+  // 1. Overdue invoices & Debt Recovery
+  if (p.includes("overdue") || p.includes("unpaid") || p.includes("debt") || p.includes("debtor") || p.includes("owing") || p.includes("receivable")) {
+    const overdueList = (context?.invoicesSummary || []).filter(
+      i => i.status === 'overdue' || (i.status !== 'paid' && (i.balanceRemaining ?? i.grandTotal) > 0)
+    );
+
+    let reply = `### ⚠️ Outstanding Invoices & Debt Summary\n\n`;
+    reply += `You currently have **${overdueList.length}** invoices with pending balance totaling **${curr} ${(context?.pendingBalance || 0).toLocaleString()}**.\n\n`;
+
+    if (overdueList.length > 0) {
+      reply += `| Invoice # | Client | Total Billed | Balance Due | Status |\n`;
+      reply += `| :--- | :--- | :--- | :--- | :--- |\n`;
+      overdueList.slice(0, 5).forEach(inv => {
+        reply += `| **${inv.invoiceNumber}** | ${inv.clientName} | ${curr} ${(inv.grandTotal || 0).toLocaleString()} | **${curr} ${(inv.balanceRemaining ?? inv.grandTotal).toLocaleString()}** | \`${(inv.status || 'Pending').toUpperCase()}\` |\n`;
+      });
+      if (overdueList.length > 5) {
+        reply += `\n*...and ${overdueList.length - 5} more unpaid invoices.*`;
+      }
+    } else {
+      reply += `✨ **Great news!** There are no overdue invoices at this time. All customer accounts are up to date.`;
+    }
+
+    actions.push({
+      type: "filter_invoices",
+      label: "Filter Overdue Invoices",
+      icon: "filter",
+      payload: { status: "overdue" }
+    });
+    actions.push({
+      type: "navigate",
+      label: "View Invoices & Ledger",
+      icon: "file",
+      payload: { tab: "invoices" }
+    });
+
+    return { reply, actions };
+  }
+
+  // 2. Business Analysis & Performance
+  if (p.includes("analysis") || p.includes("analyze") || p.includes("performance") || p.includes("revenue") || p.includes("financial") || p.includes("summary") || p.includes("today")) {
+    const totalRev = context?.totalRevenue || 0;
+    const pending = context?.pendingBalance || 0;
+    const totalVolume = totalRev + pending;
+    const collectionRate = totalVolume > 0 ? Math.round((totalRev / totalVolume) * 100) : 100;
+    const totalQuotes = context?.totalQuotes || 0;
+    const totalInvoices = context?.totalInvoices || 0;
+    const conversionRate = (totalQuotes + totalInvoices) > 0 ? Math.round((totalInvoices / (totalQuotes + totalInvoices)) * 100) : 0;
+
+    let reply = `### 📊 Binti Business & Revenue Intelligence\n\n`;
+    reply += `Here is your current operational snapshot for **${context?.companyName || "Binti Events"}**:\n\n`;
+    reply += `| Key Metric | Status Value | Assessment |\n`;
+    reply += `| :--- | :--- | :--- |\n`;
+    reply += `| **Liquid Revenue Collected** | **${curr} ${totalRev.toLocaleString()}** | Settled in ledger |\n`;
+    reply += `| **Outstanding Receivables** | **${curr} ${pending.toLocaleString()}** | ${pending > 0 ? 'Follow-up recommended' : 'Zero debt'} |\n`;
+    reply += `| **Cash Collection Rate** | **${collectionRate}%** | ${collectionRate >= 75 ? '🟢 Healthy cash flow' : '🟡 Action needed on aging'} |\n`;
+    reply += `| **Active Client Profiles** | **${context?.clientCount ?? 0} Accounts** | Event directory |\n`;
+    reply += `| **Quote-to-Invoice Conversion** | **${conversionRate}%** | Closed bookings |\n\n`;
+
+    reply += `**Executive Recommendations:**\n`;
+    if (pending > 0) {
+      reply += `1. **Follow-up Reminders**: ${context?.invoicesSummary?.filter(i => i.status === 'overdue').length || 0} overdue invoices can be followed up using AI email drafts.\n`;
+    }
+    reply += `2. **Proposals**: You have ${totalQuotes} proposal drafts ready for conversion.\n`;
+
+    actions.push({
+      type: "navigate",
+      label: "Open Analytics Reports",
+      icon: "trending",
+      payload: { tab: "reports" }
+    });
+    actions.push({
+      type: "filter_invoices",
+      label: "Review Outstanding Invoices",
+      icon: "filter",
+      payload: { status: "pending" }
+    });
+    actions.push({
+      type: "navigate",
+      label: "Review Quotes",
+      icon: "file",
+      payload: { tab: "quotes" }
+    });
+
+    return { reply, actions };
+  }
+
+  // 3. Create or Draft a Quote / Proposal
+  if (p.includes("quote") && (p.includes("create") || p.includes("draft") || p.includes("new") || p.includes("make") || p.includes("prepare"))) {
+    // Check if a client was specified
+    let matchedClient = (context?.clientsSummary || []).find(c => 
+      p.includes(c.name.toLowerCase()) || (c.company && p.includes(c.company.toLowerCase()))
+    );
+
+    let reply = `I'm ready to help you create a new quotation!`;
+    if (matchedClient) {
+      reply += `\n\nIdentified Client: **${matchedClient.name}**${matchedClient.company ? ` (${matchedClient.company})` : ''}.\nClick the action below to open the Quote Builder with this client selected.`;
+      actions.push({
+        type: "create_quote",
+        label: `Create Quote for ${matchedClient.name}`,
+        icon: "plus",
+        payload: { clientId: matchedClient.id, clientName: matchedClient.name, isCreating: true }
+      });
+    } else {
+      reply += `\n\nClick the button below to launch the **Quote Builder**, select event items from your catalog (stretch tents, chairs, lighting), and generate a formal PDF proposal.`;
+      actions.push({
+        type: "create_quote",
+        label: "Open Quote Builder",
+        icon: "plus",
+        payload: { tab: "quotes", isCreating: true }
+      });
+    }
+
+    return { reply, actions };
+  }
+
+  // 4. Create or Issue an Invoice
+  if (p.includes("invoice") && (p.includes("create") || p.includes("draft") || p.includes("new") || p.includes("issue") || p.includes("bill"))) {
+    let matchedClient = (context?.clientsSummary || []).find(c => 
+      p.includes(c.name.toLowerCase()) || (c.company && p.includes(c.company.toLowerCase()))
+    );
+
+    let reply = `I'm ready to launch the Invoice Builder.`;
+    if (matchedClient) {
+      reply += `\n\nClient selected: **${matchedClient.name}**.\nClick below to draft an official tax invoice.`;
+      actions.push({
+        type: "create_invoice",
+        label: `Create Invoice for ${matchedClient.name}`,
+        icon: "plus",
+        payload: { clientId: matchedClient.id, clientName: matchedClient.name, isCreating: true }
+      });
+    } else {
+      reply += `\n\nClick below to open the **Invoice Builder**, add billable items, include transport logistics if needed, and issue an official tax invoice.`;
+      actions.push({
+        type: "create_invoice",
+        label: "Open Invoice Builder",
+        icon: "plus",
+        payload: { tab: "invoices", isCreating: true }
+      });
+    }
+
+    return { reply, actions };
+  }
+
+  // 5. Searching / Finding specific client
+  if (p.includes("client") || p.includes("customer")) {
+    const clients = context?.clientsSummary || [];
+    const matchedClient = clients.find(c => 
+      p.includes(c.name.toLowerCase()) || (c.company && p.includes(c.company.toLowerCase()))
+    );
+
+    if (matchedClient) {
+      const clientInvoices = (context?.invoicesSummary || []).filter(i => i.clientName === matchedClient.name);
+      const totalBalance = clientInvoices.reduce((s, i) => s + (i.balanceRemaining ?? i.grandTotal), 0);
+
+      let reply = `### 👤 Client Record: ${matchedClient.name}\n\n`;
+      reply += `• **Company / Org:** ${matchedClient.company || 'Private Client'}\n`;
+      reply += `• **Email:** ${matchedClient.email || 'N/A'}\n`;
+      reply += `• **Phone:** ${matchedClient.phone || 'N/A'}\n`;
+      reply += `• **Invoices Issued:** ${clientInvoices.length}\n`;
+      reply += `• **Outstanding Balance:** **${curr} ${totalBalance.toLocaleString()}**\n`;
+
+      actions.push({
+        type: "open_client",
+        label: `Open ${matchedClient.name}'s Profile`,
+        icon: "user",
+        payload: { clientId: matchedClient.id }
+      });
+      actions.push({
+        type: "create_quote",
+        label: `Draft New Quote for ${matchedClient.name}`,
+        icon: "plus",
+        payload: { clientId: matchedClient.id, clientName: matchedClient.name }
+      });
+
+      return { reply, actions };
+    }
+
+    let reply = `You have **${context?.clientCount ?? 0}** registered event clients.\n\nUse the search bar at the top or click below to browse the full client directory:`;
+    actions.push({
+      type: "navigate",
+      label: "Open Clients Directory",
+      icon: "user",
+      payload: { tab: "clients" }
+    });
+    return { reply, actions };
+  }
+
+  // 6. Terms & Policies
+  if (p.includes("payment") || p.includes("term") || p.includes("deposit") || p.includes("policy") || p.includes("cancellation")) {
+    const reply = `**Recommended Standard Terms & Deposit Policies for Event Bookings:**\n\n` +
+      `1. **50% Commitment Deposit**: Required upon booking to lock event dates, marquee structures, and logistics crew.\n` +
+      `2. **50% Final Settlement**: Due 7 days prior to installation and setup day.\n` +
+      `3. **Site & Power Access**: Client must guarantee clear, level ground and 15A electrical supply within 30 metres.\n` +
+      `4. **Equipment Safeguard**: Broken or damaged items billed at standard replacement cost.\n` +
+      `5. **Cancellation Policy**: Written notice 30+ days = 50% refund; 14-29 days = 25% refund; under 14 days = non-refundable.\n` +
+      `6. **Quote Validity**: Valid for 30 calendar days from issue date.`;
+
+    actions.push({
+      type: "open_settings",
+      label: "Update Default System Terms",
+      icon: "settings",
+      payload: { tab: "settings" }
+    });
+
+    return { reply, actions };
+  }
+
+  // 7. General Navigation & Default
+  const reply = `I am **Binti**, your AI Assistant for **${context?.companyName || "Binti Events Management System"}**.\n\n` +
+    `I can help you analyze cash flow, create quotes, search invoices, look up client records, and jump directly to any screen. What would you like to do?`;
+
+  actions.push({
+    type: "navigate",
+    label: "Create Quotation",
+    icon: "plus",
+    payload: { tab: "quotes", isCreating: true }
+  });
+  actions.push({
+    type: "filter_invoices",
+    label: "Check Overdue Invoices",
+    icon: "filter",
+    payload: { status: "overdue" }
+  });
+  actions.push({
+    type: "navigate",
+    label: "Analyze Performance",
+    icon: "trending",
+    payload: { tab: "reports" }
+  });
+
+  return { reply, actions };
 }
 
 /**
@@ -123,7 +409,7 @@ export async function generateEmailDraft(params: {
   } catch (error) {
     console.warn('Email drafting API unavailable:', error);
   }
-  const comp = params.companyName || "Binti Tents & Events";
+  const comp = params.companyName || "Binti Events";
   const curr = params.currency || "KES";
   const amtStr = `${curr} ${(params.amount || 0).toLocaleString()}`;
   const dateStr = params.dueDate || "the agreed date";

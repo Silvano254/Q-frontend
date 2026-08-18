@@ -15,12 +15,15 @@ import {
   TrendingUp,
   CreditCard,
   HelpCircle,
-  ChevronRight
+  ChevronRight,
+  Zap,
+  ArrowRight
 } from "lucide-react";
 import { 
   askGeminiAssistant, 
   ChatMessage, 
-  SaaSContext 
+  SaaSContext,
+  AgentAction 
 } from "../services/geminiService";
 
 interface BintiAiAssistantModalProps {
@@ -28,6 +31,7 @@ interface BintiAiAssistantModalProps {
   onClose: () => void;
   saasContext?: SaaSContext;
   initialPrompt?: string;
+  onExecuteAction?: (action: AgentAction) => void;
 }
 
 const QUICK_CARDS = [
@@ -204,7 +208,8 @@ export default function BintiAiAssistantModal({
   isOpen,
   onClose,
   saasContext,
-  initialPrompt
+  initialPrompt,
+  onExecuteAction
 }: BintiAiAssistantModalProps) {
   const [inputMessage, setInputMessage] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -252,7 +257,7 @@ export default function BintiAiAssistantModal({
     setErrorMsg(null);
 
     try {
-      const modelReply = await askGeminiAssistant(
+      const result = await askGeminiAssistant(
         query.trim(),
         messages,
         saasContext
@@ -260,7 +265,8 @@ export default function BintiAiAssistantModal({
 
       const assistantMsg: ChatMessage = {
         role: "model",
-        content: modelReply,
+        content: result.reply,
+        actions: result.actions,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
@@ -455,6 +461,28 @@ export default function BintiAiAssistantModal({
                 >
                   <CleanResponseRenderer content={msg.content} isUser={msg.role === "user"} />
                 </div>
+
+                {/* Interactive Action Cards */}
+                {msg.role === "model" && msg.actions && msg.actions.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5 animate-fade-in">
+                    {msg.actions.map((act, actIdx) => (
+                      <button
+                        key={actIdx}
+                        onClick={() => {
+                          if (onExecuteAction) {
+                            onExecuteAction(act);
+                            onClose();
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-gradient-to-r from-[#80237E]/10 to-[#6B46C1]/10 hover:from-[#80237E] hover:to-[#6B46C1] text-[#80237E] hover:text-white border border-[#80237E]/20 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center space-x-1.5 group/btn active:scale-95"
+                      >
+                        <Zap className="w-3.5 h-3.5 text-[#D4AF37] group-hover/btn:text-white group-hover/btn:scale-110 transition-transform shrink-0" />
+                        <span>{act.label}</span>
+                        <ArrowRight className="w-3 h-3 text-purple-400 group-hover/btn:text-white group-hover/btn:translate-x-0.5 transition-transform shrink-0" />
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Bubble Timestamp & Copy Action */}
                 <div

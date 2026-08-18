@@ -290,7 +290,7 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
         pendingBalance: stats.totalOutstanding,
         currency
       });
-      setAiReport(report);
+      setAiReport(typeof report === 'string' ? report : report.reply);
     } catch (err) {
       setAiReport("Unable to load business report. Please try again.");
     } finally {

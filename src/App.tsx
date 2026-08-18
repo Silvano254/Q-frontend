@@ -13,6 +13,7 @@ import SettingsModule from "./components/SettingsModule";
 import BintiAiAssistantModal from "./components/BintiAiAssistantModal";
 import { apiRequest, clearAuthToken, setAuthToken } from "./services/apiClient";
 import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "./types";
+import { AgentAction } from "./services/geminiService";
 
 export default function App() {
   // 100% Real Supabase Authentication State
@@ -775,6 +776,52 @@ export default function App() {
       console.error("Database reset error:", err);
       showToast(err?.message || "Failed to reset database. Please check backend connectivity.", "warning");
       throw err;
+    }
+  };
+
+  // AI Agent Action Execution Dispatcher
+  const handleExecuteAiAction = (action: AgentAction) => {
+    switch (action.type) {
+      case "navigate":
+        if (action.payload?.tab) {
+          setActiveTab(action.payload.tab);
+        }
+        break;
+      case "filter_invoices":
+        setActiveTab("invoices");
+        showToast("Filtering invoices ledger");
+        break;
+      case "create_quote":
+        setActiveTab("quotes");
+        if (action.payload?.clientName) {
+          showToast(`Opening Quote Builder for ${action.payload.clientName}`);
+        } else {
+          showToast("Opening Quote Builder");
+        }
+        break;
+      case "create_invoice":
+        setActiveTab("invoices");
+        if (action.payload?.clientName) {
+          showToast(`Opening Invoice Builder for ${action.payload.clientName}`);
+        } else {
+          showToast("Opening Invoice Builder");
+        }
+        break;
+      case "open_client":
+        setActiveTab("clients");
+        showToast("Opening Client directory");
+        break;
+      case "open_settings":
+        setActiveTab("settings");
+        break;
+      case "record_payment":
+        setActiveTab("invoices");
+        break;
+      default:
+        if (action.payload?.tab) {
+          setActiveTab(action.payload.tab);
+        }
+        break;
     }
   };
 
@@ -1544,6 +1591,7 @@ export default function App() {
           setBintiInitialPrompt("");
         }}
         initialPrompt={bintiInitialPrompt}
+        onExecuteAction={handleExecuteAiAction}
         saasContext={{
           clientCount: (Array.isArray(clients) ? clients : []).length,
           totalQuotes: (Array.isArray(quotes) ? quotes : []).length,
@@ -1554,7 +1602,37 @@ export default function App() {
           }, 0),
           pendingBalance: (Array.isArray(invoices) ? invoices : []).reduce((sum, inv) => sum + (inv.balanceRemaining || 0), 0),
           currency: companySettings.currency,
-          companyName: companySettings.companyName
+          companyName: companySettings.companyName,
+          clientsSummary: (Array.isArray(clients) ? clients : []).map(c => ({
+            id: c.id,
+            name: c.name,
+            company: c.company,
+            phone: c.phone,
+            email: c.email
+          })),
+          invoicesSummary: (Array.isArray(invoices) ? invoices : []).map(i => ({
+            id: i.id,
+            invoiceNumber: i.invoiceNumber,
+            clientName: i.clientName,
+            grandTotal: i.grandTotal,
+            balanceRemaining: i.balanceRemaining,
+            status: i.status,
+            dueDate: i.dueDate
+          })),
+          quotesSummary: (Array.isArray(quotes) ? quotes : []).map(q => ({
+            id: q.id,
+            quoteNumber: q.quoteNumber,
+            clientName: q.clientName,
+            grandTotal: q.grandTotal,
+            status: q.status
+          })),
+          productsCatalog: (Array.isArray(products) ? products : []).map(p => ({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            price: p.unitPrice ?? (p as any).price ?? 0,
+            unit: p.unitType ?? (p as any).unit ?? 'unit'
+          }))
         }}
       />
 

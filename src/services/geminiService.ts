@@ -229,11 +229,36 @@ Always address the business owner as Virginia.
 Never mention external developers, builders, creators, or names like Silvano Otieno.
 Tone: Professional, direct, objective, and executive. Strictly avoid forced sales pitches, motivational filler, or repetitive commentary about "driving conversion rates from 0%" or "clean slates".
 
+BINTI EVENTS DATABASE SCHEMAS & AUTOMATIC DATA MAPPING:
+You already possess the complete internal database schemas for Binti Events Management System. NEVER ask the user to provide column templates or schema formats! Automatically map any uploaded table, spreadsheet, or text to these schemas:
+
+1. CLIENT TABLE (\`clients\`):
+- \`name\` (required, string): Full Name or Organization. Map from: Name, Client, Customer, Contact, Full Name, Title.
+- \`company\` (string): Company / Business. Map from: Company, Organization, Agency, Firm.
+- \`phone\` (string): Contact phone (+254...). Map from: Phone, Mobile, Tel, Cell, Contact No.
+- \`email\` (string): Email address. Map from: Email, E-mail, Mail.
+- \`address\` (string): Location / Venue / Town. Map from: Address, Location, City, County, Area.
+- \`taxNumber\` (string): KRA PIN / VAT. Map from: PIN, KRA PIN, Tax PIN, Tax ID, VAT.
+
+2. PRODUCT & INVENTORY TABLE (\`products\`):
+- \`name\` (required, string): Item name (e.g. "Alpine Tent", "Chiavari Chairs").
+- \`category\` (required, string): e.g. "Tents", "Furniture", "Lighting", "Decor", "Logistics", "Structures", "Consultation".
+- \`unitPrice\` (required, number): Rate in KES.
+- \`unitType\` (string): e.g. "piece", "day", "meter", "set".
+- \`description\` (string): Specifications.
+
+3. EXPENSE TABLE (\`expenses\`):
+- \`category\` (required, string): One of: 'Transport & Logistics' | 'Labor & Crew' | 'Equipment Maintenance' | 'Fuel' | 'Decor & Consumables' | 'Utilities & Rent' | 'Other'.
+- \`description\` (required, string): Description of payment/expense.
+- \`amount\` (required, number): Amount in KES.
+- \`date\` (string, ISO YYYY-MM-DD): Transaction date.
+- \`referenceNumber\` (string): Receipt or transaction code.
+
 CRITICAL GROUNDING RULES FOR SPREADSHEETS:
 1. When a SPREADSHEET ANALYSIS & AUDIT REPORT is attached in the prompt, you MUST use the exact numbers and counts stated in the report.
 2. If the report states "Client Records: 8,000 clients", you MUST report 8,000 clients. If the report states "Invoices Issued: 9,000 invoices (Total Invoiced Turnover: KES 13,625,654,681)", you MUST report those exact numbers.
 3. NEVER invent, round, or guess client, invoice, or revenue figures. Answer questions with exact factual numbers from the document.
-4. Present structured summaries clearly and propose concrete AgentActions (e.g. import_clients, create_expense, create_invoice) for Virginia's confirmation.`
+4. When Virginia asks to import, write, or record data, confirm the mapping and propose the concrete typed AgentAction (e.g. import_clients, import_products, create_expense) so she can immediately approve and execute.`
       })
     });
 
@@ -303,30 +328,45 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
       return actions;
     }
 
-    // Tabular CSV / Client List
-    if (attachedDoc.textContent && (attachedDoc.fileType === 'csv' || docText.includes('phone') || docText.includes('email') || docText.includes('client'))) {
-      const rows = parseCsvRows(attachedDoc.textContent);
-      if (rows.length > 0) {
-        const parsedClients = rows.map(r => {
-          const name = r['Name'] || r['name'] || r['Client Name'] || r['client_name'] || r['Contact'] || Object.values(r)[0] || 'New Client';
-          const company = r['Company'] || r['company'] || r['Organization'] || '';
-          const phone = r['Phone'] || r['phone'] || r['Mobile'] || r['Telephone'] || '';
-          const email = r['Email'] || r['email'] || '';
-          const address = r['Address'] || r['address'] || r['Location'] || '';
-          const taxNumber = r['Tax PIN'] || r['tax_number'] || r['PIN'] || '';
-          return { name, company, phone, email, address, taxNumber };
+    // Tabular Excel / CSV Tables
+    if (attachedDoc.extractedData?.tables && attachedDoc.extractedData.tables.length > 0) {
+      const allTables = attachedDoc.extractedData.tables;
+      
+      // Check for Clients
+      const clientTable = allTables.find(t => t.headers.some(h => /client|customer|name|contact/i.test(h)));
+      if (clientTable && clientTable.rows.length > 0) {
+        const hMap: Record<string, number> = {};
+        clientTable.headers.forEach((h, idx) => {
+          const low = h.toLowerCase();
+          if (low.includes('name') || low.includes('client') || low.includes('customer') || low.includes('contact')) hMap.name = idx;
+          if (low.includes('company') || low.includes('organization') || low.includes('business')) hMap.company = idx;
+          if (low.includes('phone') || low.includes('mobile') || low.includes('tel')) hMap.phone = idx;
+          if (low.includes('email') || low.includes('mail')) hMap.email = idx;
+          if (low.includes('address') || low.includes('location') || low.includes('city')) hMap.address = idx;
+          if (low.includes('pin') || low.includes('tax') || low.includes('vat')) hMap.taxNumber = idx;
         });
 
-        actions.push({
-          type: "import_clients",
-          label: `Import ${parsedClients.length} Clients into Database`,
-          icon: "database",
-          isMutation: true,
-          riskLevel: "medium",
-          summary: `Add ${parsedClients.length} validated client records from ${attachedDoc.fileName} directly to your client directory.`,
-          payload: { clients: parsedClients }
-        });
-        return actions;
+        const parsedClients = clientTable.rows.map(r => ({
+          name: (hMap.name !== undefined ? r[hMap.name] : r[0]) || 'Client',
+          company: hMap.company !== undefined ? r[hMap.company] : '',
+          phone: hMap.phone !== undefined ? r[hMap.phone] : '',
+          email: hMap.email !== undefined ? r[hMap.email] : '',
+          address: hMap.address !== undefined ? r[hMap.address] : '',
+          taxNumber: hMap.taxNumber !== undefined ? r[hMap.taxNumber] : ''
+        })).filter(c => c.name && c.name.trim() !== '');
+
+        if (parsedClients.length > 0) {
+          actions.push({
+            type: "import_clients",
+            label: `Import ${parsedClients.length} Clients into Database`,
+            icon: "database",
+            isMutation: true,
+            riskLevel: "medium",
+            summary: `Add ${parsedClients.length} validated client records from ${attachedDoc.fileName} directly to your client directory.`,
+            payload: { clients: parsedClients }
+          });
+          return actions;
+        }
       }
     }
   }

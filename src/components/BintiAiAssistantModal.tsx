@@ -263,12 +263,22 @@ const ChatInputBar = memo(function ChatInputBar({
     };
   }, [showAttachMenu]);
 
+  useEffect(() => {
+    if (activeRef.current) {
+      activeRef.current.style.height = "auto";
+      const minH = variant === "centered" ? 42 : 36;
+      const targetH = Math.min(activeRef.current.scrollHeight, 120);
+      activeRef.current.style.height = `${Math.max(targetH, minH)}px`;
+    }
+  }, [value, variant]);
+
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange(e.target.value);
     const textarea = e.target;
     textarea.style.height = "auto";
-    const newHeight = Math.min(textarea.scrollHeight, 120);
-    textarea.style.height = `${Math.max(newHeight, variant === "centered" ? 44 : 38)}px`;
+    const minH = variant === "centered" ? 42 : 36;
+    const targetH = Math.min(textarea.scrollHeight, 120);
+    textarea.style.height = `${Math.max(targetH, minH)}px`;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -276,9 +286,6 @@ const ChatInputBar = memo(function ChatInputBar({
       e.preventDefault();
       if (!loading && (value.trim() || selectedFile)) {
         onSubmit();
-        if (activeRef.current) {
-          activeRef.current.style.height = variant === "centered" ? "44px" : "38px";
-        }
       }
     }
   };
@@ -469,8 +476,7 @@ const ChatInputBar = memo(function ChatInputBar({
             placeholder={variant === "centered" ? "Ask Binti anything..." : "Ask a follow-up or command... (Shift+Enter for newline)"}
             disabled={loading}
             aria-label="Message prompt for Binti AI Assistant"
-            className="flex-1 p-2 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px]"
-            style={{ minHeight: variant === "centered" ? "44px" : "38px" }}
+            className="flex-1 py-2 px-2.5 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
           />
 
           <button

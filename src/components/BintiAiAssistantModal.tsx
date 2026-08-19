@@ -60,6 +60,10 @@ export default function BintiAiAssistantModal({
   const initialPromptHandledRef = useRef<boolean>(false);
   const stopwatchRef = useRef<any>(null);
 
+  const messagesRef = useRef<ChatMessage[]>(messages);
+  messagesRef.current = messages;
+  const activeThoughtStepsRef = useRef<AgentThoughtStep[]>([]);
+
   const handleClose = useCallback(() => {
     abortControllerRef.current?.abort();
     if (stopwatchRef.current) clearInterval(stopwatchRef.current);
@@ -105,28 +109,36 @@ export default function BintiAiAssistantModal({
     const fileToProcess = selectedFile;
     setSelectedFile(null);
 
+    // Pre-parse File Size Guard
+    if (fileToProcess && fileToProcess.size > 20 * 1024 * 1024) {
+      setErrorMsg(`File "${fileToProcess.name}" (${(fileToProcess.size / (1024 * 1024)).toFixed(1)} MB) exceeds the 20 MB size limit.`);
+      return;
+    }
+
     const startTime = Date.now();
     setElapsedTimeMs(0);
+    activeThoughtStepsRef.current = [];
     setActiveThoughtSteps([]);
     if (stopwatchRef.current) clearInterval(stopwatchRef.current);
     stopwatchRef.current = setInterval(() => {
       setElapsedTimeMs(Date.now() - startTime);
     }, 100);
 
-    const collectedSteps: AgentThoughtStep[] = [];
     const handleDynamicStep = (step: { title: string; detail?: string; status: 'in_progress' | 'complete' | 'failed' }) => {
+      const stepId = typeof crypto !== 'undefined' && crypto.randomUUID 
+        ? crypto.randomUUID() 
+        : `step-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
       const newStep: AgentThoughtStep = {
-        id: `step-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        id: stepId,
         title: step.title,
         detail: step.detail,
         status: step.status,
         timestamp: Date.now()
       };
-      collectedSteps.push(newStep);
-      setActiveThoughtSteps(prev => {
-        const updated = prev.map(s => s.status === 'in_progress' ? { ...s, status: 'complete' as const } : s);
-        return [...updated, newStep];
-      });
+      
+      activeThoughtStepsRef.current.push(newStep);
+      setActiveThoughtSteps([...activeThoughtStepsRef.current]);
     };
 
     let parsedDoc: ParsedDocument | null = null;
@@ -143,8 +155,8 @@ export default function BintiAiAssistantModal({
       }
     } else {
       handleDynamicStep({
-        title: "Evaluating query against active business context",
-        detail: `Loaded ${saasContext?.clientCount || 0} clients, ${saasContext?.totalQuotes || 0} quotes & ${saasContext?.totalInvoices || 0} invoices`,
+        title: "Evaluating query against verified business metrics",
+        detail: "Connected to operational database",
         status: 'in_progress'
       });
     }
@@ -170,9 +182,10 @@ export default function BintiAiAssistantModal({
     // Conversational auto-execution on confirmation
     const trimmedQuery = query.trim().toLowerCase();
     const isAffirmative = /^(yes|confirm|proceed|do it|import|write|execute|ok|okay|approve|please do)$/i.test(trimmedQuery);
-    
-    if (isAffirmative && messages.length > 0 && !fileToProcess) {
-      const lastModelMsg = [...messages].reverse().find(m => m.role === "model" && m.actions && m.actions.length > 0);
+    const currentMessages = messagesRef.current;
+
+    if (isAffirmative && currentMessages.length > 0 && !fileToProcess) {
+      const lastModelMsg = [...currentMessages].reverse().find(m => m.role === "model" && m.actions && m.actions.length > 0);
       const pendingAction = lastModelMsg?.actions?.find(a => a.isMutation && a.id && !executedActionIds.has(a.id));
       
       if (pendingAction && onExecuteAction) {
@@ -204,7 +217,7 @@ export default function BintiAiAssistantModal({
     try {
       const result = await askGeminiAssistant(
         query.trim() || `Please analyze this attached document and extract structured records: ${fileToProcess?.name}`,
-        messages,
+        currentMessages,
         saasContext,
         currentController.signal,
         parsedDoc,
@@ -216,7 +229,7 @@ export default function BintiAiAssistantModal({
       const duration = Date.now() - startTime;
       if (stopwatchRef.current) clearInterval(stopwatchRef.current);
 
-      const finalizedSteps = collectedSteps.map(s => ({
+      const finalizedSteps = activeThoughtStepsRef.current.map(s => ({
         ...s,
         status: s.status === 'failed' ? 'failed' as const : 'complete' as const
       }));
@@ -226,7 +239,7 @@ export default function BintiAiAssistantModal({
         content: result.reply,
         actions: result.actions?.map((act, i) => ({
           ...act,
-          id: act.id || `action-${Date.now()}-${i}`
+          id: act.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `action-${Date.now()}-${i}`)
         })),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         thoughtSteps: finalizedSteps,
@@ -248,7 +261,7 @@ export default function BintiAiAssistantModal({
         setLoading(false);
       }
     }
-  }, [executedActionIds, inputMessage, loading, messages, onExecuteAction, saasContext, selectedFile]);
+  }, [executedActionIds, inputMessage, loading, onExecuteAction, saasContext, selectedFile]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -512,11 +525,8 @@ export default function BintiAiAssistantModal({
 
               {/* Active Thought Stream */}
               {loading && (
-                <div className="flex items-start space-x-3 animate-fade-in">
-                  <div className="w-8 h-8 rounded-xl bg-[#1F2937] text-[#D4AF37] flex items-center justify-center shrink-0 border border-[#D4AF37]/30 shadow-xs mt-0.5">
-                    <Sparkles className="w-4 h-4 text-[#D4AF37] animate-spin" />
-                  </div>
-                  <div className="flex-1 max-w-[85%]">
+                <div className="flex items-center space-x-2 pl-1 py-1 animate-fade-in">
+                  <div className="flex-1">
                     <ThoughtProcessAccordion
                       steps={activeThoughtSteps}
                       durationMs={elapsedTimeMs}

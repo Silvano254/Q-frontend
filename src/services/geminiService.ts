@@ -37,6 +37,14 @@ export interface SaaSContext {
   expensesSummary?: Array<{ id: string; category: string; description: string; amount: number; date?: string; eventName?: string }>;
 }
 
+export interface AgentThoughtStep {
+  id: string;
+  title: string;
+  detail?: string;
+  status: 'pending' | 'in_progress' | 'complete' | 'failed';
+  timestamp?: number;
+}
+
 export interface ChatMessage {
   role: "user" | "model" | "system";
   content: string;
@@ -47,6 +55,8 @@ export interface ChatMessage {
     size: number;
     type: string;
   };
+  thoughtSteps?: AgentThoughtStep[];
+  thinkingDurationMs?: number;
 }
 
 export type UIActionType = "navigate" | "filter_invoices" | "open_client" | "open_settings";

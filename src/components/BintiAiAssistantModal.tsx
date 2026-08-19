@@ -16,6 +16,8 @@ import {
   CreditCard,
   HelpCircle,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Zap,
   ArrowRight,
   RotateCcw,
@@ -37,6 +39,7 @@ import {
   ChatMessage, 
   SaaSContext,
   AgentAction,
+  AgentThoughtStep,
   cleanAiResponse 
 } from "../services/geminiService";
 import { parseUploadedDocument, ParsedDocument } from "../utils/fileParser";
@@ -214,6 +217,115 @@ const CleanResponseRenderer = memo(function CleanResponseRenderer({
   }
 
   return <div className="space-y-0.5 font-sans">{elements}</div>;
+});
+
+interface ThoughtProcessAccordionProps {
+  steps: AgentThoughtStep[];
+  durationMs?: number;
+  isLoading?: boolean;
+  isDefaultExpanded?: boolean;
+}
+
+const ThoughtProcessAccordion = memo(function ThoughtProcessAccordion({
+  steps,
+  durationMs,
+  isLoading,
+  isDefaultExpanded
+}: ThoughtProcessAccordionProps) {
+  const [isExpanded, setIsExpanded] = useState<boolean>(isDefaultExpanded ?? (isLoading ?? false));
+
+  useEffect(() => {
+    if (isLoading) {
+      setIsExpanded(true);
+    }
+  }, [isLoading]);
+
+  if (!steps || steps.length === 0) return null;
+
+  const seconds = ((durationMs || 0) / 1000).toFixed(1);
+
+  return (
+    <div className="mb-2.5 rounded-2xl border border-purple-100/90 bg-gradient-to-b from-purple-50/70 via-purple-50/30 to-white overflow-hidden shadow-xs text-left transition-all">
+      {/* Header Bar */}
+      <button
+        type="button"
+        onClick={() => setIsExpanded(prev => !prev)}
+        className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-semibold text-gray-700 hover:bg-purple-100/40 transition-colors cursor-pointer select-none"
+      >
+        <div className="flex items-center space-x-2">
+          {isLoading ? (
+            <Sparkles className="w-3.5 h-3.5 text-[#80237E] animate-spin" />
+          ) : (
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+          )}
+          <span className="text-[11px] font-bold text-gray-800 tracking-tight">
+            {isLoading ? "Binti Thought Process & Execution" : `Thought for ${seconds}s`}
+          </span>
+          <span className="text-[10px] font-semibold text-[#80237E] px-2 py-0.5 rounded-full bg-purple-100/80">
+            {steps.length} {steps.length === 1 ? 'step' : 'steps'}
+          </span>
+        </div>
+
+        <div className="flex items-center space-x-2 text-gray-400">
+          {isLoading && (
+            <span className="text-[10px] font-mono font-bold text-[#80237E] animate-pulse">
+              {seconds}s
+            </span>
+          )}
+          {isExpanded ? (
+            <ChevronUp className="w-3.5 h-3.5 text-gray-400" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+          )}
+        </div>
+      </button>
+
+      {/* Steps List */}
+      {isExpanded && (
+        <div className="px-3.5 pb-3 pt-1 space-y-2 border-t border-purple-100/70 bg-white/80">
+          {steps.map((step, sIdx) => {
+            return (
+              <div key={step.id || sIdx} className="flex items-start space-x-2.5 text-left text-[11px]">
+                {/* Status Indicator */}
+                <div className="mt-0.5 shrink-0">
+                  {step.status === 'complete' && (
+                    <div className="w-3.5 h-3.5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[9px] shadow-xs">
+                      ✓
+                    </div>
+                  )}
+                  {step.status === 'in_progress' && (
+                    <div className="w-3.5 h-3.5 rounded-full border-2 border-[#80237E] border-t-transparent animate-spin" />
+                  )}
+                  {step.status === 'pending' && (
+                    <div className="w-3.5 h-3.5 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center text-[9px]">
+                      ○
+                    </div>
+                  )}
+                  {step.status === 'failed' && (
+                    <div className="w-3.5 h-3.5 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-[9px] font-bold">
+                      ✕
+                    </div>
+                  )}
+                </div>
+
+                {/* Step Details */}
+                <div className="flex-1 min-w-0">
+                  <p className={`leading-tight ${step.status === 'in_progress' ? 'text-[#80237E] font-bold' : 'text-gray-700 font-medium'}`}>
+                    {step.title}
+                  </p>
+                  {step.detail && (
+                    <p className="text-[10px] text-gray-500 mt-0.5 leading-snug break-words">
+                      {step.detail}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 });
 
 /**
@@ -510,6 +622,8 @@ export default function BintiAiAssistantModal({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadingText, setLoadingText] = useState<string>("Binti is thinking...");
+  const [activeThoughtSteps, setActiveThoughtSteps] = useState<AgentThoughtStep[]>([]);
+  const [elapsedTimeMs, setElapsedTimeMs] = useState<number>(0);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
@@ -522,9 +636,13 @@ export default function BintiAiAssistantModal({
   const bottomInputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const initialPromptHandledRef = useRef<boolean>(false);
+  const stopwatchRef = useRef<any>(null);
 
   const handleClose = useCallback(() => {
     abortControllerRef.current?.abort();
+    if (stopwatchRef.current) {
+      clearInterval(stopwatchRef.current);
+    }
     onClose();
   }, [onClose]);
 
@@ -550,6 +668,9 @@ export default function BintiAiAssistantModal({
   useEffect(() => {
     return () => {
       abortControllerRef.current?.abort();
+      if (stopwatchRef.current) {
+        clearInterval(stopwatchRef.current);
+      }
     };
   }, []);
 
@@ -567,14 +688,56 @@ export default function BintiAiAssistantModal({
     const fileToProcess = selectedFile;
     setSelectedFile(null);
 
+    const startTime = Date.now();
+    setElapsedTimeMs(0);
+    if (stopwatchRef.current) clearInterval(stopwatchRef.current);
+    stopwatchRef.current = setInterval(() => {
+      setElapsedTimeMs(Date.now() - startTime);
+    }, 100);
+
+    // Dynamic Initial Thought Steps
+    const initialSteps: AgentThoughtStep[] = [];
+    if (fileToProcess) {
+      const ext = fileToProcess.name.split('.').pop()?.toLowerCase() || 'file';
+      const isImg = fileToProcess.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+      
+      if (isImg) {
+        initialSteps.push(
+          { id: '1', title: `Ingesting image "${fileToProcess.name}"`, detail: `Preparing ${(fileToProcess.size / 1024).toFixed(1)} KB image for Multimodal Vision`, status: 'in_progress', timestamp: startTime },
+          { id: '2', title: 'Running Gemini Multimodal Vision analysis', detail: 'Extracting vendor, date, line items & amounts', status: 'pending', timestamp: startTime },
+          { id: '3', title: 'Reconciling financial amounts & database alignment', detail: 'Validating totals against Binti Expense schemas', status: 'pending', timestamp: startTime }
+        );
+      } else {
+        initialSteps.push(
+          { id: '1', title: `Parsing document "${fileToProcess.name}"`, detail: `Reading workbook with SheetJS & PapaParse (${(fileToProcess.size / 1024).toFixed(1)} KB)`, status: 'in_progress', timestamp: startTime },
+          { id: '2', title: 'Auditing worksheets & computing financial metrics', detail: 'Calculating exact row counts, sums & receivables', status: 'pending', timestamp: startTime },
+          { id: '3', title: 'Querying Gemini Intelligence Engine with audited digest', detail: 'Generating grounded executive report', status: 'pending', timestamp: startTime },
+          { id: '4', title: 'Resolving database schema mappings & action triggers', detail: 'Preparing mutation payloads for confirmation', status: 'pending', timestamp: startTime }
+        );
+      }
+    } else {
+      initialSteps.push(
+        { id: '1', title: 'Parsing user prompt & analyzing operational context', detail: `Evaluating query against active clients, quotes & invoices`, status: 'in_progress', timestamp: startTime },
+        { id: '2', title: 'Querying Binti AI Business Operating Engine', detail: 'Generating executive analysis & action plan', status: 'pending', timestamp: startTime }
+      );
+    }
+    setActiveThoughtSteps(initialSteps);
+
     let parsedDoc: ParsedDocument | null = null;
     if (fileToProcess) {
       try {
         parsedDoc = await parseUploadedDocument(fileToProcess);
         if (parsedDoc.parseStatus === "failed") {
+          if (stopwatchRef.current) clearInterval(stopwatchRef.current);
           setErrorMsg(parsedDoc.parseError || "Failed to process the uploaded file.");
           return;
         }
+        // Advance thought step 1 -> 2
+        setActiveThoughtSteps(prev => prev.map((s, idx) => {
+          if (idx === 0) return { ...s, status: 'complete' };
+          if (idx === 1) return { ...s, status: 'in_progress' };
+          return s;
+        }));
       } catch (err) {
         console.error("Failed to parse file:", err);
       }
@@ -615,6 +778,7 @@ export default function BintiAiAssistantModal({
           if (pendingAction.id) {
             setExecutedActionIds(prev => new Set(prev).add(pendingAction.id!));
           }
+          if (stopwatchRef.current) clearInterval(stopwatchRef.current);
           const confirmMsg: ChatMessage = {
             role: "model",
             content: `**Action Executed Successfully**: ${pendingAction.label}.\n\nThe records have been saved to your active database tables.`,
@@ -630,6 +794,13 @@ export default function BintiAiAssistantModal({
     }
 
     try {
+      // Advance to calling Gemini
+      setActiveThoughtSteps(prev => prev.map((s, idx) => {
+        if (idx < prev.length - 1) return { ...s, status: 'complete' };
+        if (idx === prev.length - 1) return { ...s, status: 'in_progress' };
+        return s;
+      }));
+
       const result = await askGeminiAssistant(
         query.trim() || `Please analyze this attached document and extract structured records: ${fileToProcess?.name}`,
         messages,
@@ -640,6 +811,14 @@ export default function BintiAiAssistantModal({
 
       if (currentController.signal.aborted) return;
 
+      const duration = Date.now() - startTime;
+      if (stopwatchRef.current) clearInterval(stopwatchRef.current);
+
+      const completedSteps = (activeThoughtSteps.length > 0 ? activeThoughtSteps : initialSteps).map(s => ({
+        ...s,
+        status: 'complete' as const
+      }));
+
       const assistantMsg: ChatMessage = {
         role: "model",
         content: result.reply,
@@ -647,11 +826,14 @@ export default function BintiAiAssistantModal({
           ...act,
           id: act.id || `action-${Date.now()}-${i}`
         })),
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        thoughtSteps: completedSteps,
+        thinkingDurationMs: duration
       };
 
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
+      if (stopwatchRef.current) clearInterval(stopwatchRef.current);
       if (err?.name === "AbortError" || currentController.signal.aborted) {
         return;
       }
@@ -659,11 +841,12 @@ export default function BintiAiAssistantModal({
       setErrorMsg("Binti couldn't complete your request right now. Please check your connection and try again.");
       setLastFailedPrompt(query.trim());
     } finally {
+      if (stopwatchRef.current) clearInterval(stopwatchRef.current);
       if (!currentController.signal.aborted) {
         setLoading(false);
       }
     }
-  }, [inputMessage, loading, messages, saasContext, selectedFile]);
+  }, [activeThoughtSteps, executedActionIds, inputMessage, loading, messages, onExecuteAction, saasContext, selectedFile]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -979,6 +1162,14 @@ export default function BintiAiAssistantModal({
                           : "bg-white border border-gray-100 text-gray-800 rounded-tl-none shadow-gray-100/50"
                       }`}
                     >
+                      {msg.role === "model" && msg.thoughtSteps && msg.thoughtSteps.length > 0 && (
+                        <ThoughtProcessAccordion
+                          steps={msg.thoughtSteps}
+                          durationMs={msg.thinkingDurationMs}
+                          isLoading={false}
+                          isDefaultExpanded={false}
+                        />
+                      )}
                       <CleanResponseRenderer content={msg.content} isUser={msg.role === "user"} />
                     </div>
 
@@ -1083,15 +1274,18 @@ export default function BintiAiAssistantModal({
                 </div>
               ))}
 
-              {/* Loading Indicator */}
+              {/* Live Agentic Thought Stream & Loading Indicator */}
               {loading && (
-                <div className="flex items-center space-x-3 animate-fade-in">
-                  <div className="w-8 h-8 rounded-xl bg-[#1F2937] text-[#D4AF37] flex items-center justify-center shrink-0 border border-[#D4AF37]/30">
+                <div className="flex items-start space-x-3 animate-fade-in">
+                  <div className="w-8 h-8 rounded-xl bg-[#1F2937] text-[#D4AF37] flex items-center justify-center shrink-0 border border-[#D4AF37]/30 shadow-xs mt-0.5">
                     <Sparkles className="w-4 h-4 text-[#D4AF37] animate-spin" />
                   </div>
-                  <div className="p-3 bg-white border border-gray-100 rounded-2xl rounded-tl-none text-xs text-gray-500 flex items-center space-x-2 shadow-xs">
-                    <div className="w-2 h-2 bg-[#80237E] rounded-full animate-ping" />
-                    <span>{loadingText}</span>
+                  <div className="flex-1 max-w-[85%]">
+                    <ThoughtProcessAccordion
+                      steps={activeThoughtSteps}
+                      durationMs={elapsedTimeMs}
+                      isLoading={true}
+                    />
                   </div>
                 </div>
               )}

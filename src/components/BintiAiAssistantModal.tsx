@@ -522,6 +522,12 @@ export default function BintiAiAssistantModal({
   const centerInputRef = useRef<HTMLTextAreaElement>(null);
   const bottomInputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const initialPromptHandledRef = useRef<boolean>(false);
+
+  const handleClose = useCallback(() => {
+    abortControllerRef.current?.abort();
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -529,7 +535,7 @@ export default function BintiAiAssistantModal({
         if (showContextModal) {
           setShowContextModal(false);
         } else {
-          onClose();
+          handleClose();
         }
       }
     };
@@ -539,34 +545,14 @@ export default function BintiAiAssistantModal({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, showContextModal, onClose]);
+  }, [isOpen, showContextModal, handleClose]);
 
+  // Clean unmount abort
   useEffect(() => {
     return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+      abortControllerRef.current?.abort();
     };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen) {
-      if (initialPrompt && initialPrompt.trim().length > 0) {
-        handleSendMessage(initialPrompt);
-      } else {
-        setTimeout(() => {
-          centerInputRef.current?.focus();
-        }, 150);
-      }
-    }
-  }, [isOpen, initialPrompt]);
-
-  useEffect(() => {
-    if (isOpen && messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      bottomInputRef.current?.focus();
-    }
-  }, [messages, isOpen]);
+  }, []);
 
   const handleSendMessage = useCallback(async (textToSend?: string) => {
     const query = textToSend || inputMessage;
@@ -586,6 +572,10 @@ export default function BintiAiAssistantModal({
     if (fileToProcess) {
       try {
         parsedDoc = await parseUploadedDocument(fileToProcess);
+        if (parsedDoc.parseStatus === "failed") {
+          setErrorMsg(parsedDoc.parseError || "Failed to process the uploaded file.");
+          return;
+        }
       } catch (err) {
         console.error("Failed to parse file:", err);
       }
@@ -646,6 +636,32 @@ export default function BintiAiAssistantModal({
     }
   }, [inputMessage, loading, messages, saasContext, selectedFile]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      initialPromptHandledRef.current = false;
+      return;
+    }
+
+    if (initialPrompt && initialPrompt.trim().length > 0 && !initialPromptHandledRef.current) {
+      initialPromptHandledRef.current = true;
+      handleSendMessage(initialPrompt);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      centerInputRef.current?.focus();
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [isOpen, initialPrompt, handleSendMessage]);
+
+  useEffect(() => {
+    if (isOpen && messages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      bottomInputRef.current?.focus();
+    }
+  }, [messages, isOpen]);
+
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
 
   const handleActionExecution = async (act: AgentAction, actionId: string) => {
@@ -656,7 +672,7 @@ export default function BintiAiAssistantModal({
       }
       setExecutedActionIds(prev => new Set(prev).add(actionId));
       if (!act.isMutation) {
-        onClose();
+        handleClose();
       }
     } catch (err: any) {
       console.error("Action execution failed:", err);
@@ -754,7 +770,7 @@ export default function BintiAiAssistantModal({
             )}
 
             <button
-              onClick={onClose}
+              onClick={handleClose}
               title="Close assistant"
               aria-label="Close assistant"
               className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"

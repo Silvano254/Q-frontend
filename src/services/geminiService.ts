@@ -199,6 +199,8 @@ export async function askGeminiAssistant(
       mimeType: attachedDoc.mimeType,
       content: attachedDoc.textContent ? attachedDoc.textContent.slice(0, 10000) : undefined,
       imageBase64: attachedDoc.extractedData?.images?.[0]?.data,
+      binaryData: attachedDoc.extractedData?.binaryData,
+      financialDoc: attachedDoc.extractedData?.financialDoc,
       tables: attachedDoc.extractedData?.tables
     } : undefined;
 

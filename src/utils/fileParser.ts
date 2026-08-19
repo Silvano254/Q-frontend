@@ -1,7 +1,9 @@
 /**
  * Enhanced Document Processing & Financial Extraction Utilities for Binti AI
- * Stage 1: Extraction & Parsing (CSV RFC-4180, Multimodal Images, Text, JSON, Tabular)
+ * Stage 1: Extraction & Parsing (CSV RFC-4180, JSON Structure, Multimodal Images, Binary PDF/Excel, File Size Guards)
  */
+
+export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB limit for AI document processing
 
 export interface ExtractedFinancialDocument {
   documentType:
@@ -51,6 +53,10 @@ export interface ParsedDocument {
       data: string;
       mimeType: string;
     }>;
+    binaryData?: {
+      data: string;
+      mimeType: string;
+    };
     financialDoc?: ExtractedFinancialDocument;
   };
   parseStatus: "success" | "partial" | "failed";
@@ -68,12 +74,12 @@ export function parseRFC4180CSV(input: string): string[][] {
   let inQuotes = false;
   let i = 0;
 
-  // Auto-detect delimiter on the first non-empty line
-  const firstLine = input.split(/\r?\n/)[0] || '';
+  // Auto-detect delimiter
+  const firstLines = input.split(/\r?\n/).slice(0, 5).join('\n');
   let delimiter = ',';
-  if (firstLine.includes('\t') && !firstLine.includes(',')) {
+  if (firstLines.includes('\t') && (firstLines.split('\t').length > firstLines.split(',').length)) {
     delimiter = '\t';
-  } else if (firstLine.includes(';') && !firstLine.includes(',')) {
+  } else if (firstLines.includes(';') && (firstLines.split(';').length > firstLines.split(',').length)) {
     delimiter = ';';
   }
 
@@ -168,6 +174,18 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
   const fileSize = file.size;
   const mimeType = file.type || 'application/octet-stream';
 
+  // Guard: File Size Limit
+  if (fileSize > MAX_FILE_SIZE) {
+    return {
+      fileName,
+      fileType,
+      fileSize,
+      mimeType,
+      parseStatus: 'failed',
+      parseError: `File size (${(fileSize / (1024 * 1024)).toFixed(1)} MB) exceeds the 10 MB limit for Binti AI document processing.`
+    };
+  }
+
   return new Promise((resolve) => {
     // 1. Text & CSV Formats
     if (
@@ -183,8 +201,43 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
       reader.onload = (e) => {
         const textContent = (e.target?.result as string) || '';
         let tables: Array<{ headers: string[]; rows: string[][] }> | undefined;
+        let financialDoc: ExtractedFinancialDocument | undefined;
 
-        if (fileType === 'csv' || fileType === 'tsv' || textContent.includes(',')) {
+        // JSON Parsing & Structured Normalization
+        if (fileType === 'json' || mimeType === 'application/json') {
+          try {
+            const parsedJson = JSON.parse(textContent);
+            if (Array.isArray(parsedJson) && parsedJson.length > 0 && typeof parsedJson[0] === 'object' && parsedJson[0] !== null) {
+              const headers = Object.keys(parsedJson[0]);
+              tables = [{
+                headers,
+                rows: parsedJson.map(item => headers.map(h => (item[h] !== undefined ? String(item[h]) : '')))
+              }];
+            } else if (typeof parsedJson === 'object' && parsedJson !== null) {
+              if (parsedJson.documentType || parsedJson.totalAmount || parsedJson.supplierName || parsedJson.items) {
+                financialDoc = {
+                  documentType: parsedJson.documentType || 'other',
+                  supplierName: parsedJson.supplierName,
+                  customerName: parsedJson.customerName,
+                  documentNumber: parsedJson.documentNumber,
+                  transactionDate: parsedJson.transactionDate,
+                  subtotal: parsedJson.subtotal ? Number(parsedJson.subtotal) : undefined,
+                  taxAmount: parsedJson.taxAmount ? Number(parsedJson.taxAmount) : undefined,
+                  totalAmount: parsedJson.totalAmount ? Number(parsedJson.totalAmount) : undefined,
+                  currency: parsedJson.currency || 'KES',
+                  category: parsedJson.category,
+                  paymentReference: parsedJson.paymentReference,
+                  items: parsedJson.items
+                };
+              }
+            }
+          } catch {
+            // Keep textContent, continue as text
+          }
+        }
+
+        // CSV & TSV Parsing
+        if (fileType === 'csv' || fileType === 'tsv' || (fileType !== 'json' && textContent.includes(','))) {
           const rawTable = parseRFC4180CSV(textContent);
           if (rawTable.length > 0) {
             tables = [{
@@ -201,7 +254,8 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
           mimeType,
           textContent,
           extractedData: {
-            tables
+            tables,
+            financialDoc
           },
           parseStatus: 'success'
         });
@@ -220,7 +274,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
       return;
     }
 
-    // 2. Images (Receipts, Invoices, Delivery Slips)
+    // 2. Images (Receipts, Photos, Slips)
     if (mimeType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(fileType)) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -256,7 +310,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
       return;
     }
 
-    // 3. PDF and Spreadsheet Binary Formats
+    // 3. Binary Documents (PDF, Excel, Word Spreadsheets)
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = (e.target?.result as string) || '';
@@ -267,14 +321,14 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
         fileType,
         fileSize,
         mimeType,
-        textContent: `[Document: ${fileName} (${fileType.toUpperCase()}), Size: ${(fileSize / 1024).toFixed(1)} KB]`,
+        textContent: `[Binary Document: ${fileName} (${fileType.toUpperCase()}), Size: ${(fileSize / 1024).toFixed(1)} KB]`,
         extractedData: {
-          images: [{
+          binaryData: {
             data: base64Data,
             mimeType: mimeType || 'application/pdf'
-          }]
+          }
         },
-        parseStatus: 'partial'
+        parseStatus: 'success'
       });
     };
     reader.onerror = () => {

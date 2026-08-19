@@ -166,17 +166,30 @@ export function validateAndReconcileFinancialDoc(
   };
 }
 
+export type StepCallback = (step: { title: string; detail?: string; status: 'in_progress' | 'complete' | 'failed' }) => void;
+
 /**
  * Stage 1: Reads and extracts real structured data from a user-uploaded File
  */
-export async function parseUploadedDocument(file: File): Promise<ParsedDocument> {
+export async function parseUploadedDocument(file: File, onStep?: StepCallback): Promise<ParsedDocument> {
   const fileName = file.name;
   const fileType = file.name.split('.').pop()?.toLowerCase() || 'unknown';
   const fileSize = file.size;
   const mimeType = file.type || 'application/octet-stream';
 
+  onStep?.({
+    title: `Reading uploaded file "${fileName}"`,
+    detail: `Validating format (${fileType.toUpperCase()}) and size (${(fileSize / 1024).toFixed(1)} KB)`,
+    status: 'in_progress'
+  });
+
   // Guard: File Size Limit
   if (fileSize > MAX_FILE_SIZE) {
+    onStep?.({
+      title: `File size limit exceeded`,
+      detail: `${(fileSize / (1024 * 1024)).toFixed(1)} MB exceeds 10 MB limit`,
+      status: 'failed'
+    });
     return {
       fileName,
       fileType,
@@ -202,6 +215,12 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
           const buffer = e.target?.result as ArrayBuffer;
           const workbook = XLSX.read(buffer, { type: 'array' });
           const allTables: Array<{ headers: string[]; rows: string[][] }> = [];
+          
+          onStep?.({
+            title: `Unpacked Excel workbook with SheetJS`,
+            detail: `Found ${workbook.SheetNames.length} worksheets: ${workbook.SheetNames.join(', ')}`,
+            status: 'complete'
+          });
           
           interface SheetMetric {
             name: string;
@@ -270,6 +289,14 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
               headers,
               rows: sampleRows
             });
+
+            onStep?.({
+              title: `Audited worksheet "${sheetName}" (${dataRows.length.toLocaleString()} rows)`,
+              detail: Object.keys(numericMetrics).length > 0 
+                ? `Calculated sums: ${Object.entries(numericMetrics).map(([k, v]) => `${k} (KES ${v.sum.toLocaleString()})`).join(', ')}`
+                : `${headers.length} columns detected`,
+              status: 'complete'
+            });
           });
 
           // Detect Key Business Entities per sheet
@@ -278,6 +305,20 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
           const quotesSheet = sheetMetrics.find(s => /quote|proposal|estimate/i.test(s.name));
           const paymentsSheet = sheetMetrics.find(s => /payment|receipt|transaction/i.test(s.name));
           const inventorySheet = sheetMetrics.find(s => /inventory|product|service|equipment|stock|item|package/i.test(s.name));
+
+          const detectedSummaries: string[] = [];
+          if (clientsSheet) detectedSummaries.push(`${clientsSheet.rowCount.toLocaleString()} clients`);
+          if (invoicesSheet) detectedSummaries.push(`${invoicesSheet.rowCount.toLocaleString()} invoices`);
+          if (quotesSheet) detectedSummaries.push(`${quotesSheet.rowCount.toLocaleString()} quotes`);
+          if (inventorySheet) detectedSummaries.push(`${inventorySheet.rowCount.toLocaleString()} catalog items`);
+
+          if (detectedSummaries.length > 0) {
+            onStep?.({
+              title: `Identified business entities in "${fileName}"`,
+              detail: `Extracted: ${detectedSummaries.join(' • ')}`,
+              status: 'complete'
+            });
+          }
 
           // Build a crystal-clear, structured Factual Digest for the AI model
           let textDigest = `### 📊 SPREADSHEET ANALYSIS & AUDIT REPORT\n`;
@@ -453,6 +494,11 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
               headers: rawTable[0] || [],
               rows: rawTable.slice(1, 26) // Store top 25 preview rows
             }];
+            onStep?.({
+              title: `Parsed table with PapaParse (${(rawTable.length - 1).toLocaleString()} rows)`,
+              detail: `Headers: ${rawTable[0]?.slice(0, 4).join(', ')}...`,
+              status: 'complete'
+            });
           }
         }
 
@@ -490,6 +536,12 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
         const dataUrl = (e.target?.result as string) || '';
         const base64Data = dataUrl.split(',')[1] || '';
 
+        onStep?.({
+          title: `Encoded image "${fileName}" for Multimodal Vision`,
+          detail: `${(fileSize / 1024).toFixed(1)} KB base64 payload ready for Gemini Vision analysis`,
+          status: 'complete'
+        });
+
         resolve({
           fileName,
           fileType,
@@ -524,6 +576,12 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
     reader.onload = (e) => {
       const dataUrl = (e.target?.result as string) || '';
       const base64Data = dataUrl.split(',')[1] || '';
+
+      onStep?.({
+        title: `Prepared binary document "${fileName}"`,
+        detail: `${(fileSize / 1024).toFixed(1)} KB ${fileType.toUpperCase()} document`,
+        status: 'complete'
+      });
 
       resolve({
         fileName,

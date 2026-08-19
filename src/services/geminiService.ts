@@ -193,6 +193,8 @@ export function cleanAiResponse(text: string): string {
     .trim();
 }
 
+export type StepEmitter = (step: { title: string; detail?: string; status: 'in_progress' | 'complete' | 'failed' }) => void;
+
 /**
  * Send a chat prompt with optional document attachment to Binti.
  */
@@ -201,7 +203,8 @@ export async function askGeminiAssistant(
   chatHistory: ChatMessage[] = [],
   saasContext?: SaaSContext,
   signal?: AbortSignal,
-  attachedDoc?: ParsedDocument | null
+  attachedDoc?: ParsedDocument | null,
+  onStep?: StepEmitter
 ): Promise<AssistantResponse> {
   if (signal?.aborted) {
     throw new DOMException('Aborted', 'AbortError');
@@ -225,6 +228,14 @@ export async function askGeminiAssistant(
       financialDoc: attachedDoc.extractedData?.financialDoc,
       tables: attachedDoc.extractedData?.tables
     } : undefined;
+
+    onStep?.({
+      title: "Querying Gemini 3.x Flash Intelligence Engine",
+      detail: documentPayload 
+        ? `Transmitting prompt with verified audit payload for "${documentPayload.name}"`
+        : `Evaluating prompt with ${saasContext?.clientCount || 0} active clients and ${saasContext?.totalQuotes || 0} quotes`,
+      status: 'in_progress'
+    });
 
     const data = await apiRequest<{ success: boolean; reply?: string; actions?: AgentAction[] }>('/api/ai/chat', {
       method: "POST",
@@ -270,6 +281,13 @@ CRITICAL GROUNDING RULES:
     if (data.success && data.reply) {
       const sanitizedReply = cleanAiResponse(data.reply);
       const actions = data.actions || extractActionsFromPrompt(cleanPrompt, saasContext, attachedDoc);
+      
+      onStep?.({
+        title: "Received & verified model response",
+        detail: `Sanitized executive output${actions.length > 0 ? ` with ${actions.length} action(s) prepared` : ''}`,
+        status: 'complete'
+      });
+
       return { reply: sanitizedReply, actions };
     }
   } catch (error: any) {
@@ -277,6 +295,11 @@ CRITICAL GROUNDING RULES:
       throw error;
     }
     console.warn('AI API unavailable, using local fallback:', error);
+    onStep?.({
+      title: "Switched to local intelligent fallback engine",
+      detail: "Executing deterministic business logic rules",
+      status: 'in_progress'
+    });
   }
 
   if (signal?.aborted) {
@@ -285,6 +308,11 @@ CRITICAL GROUNDING RULES:
 
   // Deterministic local intelligent fallback
   const localRes = getLocalIntelligentFallback(cleanPrompt, saasContext, attachedDoc);
+  onStep?.({
+    title: "Completed local deterministic response",
+    detail: `Generated fallback analysis with ${localRes.actions.length} action(s)`,
+    status: 'complete'
+  });
   return {
     reply: cleanAiResponse(localRes.reply),
     actions: localRes.actions

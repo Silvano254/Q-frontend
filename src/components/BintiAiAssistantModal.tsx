@@ -690,57 +690,46 @@ export default function BintiAiAssistantModal({
 
     const startTime = Date.now();
     setElapsedTimeMs(0);
+    setActiveThoughtSteps([]);
     if (stopwatchRef.current) clearInterval(stopwatchRef.current);
     stopwatchRef.current = setInterval(() => {
       setElapsedTimeMs(Date.now() - startTime);
     }, 100);
 
-    // Dynamic Initial Thought Steps
-    const initialSteps: AgentThoughtStep[] = [];
-    if (fileToProcess) {
-      const ext = fileToProcess.name.split('.').pop()?.toLowerCase() || 'file';
-      const isImg = fileToProcess.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
-      
-      if (isImg) {
-        initialSteps.push(
-          { id: '1', title: `Ingesting image "${fileToProcess.name}"`, detail: `Preparing ${(fileToProcess.size / 1024).toFixed(1)} KB image for Multimodal Vision`, status: 'in_progress', timestamp: startTime },
-          { id: '2', title: 'Running Gemini Multimodal Vision analysis', detail: 'Extracting vendor, date, line items & amounts', status: 'pending', timestamp: startTime },
-          { id: '3', title: 'Reconciling financial amounts & database alignment', detail: 'Validating totals against Binti Expense schemas', status: 'pending', timestamp: startTime }
-        );
-      } else {
-        initialSteps.push(
-          { id: '1', title: `Parsing document "${fileToProcess.name}"`, detail: `Reading workbook with SheetJS & PapaParse (${(fileToProcess.size / 1024).toFixed(1)} KB)`, status: 'in_progress', timestamp: startTime },
-          { id: '2', title: 'Auditing worksheets & computing financial metrics', detail: 'Calculating exact row counts, sums & receivables', status: 'pending', timestamp: startTime },
-          { id: '3', title: 'Querying Gemini Intelligence Engine with audited digest', detail: 'Generating grounded executive report', status: 'pending', timestamp: startTime },
-          { id: '4', title: 'Resolving database schema mappings & action triggers', detail: 'Preparing mutation payloads for confirmation', status: 'pending', timestamp: startTime }
-        );
-      }
-    } else {
-      initialSteps.push(
-        { id: '1', title: 'Parsing user prompt & analyzing operational context', detail: `Evaluating query against active clients, quotes & invoices`, status: 'in_progress', timestamp: startTime },
-        { id: '2', title: 'Querying Binti AI Business Operating Engine', detail: 'Generating executive analysis & action plan', status: 'pending', timestamp: startTime }
-      );
-    }
-    setActiveThoughtSteps(initialSteps);
+    const collectedSteps: AgentThoughtStep[] = [];
+    const handleDynamicStep = (step: { title: string; detail?: string; status: 'in_progress' | 'complete' | 'failed' }) => {
+      const newStep: AgentThoughtStep = {
+        id: `step-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        title: step.title,
+        detail: step.detail,
+        status: step.status,
+        timestamp: Date.now()
+      };
+      collectedSteps.push(newStep);
+      setActiveThoughtSteps(prev => {
+        const updated = prev.map(s => s.status === 'in_progress' ? { ...s, status: 'complete' as const } : s);
+        return [...updated, newStep];
+      });
+    };
 
     let parsedDoc: ParsedDocument | null = null;
     if (fileToProcess) {
       try {
-        parsedDoc = await parseUploadedDocument(fileToProcess);
+        parsedDoc = await parseUploadedDocument(fileToProcess, handleDynamicStep);
         if (parsedDoc.parseStatus === "failed") {
           if (stopwatchRef.current) clearInterval(stopwatchRef.current);
           setErrorMsg(parsedDoc.parseError || "Failed to process the uploaded file.");
           return;
         }
-        // Advance thought step 1 -> 2
-        setActiveThoughtSteps(prev => prev.map((s, idx) => {
-          if (idx === 0) return { ...s, status: 'complete' };
-          if (idx === 1) return { ...s, status: 'in_progress' };
-          return s;
-        }));
       } catch (err) {
         console.error("Failed to parse file:", err);
       }
+    } else {
+      handleDynamicStep({
+        title: "Evaluating query against active business context",
+        detail: `Loaded ${saasContext?.clientCount || 0} clients, ${saasContext?.totalQuotes || 0} quotes & ${saasContext?.totalInvoices || 0} invoices`,
+        status: 'in_progress'
+      });
     }
 
     const userTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -774,6 +763,11 @@ export default function BintiAiAssistantModal({
         setLoading(true);
         setLoadingText("Executing database write...");
         try {
+          handleDynamicStep({
+            title: `Executing database action: ${pendingAction.label}`,
+            detail: "Calling database client and committing records",
+            status: 'in_progress'
+          });
           await onExecuteAction(pendingAction);
           if (pendingAction.id) {
             setExecutedActionIds(prev => new Set(prev).add(pendingAction.id!));
@@ -794,19 +788,13 @@ export default function BintiAiAssistantModal({
     }
 
     try {
-      // Advance to calling Gemini
-      setActiveThoughtSteps(prev => prev.map((s, idx) => {
-        if (idx < prev.length - 1) return { ...s, status: 'complete' };
-        if (idx === prev.length - 1) return { ...s, status: 'in_progress' };
-        return s;
-      }));
-
       const result = await askGeminiAssistant(
         query.trim() || `Please analyze this attached document and extract structured records: ${fileToProcess?.name}`,
         messages,
         saasContext,
         currentController.signal,
-        parsedDoc
+        parsedDoc,
+        handleDynamicStep
       );
 
       if (currentController.signal.aborted) return;
@@ -814,7 +802,7 @@ export default function BintiAiAssistantModal({
       const duration = Date.now() - startTime;
       if (stopwatchRef.current) clearInterval(stopwatchRef.current);
 
-      const completedSteps = (activeThoughtSteps.length > 0 ? activeThoughtSteps : initialSteps).map(s => ({
+      const finalizedSteps = collectedSteps.map(s => ({
         ...s,
         status: 'complete' as const
       }));
@@ -827,7 +815,7 @@ export default function BintiAiAssistantModal({
           id: act.id || `action-${Date.now()}-${i}`
         })),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        thoughtSteps: completedSteps,
+        thoughtSteps: finalizedSteps,
         thinkingDurationMs: duration
       };
 

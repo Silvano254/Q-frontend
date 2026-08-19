@@ -224,41 +224,31 @@ export async function askGeminiAssistant(
         history: cleanHistory,
         context: saasContext,
         document: documentPayload,
-        systemInstruction: `You are Binti, the intelligent, executive business operating assistant for Virginia, the owner and operator of Binti Events Management System.
-Always address the business owner as Virginia.
+        systemInstruction: `You are Binti, an intelligent, concise, executive business data assistant for Binti Events.
 Never mention external developers, builders, creators, or names like Silvano Otieno.
-Tone: Professional, direct, objective, and executive. Strictly avoid forced sales pitches, motivational filler, or repetitive commentary about "driving conversion rates from 0%" or "clean slates".
+
+TONE & COMMUNICATION RULES:
+1. Direct, crisp, and analytical. Answer the specific question immediately.
+2. Do NOT use boilerplate greetings (e.g. avoid starting messages with "Good day, Virginia", "I am pleased to report", or repeating "Binti Events Management System").
+3. Strictly avoid marketing fluff, sales commentary, or unsolicited advice about "driving conversion rates from 0%" or "clean slates".
+4. When verified audit numbers are extracted from an uploaded document, stand firmly by those verified numbers. Never collapse into apologetic loops or ask the user to re-upload.
+
+FINANCIAL TERMINOLOGY DEFINITIONS:
+- Invoiced Turnover / Total Billed Volume: Sum of all invoices' TotalAmount_KES.
+- Total Cash Collected / Paid: Sum of AmountPaid_KES or recorded payments.
+- Outstanding Receivables / Balance Due: TotalAmount_KES minus AmountPaid_KES.
 
 BINTI EVENTS DATABASE SCHEMAS & AUTOMATIC DATA MAPPING:
-You already possess the complete internal database schemas for Binti Events Management System. NEVER ask the user to provide column templates or schema formats! Automatically map any uploaded table, spreadsheet, or text to these schemas:
+You already possess the complete internal database schemas. NEVER ask the user for column templates or format structures. Automatically map any uploaded table, spreadsheet, or text to these schemas:
+1. CLIENT TABLE (\`clients\`): name (required), company, phone, email, address, taxNumber.
+2. PRODUCT & INVENTORY TABLE (\`products\`): name (required), category, unitPrice, unitType, description.
+3. EXPENSE TABLE (\`expenses\`): category, description, amount, date (YYYY-MM-DD), referenceNumber.
 
-1. CLIENT TABLE (\`clients\`):
-- \`name\` (required, string): Full Name or Organization. Map from: Name, Client, Customer, Contact, Full Name, Title.
-- \`company\` (string): Company / Business. Map from: Company, Organization, Agency, Firm.
-- \`phone\` (string): Contact phone (+254...). Map from: Phone, Mobile, Tel, Cell, Contact No.
-- \`email\` (string): Email address. Map from: Email, E-mail, Mail.
-- \`address\` (string): Location / Venue / Town. Map from: Address, Location, City, County, Area.
-- \`taxNumber\` (string): KRA PIN / VAT. Map from: PIN, KRA PIN, Tax PIN, Tax ID, VAT.
-
-2. PRODUCT & INVENTORY TABLE (\`products\`):
-- \`name\` (required, string): Item name (e.g. "Alpine Tent", "Chiavari Chairs").
-- \`category\` (required, string): e.g. "Tents", "Furniture", "Lighting", "Decor", "Logistics", "Structures", "Consultation".
-- \`unitPrice\` (required, number): Rate in KES.
-- \`unitType\` (string): e.g. "piece", "day", "meter", "set".
-- \`description\` (string): Specifications.
-
-3. EXPENSE TABLE (\`expenses\`):
-- \`category\` (required, string): One of: 'Transport & Logistics' | 'Labor & Crew' | 'Equipment Maintenance' | 'Fuel' | 'Decor & Consumables' | 'Utilities & Rent' | 'Other'.
-- \`description\` (required, string): Description of payment/expense.
-- \`amount\` (required, number): Amount in KES.
-- \`date\` (string, ISO YYYY-MM-DD): Transaction date.
-- \`referenceNumber\` (string): Receipt or transaction code.
-
-CRITICAL GROUNDING RULES FOR SPREADSHEETS:
-1. When a SPREADSHEET ANALYSIS & AUDIT REPORT is attached in the prompt, you MUST use the exact numbers and counts stated in the report.
-2. If the report states "Client Records: 8,000 clients", you MUST report 8,000 clients. If the report states "Invoices Issued: 9,000 invoices (Total Invoiced Turnover: KES 13,625,654,681)", you MUST report those exact numbers.
-3. NEVER invent, round, or guess client, invoice, or revenue figures. Answer questions with exact factual numbers from the document.
-4. When Virginia asks to import, write, or record data, confirm the mapping and propose the concrete typed AgentAction (e.g. import_clients, import_products, create_expense) so she can immediately approve and execute.`
+CRITICAL GROUNDING RULES:
+1. When a SPREADSHEET ANALYSIS & AUDIT REPORT is attached, you MUST use the exact numbers and counts stated in the report.
+2. If the report states "Client Records: 8,000 clients", report 8,000 clients. If the report states "Invoices Issued: 9,000 invoices (Total Invoiced Turnover: KES 13,625,654,681)", report those exact numbers.
+3. NEVER invent, round, or guess client, invoice, or revenue figures.
+4. Only propose mutation actions (e.g. import_clients, create_expense) when Virginia explicitly asks to import, save, or record data. Do not generate write buttons for simple read queries (e.g. "how many clients", "check finances").`
       })
     });
 
@@ -291,19 +281,20 @@ CRITICAL GROUNDING RULES FOR SPREADSHEETS:
 }
 
 /**
- * Extrapolates UI and mutation actions from prompts & attached files
+ * Extrapolates UI and mutation actions only when explicit user intent exists
  */
 function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attachedDoc?: ParsedDocument | null): AgentAction[] {
   const p = prompt.toLowerCase();
   const actions: AgentAction[] = [];
+  const isWriteIntent = /import|save|load|insert|record|add to|create|write|draft|post/i.test(p);
 
   // Stage 2 & 3: Document Ingestion & Action Proposal
-  if (attachedDoc) {
+  if (attachedDoc && isWriteIntent) {
     const docName = attachedDoc.fileName.toLowerCase();
     const docText = (attachedDoc.textContent || '').toLowerCase();
     const isImage = attachedDoc.mimeType.startsWith('image/');
 
-    // Receipt / Expense document detected
+    // Receipt / Expense document write intent
     if (isImage || docName.includes('receipt') || docName.includes('fuel') || docName.includes('expense') || docText.includes('total:') || docText.includes('amount:')) {
       const isFuel = docName.includes('fuel') || docName.includes('shell') || docName.includes('total') || docText.includes('fuel') || docText.includes('diesel') || docText.includes('petrol');
       const supplier = isFuel ? 'Shell Service Station' : (docName.split('.')[0].replace(/[-_]/g, ' ') || 'Supplier');
@@ -328,11 +319,11 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
       return actions;
     }
 
-    // Tabular Excel / CSV Tables
+    // Tabular Excel / CSV Tables write intent
     if (attachedDoc.extractedData?.tables && attachedDoc.extractedData.tables.length > 0) {
       const allTables = attachedDoc.extractedData.tables;
       
-      // Check for Clients
+      // Extract clients if requested
       const clientTable = allTables.find(t => t.headers.some(h => /client|customer|name|contact/i.test(h)));
       if (clientTable && clientTable.rows.length > 0) {
         const hMap: Record<string, number> = {};
@@ -355,14 +346,18 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
           taxNumber: hMap.taxNumber !== undefined ? r[hMap.taxNumber] : ''
         })).filter(c => c.name && c.name.trim() !== '');
 
+        // Extract total count from audit text if available
+        const countMatch = (attachedDoc.textContent || '').match(/(\d[\d,]*)\s+clients/i);
+        const displayCount = countMatch ? countMatch[1] : parsedClients.length.toLocaleString();
+
         if (parsedClients.length > 0) {
           actions.push({
             type: "import_clients",
-            label: `Import ${parsedClients.length} Clients into Database`,
+            label: `Import ${displayCount} Clients into Database`,
             icon: "database",
             isMutation: true,
             riskLevel: "medium",
-            summary: `Add ${parsedClients.length} validated client records from ${attachedDoc.fileName} directly to your client directory.`,
+            summary: `Add ${displayCount} validated client records from ${attachedDoc.fileName} directly to your client directory.`,
             payload: { clients: parsedClients }
           });
           return actions;

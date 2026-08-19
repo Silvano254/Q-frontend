@@ -1,9 +1,11 @@
 /**
  * Enhanced Document Processing & Financial Extraction Utilities for Binti AI
- * Stage 1: Extraction & Parsing (CSV RFC-4180, JSON Structure, Multimodal Images, Binary PDF/Excel, File Size Guards)
+ * Stage 1: Extraction & Parsing (Excel XLSX/XLS with SheetJS, CSV RFC-4180, JSON Structure, Multimodal Images, Binary PDF, File Size Guards)
  * Stage 2: Financial Document Interpretation (Normalizes receipts, invoices, and quotations)
  * Stage 3: Mathematical Reconciliation & Business Validation
  */
+
+import * as XLSX from 'xlsx';
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB limit for AI document processing
 
@@ -232,7 +234,7 @@ export function validateAndReconcileFinancialDoc(
 }
 
 /**
- * Stage 1: Reads and extracts raw/structured data from a user-uploaded File
+ * Stage 1: Reads and extracts real structured data from a user-uploaded File
  */
 export async function parseUploadedDocument(file: File): Promise<ParsedDocument> {
   const fileName = file.name;
@@ -253,7 +255,129 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
   }
 
   return new Promise((resolve) => {
-    // 1. Text, JSON, and CSV Formats
+    // 1. Excel Spreadsheets (XLSX, XLS, ODS)
+    if (
+      fileType === 'xlsx' || 
+      fileType === 'xls' || 
+      fileType === 'ods' ||
+      mimeType.includes('spreadsheet') ||
+      mimeType.includes('excel')
+    ) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const buffer = e.target?.result as ArrayBuffer;
+          const workbook = XLSX.read(buffer, { type: 'array' });
+          const allTables: Array<{ headers: string[]; rows: string[][] }> = [];
+          const sheetSummaries: string[] = [];
+          let totalRowsCount = 0;
+          let totalFinancialSum = 0;
+          let hasFinancialSum = false;
+
+          workbook.SheetNames.forEach((sheetName) => {
+            const worksheet = workbook.Sheets[sheetName];
+            const rawGrid: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+            if (rawGrid.length === 0) return;
+
+            const headers = rawGrid[0].map(h => String(h || '').trim());
+            const dataRows = rawGrid.slice(1).filter(r => r.some((c: any) => String(c).trim() !== ''));
+            const stringRows = dataRows.map(r => headers.map((_, idx) => String(r[idx] !== undefined ? r[idx] : '').trim()));
+
+            totalRowsCount += dataRows.length;
+            allTables.push({
+              headers,
+              rows: stringRows
+            });
+
+            // Statistical scan for financial columns
+            const amountColIndices = headers
+              .map((h, i) => ({ h: h.toLowerCase(), i }))
+              .filter(item => item.h.includes('amount') || item.h.includes('total') || item.h.includes('turnover') || item.h.includes('price') || item.h.includes('revenue') || item.h.includes('paid'));
+
+            let sheetFinancialSum = 0;
+            if (amountColIndices.length > 0) {
+              const targetIdx = amountColIndices[0].i;
+              dataRows.forEach(row => {
+                const val = parseFloat(String(row[targetIdx]).replace(/[^0-9.-]+/g, ''));
+                if (!isNaN(val)) {
+                  sheetFinancialSum += val;
+                  totalFinancialSum += val;
+                  hasFinancialSum = true;
+                }
+              });
+            }
+
+            sheetSummaries.push(
+              `Sheet "${sheetName}": ${dataRows.length.toLocaleString()} rows | Columns (${headers.length}): [${headers.join(', ')}]${sheetFinancialSum > 0 ? ` | Sum of ${headers[amountColIndices[0].i]}: KES ${sheetFinancialSum.toLocaleString()}` : ''}`
+            );
+          });
+
+          // Build factual data digest so Gemini has exact verified metrics
+          let textDigest = `### 📊 SPREADSHEET ANALYSIS REPORT\n`;
+          textDigest += `File Name: ${fileName}\n`;
+          textDigest += `Total Worksheets: ${workbook.SheetNames.length} (${workbook.SheetNames.join(', ')})\n`;
+          textDigest += `Total Record Rows Across Sheets: ${totalRowsCount.toLocaleString()} rows\n`;
+          if (hasFinancialSum) {
+            textDigest += `Calculated Financial Turnover / Volume: KES ${totalFinancialSum.toLocaleString()}\n`;
+          }
+          textDigest += `\n**Sheet Breakdowns:**\n`;
+          sheetSummaries.forEach(s => {
+            textDigest += `• ${s}\n`;
+          });
+
+          // Include sample preview rows for context
+          if (allTables.length > 0 && allTables[0].rows.length > 0) {
+            const firstTable = allTables[0];
+            textDigest += `\n**Sample Data Preview (First 15 of ${firstTable.rows.length.toLocaleString()} rows in "${workbook.SheetNames[0]}"):**\n`;
+            textDigest += `| ${firstTable.headers.join(' | ')} |\n`;
+            textDigest += `| ${firstTable.headers.map(() => '---').join(' | ')} |\n`;
+            firstTable.rows.slice(0, 15).forEach(r => {
+              textDigest += `| ${r.join(' | ')} |\n`;
+            });
+          }
+
+          resolve({
+            fileName,
+            fileType,
+            fileSize,
+            mimeType,
+            textContent: textDigest,
+            extractedData: {
+              tables: allTables,
+              financialDoc: hasFinancialSum ? {
+                documentType: 'bank_statement',
+                totalAmount: totalFinancialSum,
+                currency: 'KES'
+              } : undefined
+            },
+            parseStatus: 'success'
+          });
+        } catch (err: any) {
+          resolve({
+            fileName,
+            fileType,
+            fileSize,
+            mimeType,
+            parseStatus: 'failed',
+            parseError: `Failed to parse Excel spreadsheet: ${err?.message || 'Invalid format'}`
+          });
+        }
+      };
+      reader.onerror = () => {
+        resolve({
+          fileName,
+          fileType,
+          fileSize,
+          mimeType,
+          parseStatus: 'failed',
+          parseError: 'Could not read spreadsheet file.'
+        });
+      };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
+    // 2. Text, JSON, and CSV Formats
     if (
       fileType === 'csv' || 
       fileType === 'txt' || 
@@ -349,7 +473,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
       return;
     }
 
-    // 2. Images (Receipts, Photos, Slips)
+    // 3. Images (Receipts, Photos, Slips)
     if (mimeType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(fileType)) {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -385,7 +509,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
       return;
     }
 
-    // 3. Binary Documents (PDF, Excel, Word, etc.)
+    // 4. Binary Documents (PDF, Word, etc.)
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = (e.target?.result as string) || '';

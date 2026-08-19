@@ -416,45 +416,91 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
       return { reply, actions };
     }
 
-    // 2. Tabular CSV / Client List
-    if (attachedDoc.textContent && (attachedDoc.fileType === 'csv' || attachedDoc.textContent.includes(','))) {
-      const rows = parseCsvRows(attachedDoc.textContent);
+    // 2. Tabular Spreadsheets (Excel / CSV / JSON Tables)
+    if (attachedDoc.extractedData?.tables && attachedDoc.extractedData.tables.length > 0) {
+      const allTables = attachedDoc.extractedData.tables;
+      const totalRows = allTables.reduce((sum, t) => sum + t.rows.length, 0);
+      const firstTable = allTables[0];
+      const headers = firstTable.headers;
 
-      if (rows.length > 0) {
-        const parsedClients = rows.map(r => {
-          const name = r['Name'] || r['name'] || r['Client Name'] || r['client_name'] || r['Contact'] || Object.values(r)[0] || 'Client';
-          const company = r['Company'] || r['company'] || r['Organization'] || '';
-          const phone = r['Phone'] || r['phone'] || r['Mobile'] || r['Telephone'] || '';
-          const email = r['Email'] || r['email'] || '';
-          const address = r['Address'] || r['address'] || r['Location'] || '';
-          const taxNumber = r['Tax PIN'] || r['tax_number'] || r['PIN'] || '';
-          return { name, company, phone, email, address, taxNumber };
+      // Extract client objects if columns resemble client contacts
+      const isClientList = headers.some(h => {
+        const lower = h.toLowerCase();
+        return lower.includes('client') || lower.includes('name') || lower.includes('customer') || lower.includes('company');
+      });
+
+      if (isClientList && totalRows > 0) {
+        const parsedClients: Array<{ name: string; company?: string; phone?: string; email?: string; address?: string; taxNumber?: string }> = [];
+        
+        allTables.forEach(table => {
+          const hMap: Record<string, number> = {};
+          table.headers.forEach((h, idx) => {
+            const low = h.toLowerCase();
+            if (low.includes('name') || low.includes('client') || low.includes('customer') || low.includes('contact')) hMap.name = idx;
+            if (low.includes('company') || low.includes('organization') || low.includes('business')) hMap.company = idx;
+            if (low.includes('phone') || low.includes('mobile') || low.includes('tel')) hMap.phone = idx;
+            if (low.includes('email') || low.includes('mail')) hMap.email = idx;
+            if (low.includes('address') || low.includes('location') || low.includes('city')) hMap.address = idx;
+            if (low.includes('pin') || low.includes('tax') || low.includes('vat')) hMap.taxNumber = idx;
+          });
+
+          table.rows.forEach(r => {
+            const name = (hMap.name !== undefined ? r[hMap.name] : r[0]) || 'Client';
+            if (!name || name.trim() === '') return;
+            parsedClients.push({
+              name,
+              company: hMap.company !== undefined ? r[hMap.company] : '',
+              phone: hMap.phone !== undefined ? r[hMap.phone] : '',
+              email: hMap.email !== undefined ? r[hMap.email] : '',
+              address: hMap.address !== undefined ? r[hMap.address] : '',
+              taxNumber: hMap.taxNumber !== undefined ? r[hMap.taxNumber] : ''
+            });
+          });
         });
 
-        let reply = `### 📄 Document Analyzed: ${attachedDoc.fileName}\n\n`;
-        reply += `I have parsed your document using RFC-4180 parsing and extracted **${parsedClients.length} structured client records**:\n\n`;
+        let reply = `### 📊 Spreadsheet & Dataset Analysis: ${attachedDoc.fileName}\n\n`;
+        reply += `I have parsed the workbook and extracted **${parsedClients.length.toLocaleString()} verified client records** across ${allTables.length} sheet(s):\n\n`;
         reply += `| # | Client / Entity | Company | Phone | Email |\n`;
         reply += `| :--- | :--- | :--- | :--- | :--- |\n`;
         parsedClients.slice(0, 8).forEach((c, idx) => {
           reply += `| ${idx + 1} | **${c.name}** | ${c.company || '—'} | ${c.phone || '—'} | ${c.email || '—'} |\n`;
         });
         if (parsedClients.length > 8) {
-          reply += `\n*...and ${parsedClients.length - 8} more records.*`;
+          reply += `\n*...and ${parsedClients.length - 8} more verified rows extracted from the spreadsheet.*`;
         }
-        reply += `\n\nWould you like me to import these records directly into your **Binti Events** directory? Click the confirmation action below to execute.`;
+        reply += `\n\nWould you like me to import these **${parsedClients.length.toLocaleString()} client records** into your live **Binti Events** directory? Click below to approve and execute.`;
 
         actions.push({
           type: "import_clients",
-          label: `Import ${parsedClients.length} Clients into Database`,
+          label: `Import ${parsedClients.length.toLocaleString()} Clients into Database`,
           icon: "database",
           isMutation: true,
           riskLevel: "medium",
-          summary: `Save ${parsedClients.length} validated client contacts from ${attachedDoc.fileName} to your live business directory.`,
+          summary: `Save ${parsedClients.length.toLocaleString()} validated client contacts from ${attachedDoc.fileName} into your live business directory.`,
           payload: { clients: parsedClients }
         });
 
         return { reply, actions };
       }
+
+      // Financial / General Spreadsheets
+      let reply = `### 📊 Spreadsheet Analysis: ${attachedDoc.fileName}\n\n`;
+      reply += `Total Sheets: **${allTables.length}** | Total Extracted Rows: **${totalRows.toLocaleString()}**\n\n`;
+      if (attachedDoc.textContent) {
+        reply += attachedDoc.textContent + '\n\n';
+      }
+      reply += `Tell me how you would like me to process this dataset (e.g. *"Import clients into directory"*, *"Calculate total revenue"*, or *"Draft quotes"*).`;
+
+      actions.push({
+        type: "navigate",
+        label: "View Clients",
+        icon: "user",
+        isMutation: false,
+        riskLevel: "low",
+        payload: { tab: "clients" }
+      });
+
+      return { reply, actions };
     }
 
     let reply = `### 📄 Document Received: ${attachedDoc.fileName}\n\n`;

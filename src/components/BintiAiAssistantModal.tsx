@@ -27,7 +27,10 @@ import {
   FileSpreadsheet,
   FileCheck,
   Image,
-  ClipboardList
+  ClipboardList,
+  BarChart3,
+  FileEdit,
+  Camera
 } from "lucide-react";
 import { 
   askGeminiAssistant, 
@@ -239,8 +242,10 @@ const ChatInputBar = memo(function ChatInputBar({
 }: ChatInputBarProps) {
   const [showAttachMenu, setShowAttachMenu] = useState<boolean>(false);
   const localRef = useRef<HTMLTextAreaElement>(null);
-  const docInputRef = useRef<HTMLInputElement>(null);
-  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const draftInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
   const activeRef = inputRef || localRef;
 
@@ -278,40 +283,45 @@ const ChatInputBar = memo(function ChatInputBar({
     }
   };
 
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>, promptHint?: string) => {
     if (e.target.files && e.target.files[0]) {
       onSelectFile(e.target.files[0]);
       setShowAttachMenu(false);
+      if (promptHint && !value.trim()) {
+        onChange(promptHint);
+      }
       e.target.value = "";
     }
   };
 
-  const handlePasteTemplate = () => {
-    onChange(
-      value + (value ? "\n\n" : "") +
-      "Client Name, Company, Phone, Email\n" +
-      "John Doe, Acme Ltd, +254 700 000 000, john@acme.co.ke"
-    );
-    setShowAttachMenu(false);
-    setTimeout(() => {
-      activeRef.current?.focus();
-    }, 50);
-  };
-
   return (
     <div className={`space-y-2 relative ${variant === "docked" ? "p-4 bg-white border-t border-gray-100 animate-slide-up" : ""}`}>
-      {/* Hidden file inputs for docs and media */}
+      {/* Hidden specialized file inputs */}
       <input
         type="file"
-        ref={docInputRef}
-        onChange={handleFileInputChange}
-        accept=".csv,.xlsx,.xls,.txt,.pdf,.json"
+        ref={fileInputRef}
+        onChange={(e) => handleFileInputChange(e, "Please review and extract information from this document.")}
+        accept=".pdf,.doc,.docx,.txt,.json,.md"
         className="hidden"
       />
       <input
         type="file"
-        ref={mediaInputRef}
-        onChange={handleFileInputChange}
+        ref={csvInputRef}
+        onChange={(e) => handleFileInputChange(e, "Please analyze this spreadsheet and extract structured records.")}
+        accept=".csv,.xlsx,.xls,.tsv"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={draftInputRef}
+        onChange={(e) => handleFileInputChange(e, "Please draft a quotation / invoice based on this document.")}
+        accept=".pdf,.doc,.docx,.txt,.csv"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={imageInputRef}
+        onChange={(e) => handleFileInputChange(e, "Please extract details from this receipt / image.")}
         accept="image/*"
         className="hidden"
       />
@@ -321,7 +331,7 @@ const ChatInputBar = memo(function ChatInputBar({
         <div className="flex items-center justify-between p-2.5 bg-purple-50/90 border border-purple-200 rounded-2xl text-xs text-purple-900 animate-fade-in shadow-xs">
           <div className="flex items-center space-x-2 truncate">
             {selectedFile.type.startsWith("image/") ? (
-              <Image className="w-4 h-4 text-[#80237E] shrink-0" />
+              <Camera className="w-4 h-4 text-[#80237E] shrink-0" />
             ) : (
               <FileSpreadsheet className="w-4 h-4 text-[#80237E] shrink-0" />
             )}
@@ -341,58 +351,85 @@ const ChatInputBar = memo(function ChatInputBar({
 
       {/* Input container */}
       <div className="relative">
-        {/* Floating Attachment Popover Menu (ChatGPT / Gemini style) */}
+        {/* Floating Attachment Popover Menu */}
         {showAttachMenu && (
           <div 
             ref={menuContainerRef}
-            className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2 z-50 animate-fade-in space-y-1 font-sans"
+            className="absolute bottom-full left-0 mb-2 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2 z-50 animate-fade-in space-y-1 font-sans"
           >
-            <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
+            <div className="px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
               Add to Conversation
             </div>
 
-            {/* Document option */}
+            {/* 1. 📎 Upload file */}
             <button
               type="button"
-              onClick={() => docInputRef.current?.click()}
-              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-2.5 text-left transition-colors group"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-3 text-left transition-colors group"
             >
-              <div className="w-7 h-7 rounded-lg bg-purple-100 text-[#80237E] flex items-center justify-center shrink-0 group-hover:bg-[#80237E] group-hover:text-white transition-colors">
-                <FileSpreadsheet className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-xl bg-purple-100 text-[#80237E] flex items-center justify-center shrink-0 group-hover:bg-[#80237E] group-hover:text-white transition-colors">
+                <Paperclip className="w-4 h-4" />
               </div>
-              <div className="truncate">
-                <p className="text-xs font-bold text-gray-800 group-hover:text-[#80237E]">Upload Document</p>
-                <p className="text-[10px] text-gray-500 truncate">CSV, Excel, PDF, Text lists</p>
+              <div className="truncate flex-1">
+                <p className="text-xs font-bold text-gray-900 group-hover:text-[#80237E] flex items-center space-x-1">
+                  <span>📎</span>
+                  <span>Upload file</span>
+                </p>
+                <p className="text-[10px] text-gray-500 truncate">PDF, Word, or text documents</p>
               </div>
             </button>
 
-            {/* Media / Image receipt option */}
+            {/* 2. 📊 Analyze CSV/Excel */}
             <button
               type="button"
-              onClick={() => mediaInputRef.current?.click()}
-              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-2.5 text-left transition-colors group"
+              onClick={() => csvInputRef.current?.click()}
+              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-3 text-left transition-colors group"
             >
-              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                <Image className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                <BarChart3 className="w-4 h-4" />
               </div>
-              <div className="truncate">
-                <p className="text-xs font-bold text-gray-800 group-hover:text-emerald-700">Upload Media / Receipt</p>
-                <p className="text-[10px] text-gray-500 truncate">Vouchers, scanned slips, photos</p>
+              <div className="truncate flex-1">
+                <p className="text-xs font-bold text-gray-900 group-hover:text-blue-700 flex items-center space-x-1">
+                  <span>📊</span>
+                  <span>Analyze CSV/Excel</span>
+                </p>
+                <p className="text-[10px] text-gray-500 truncate">Spreadsheets, client tables, sales records</p>
               </div>
             </button>
 
-            {/* Paste Data Table option */}
+            {/* 3. 📝 Draft from document */}
             <button
               type="button"
-              onClick={handlePasteTemplate}
-              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-2.5 text-left transition-colors group"
+              onClick={() => draftInputRef.current?.click()}
+              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-3 text-left transition-colors group"
             >
-              <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                <ClipboardList className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                <FileEdit className="w-4 h-4" />
               </div>
-              <div className="truncate">
-                <p className="text-xs font-bold text-gray-800 group-hover:text-blue-700">Paste Table Template</p>
-                <p className="text-[10px] text-gray-500 truncate">Quick paste format for clients</p>
+              <div className="truncate flex-1">
+                <p className="text-xs font-bold text-gray-900 group-hover:text-amber-700 flex items-center space-x-1">
+                  <span>📝</span>
+                  <span>Draft from document</span>
+                </p>
+                <p className="text-[10px] text-gray-500 truncate">Draft quotes, invoices, or email responses</p>
+              </div>
+            </button>
+
+            {/* 4. 📷 Upload image */}
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-3 text-left transition-colors group"
+            >
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <Camera className="w-4 h-4" />
+              </div>
+              <div className="truncate flex-1">
+                <p className="text-xs font-bold text-gray-900 group-hover:text-emerald-700 flex items-center space-x-1">
+                  <span>📷</span>
+                  <span>Upload image</span>
+                </p>
+                <p className="text-[10px] text-gray-500 truncate">Receipts, vouchers, payment slips, photos</p>
               </div>
             </button>
           </div>

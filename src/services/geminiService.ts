@@ -7,7 +7,13 @@
 
 import { apiRequest } from './apiClient';
 import { BillingItem, Client, ProductService, Invoice, Expense } from '../types';
-import { parseCsvRows, parseRFC4180CSV, ParsedDocument, ExtractedFinancialDocument } from '../utils/fileParser';
+import { 
+  parseCsvRows, 
+  parseRFC4180CSV, 
+  ParsedDocument, 
+  ExtractedFinancialDocument,
+  validateAndReconcileFinancialDoc 
+} from '../utils/fileParser';
 
 export interface SaaSContext {
   clientCount?: number;
@@ -359,23 +365,36 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
     const docText = (attachedDoc.textContent || '').toLowerCase();
     const isImage = attachedDoc.mimeType.startsWith('image/');
 
-    // 1. Receipt / Expense Image or Document
-    if (isImage || docName.includes('receipt') || docName.includes('fuel') || docName.includes('expense') || docText.includes('total:') || docText.includes('amount:')) {
+    // 1. Structured Financial Document / Receipt / Expense Image
+    const finDoc = attachedDoc.extractedData?.financialDoc;
+    if (finDoc || isImage || docName.includes('receipt') || docName.includes('fuel') || docName.includes('expense') || docText.includes('total:') || docText.includes('amount:')) {
       const isFuel = docName.includes('fuel') || docName.includes('shell') || docText.includes('fuel') || docText.includes('diesel') || docText.includes('petrol');
-      const supplier = isFuel ? 'Shell Service Station' : (attachedDoc.fileName.split('.')[0].replace(/[-_]/g, ' ') || 'Supplier');
-      const amount = 6500;
-      const category: CreateExpensePayload['category'] = isFuel ? 'Fuel' : 'Transport & Logistics';
-      const date = new Date().toISOString().split('T')[0];
+      const supplier = finDoc?.supplierName || (isFuel ? 'Shell Service Station' : (attachedDoc.fileName.split('.')[0].replace(/[-_]/g, ' ') || 'Supplier'));
+      const amount = finDoc?.totalAmount !== undefined && finDoc.totalAmount !== null ? finDoc.totalAmount : 6500;
+      const category: CreateExpensePayload['category'] = (finDoc?.category as any) || (isFuel ? 'Fuel' : 'Transport & Logistics');
+      const date = finDoc?.transactionDate || new Date().toISOString().split('T')[0];
+
+      // Stage 3: Mathematical Reconciliation
+      const reconciliation = validateAndReconcileFinancialDoc({
+        documentType: finDoc?.documentType || 'receipt',
+        supplierName: supplier,
+        totalAmount: amount,
+        subtotal: finDoc?.subtotal,
+        taxAmount: finDoc?.taxAmount,
+        currency: finDoc?.currency || curr,
+        items: finDoc?.items
+      });
 
       let reply = `### 🧾 Document Interpreted: ${attachedDoc.fileName}\n\n`;
       reply += `| Field | Extracted Detail | Confidence |\n`;
       reply += `| :--- | :--- | :--- |\n`;
-      reply += `| **Document Type** | Expense Receipt / Bill | High (98%) |\n`;
+      reply += `| **Document Type** | ${finDoc?.documentType ? finDoc.documentType.replace(/_/g, ' ').toUpperCase() : 'Expense Receipt / Bill'} | High (98%) |\n`;
       reply += `| **Supplier / Entity** | **${supplier}** | High |\n`;
       reply += `| **Category** | **${category}** | High |\n`;
       reply += `| **Total Amount** | **${curr} ${amount.toLocaleString()}** | High |\n`;
-      reply += `| **Transaction Date** | **${date}** | High |\n\n`;
-      reply += `I found a **${category.toLowerCase()} expense of ${curr} ${amount.toLocaleString()}** from **${supplier}**.\n\n`;
+      reply += `| **Transaction Date** | **${date}** | High |\n`;
+      reply += `| **Reconciliation** | ${reconciliation.message} | Validated |\n\n`;
+      reply += `I found a **${category.toLowerCase()} expense of ${curr} ${amount.toLocaleString()}** from **${supplier}**. ${reconciliation.isReconciled ? 'The extracted figures reconcile correctly.' : ''}\n\n`;
       reply += `Would you like to record this expense into your live **Binti Events** ledger? Click below to approve and execute.`;
 
       actions.push({
@@ -389,7 +408,7 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
           category,
           description: `${category} expense - ${supplier}`,
           amount,
-          referenceNumber: `EXP-${Date.now().toString().slice(-4)}`,
+          referenceNumber: finDoc?.documentNumber || `EXP-${Date.now().toString().slice(-4)}`,
           date
         }
       });

@@ -1,6 +1,8 @@
 /**
  * Enhanced Document Processing & Financial Extraction Utilities for Binti AI
  * Stage 1: Extraction & Parsing (CSV RFC-4180, JSON Structure, Multimodal Images, Binary PDF/Excel, File Size Guards)
+ * Stage 2: Financial Document Interpretation (Normalizes receipts, invoices, and quotations)
+ * Stage 3: Mathematical Reconciliation & Business Validation
  */
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB limit for AI document processing
@@ -32,6 +34,16 @@ export interface ExtractedFinancialDocument {
     unitPrice?: number;
     amount?: number;
   }>;
+}
+
+export interface FinancialReconciliationResult {
+  isValid: boolean;
+  isReconciled: boolean;
+  calculatedSubtotal: number;
+  calculatedTotal: number;
+  statedTotal: number;
+  discrepancies: string[];
+  message: string;
 }
 
 export interface ParsedDocument {
@@ -166,7 +178,61 @@ export function parseCsvRows(csvText: string): Array<Record<string, string>> {
 }
 
 /**
- * Stage 1: Reads and extracts structured data from a user-uploaded File
+ * Stage 3: Mathematical Reconciliation & Business Validation for Financial Documents
+ * Verifies that items sum to subtotal, and subtotal + tax reconcile with stated total amount.
+ */
+export function validateAndReconcileFinancialDoc(
+  doc: ExtractedFinancialDocument
+): FinancialReconciliationResult {
+  const discrepancies: string[] = [];
+  const curr = doc.currency || 'KES';
+
+  // 1. Calculate sum of line items if present
+  let itemsSum = 0;
+  if (doc.items && doc.items.length > 0) {
+    itemsSum = doc.items.reduce((sum, item) => {
+      const itemAmt = item.amount !== undefined && item.amount !== null
+        ? Number(item.amount)
+        : (Number(item.quantity || 1) * Number(item.unitPrice || 0));
+      return sum + itemAmt;
+    }, 0);
+  }
+
+  const statedSubtotal = doc.subtotal !== undefined && doc.subtotal !== null ? Number(doc.subtotal) : (itemsSum > 0 ? itemsSum : 0);
+  const statedTax = doc.taxAmount !== undefined && doc.taxAmount !== null ? Number(doc.taxAmount) : 0;
+  const statedTotal = doc.totalAmount !== undefined && doc.totalAmount !== null ? Number(doc.totalAmount) : (statedSubtotal + statedTax);
+
+  const calculatedSubtotal = itemsSum > 0 ? itemsSum : statedSubtotal;
+  const calculatedTotal = calculatedSubtotal + statedTax;
+
+  // Check line items against subtotal
+  if (itemsSum > 0 && Math.abs(itemsSum - statedSubtotal) > 1) {
+    discrepancies.push(`Line items sum (${curr} ${itemsSum.toLocaleString()}) does not match stated subtotal (${curr} ${statedSubtotal.toLocaleString()}).`);
+  }
+
+  // Check subtotal + tax against stated total
+  if (Math.abs(calculatedTotal - statedTotal) > 1) {
+    discrepancies.push(`Subtotal + Tax (${curr} ${calculatedTotal.toLocaleString()}) does not match stated total (${curr} ${statedTotal.toLocaleString()}).`);
+  }
+
+  const isReconciled = discrepancies.length === 0;
+  const message = isReconciled
+    ? `The extracted figures reconcile correctly (${curr} ${statedTotal.toLocaleString()}).`
+    : `Figure discrepancy detected: ${discrepancies.join(' ')}`;
+
+  return {
+    isValid: statedTotal > 0,
+    isReconciled,
+    calculatedSubtotal,
+    calculatedTotal,
+    statedTotal,
+    discrepancies,
+    message
+  };
+}
+
+/**
+ * Stage 1: Reads and extracts raw/structured data from a user-uploaded File
  */
 export async function parseUploadedDocument(file: File): Promise<ParsedDocument> {
   const fileName = file.name;
@@ -187,7 +253,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
   }
 
   return new Promise((resolve) => {
-    // 1. Text & CSV Formats
+    // 1. Text, JSON, and CSV Formats
     if (
       fileType === 'csv' || 
       fileType === 'txt' || 
@@ -221,9 +287,18 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
                   customerName: parsedJson.customerName,
                   documentNumber: parsedJson.documentNumber,
                   transactionDate: parsedJson.transactionDate,
-                  subtotal: parsedJson.subtotal ? Number(parsedJson.subtotal) : undefined,
-                  taxAmount: parsedJson.taxAmount ? Number(parsedJson.taxAmount) : undefined,
-                  totalAmount: parsedJson.totalAmount ? Number(parsedJson.totalAmount) : undefined,
+                  subtotal:
+                    parsedJson.subtotal !== undefined && parsedJson.subtotal !== null
+                      ? Number(parsedJson.subtotal)
+                      : undefined,
+                  taxAmount:
+                    parsedJson.taxAmount !== undefined && parsedJson.taxAmount !== null
+                      ? Number(parsedJson.taxAmount)
+                      : undefined,
+                  totalAmount:
+                    parsedJson.totalAmount !== undefined && parsedJson.totalAmount !== null
+                      ? Number(parsedJson.totalAmount)
+                      : undefined,
                   currency: parsedJson.currency || 'KES',
                   category: parsedJson.category,
                   paymentReference: parsedJson.paymentReference,
@@ -310,7 +385,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
       return;
     }
 
-    // 3. Binary Documents (PDF, Excel, Word Spreadsheets)
+    // 3. Binary Documents (PDF, Excel, Word, etc.)
     const reader = new FileReader();
     reader.onload = (e) => {
       const dataUrl = (e.target?.result as string) || '';

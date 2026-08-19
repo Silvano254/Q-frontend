@@ -269,71 +269,152 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
           const buffer = e.target?.result as ArrayBuffer;
           const workbook = XLSX.read(buffer, { type: 'array' });
           const allTables: Array<{ headers: string[]; rows: string[][] }> = [];
-          const sheetSummaries: string[] = [];
+          
+          interface SheetMetric {
+            name: string;
+            rowCount: number;
+            columns: string[];
+            numericMetrics: Record<string, { sum: number; count: number; avg: number }>;
+            sampleRows: string[][];
+          }
+
+          const sheetMetrics: SheetMetric[] = [];
           let totalRowsCount = 0;
-          let totalFinancialSum = 0;
-          let hasFinancialSum = false;
 
           workbook.SheetNames.forEach((sheetName) => {
             const worksheet = workbook.Sheets[sheetName];
             const rawGrid: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
             if (rawGrid.length === 0) return;
 
-            const headers = rawGrid[0].map(h => String(h || '').trim());
+            const headers = rawGrid[0].map(h => String(h || '').trim()).filter(Boolean);
             const dataRows = rawGrid.slice(1).filter(r => r.some((c: any) => String(c).trim() !== ''));
-            const stringRows = dataRows.map(r => headers.map((_, idx) => String(r[idx] !== undefined ? r[idx] : '').trim()));
-
             totalRowsCount += dataRows.length;
+
+            // Compute column-by-column metrics for every numeric / financial column
+            const numericMetrics: Record<string, { sum: number; count: number; avg: number }> = {};
+            
+            headers.forEach((header, colIdx) => {
+              const lower = header.toLowerCase();
+              const isFinancialOrNumeric = /amount|total|paid|balance|price|revenue|turnover|subtotal|vat|grand_total|fee|cost|rate|discount|qty|quantity|count/i.test(lower);
+              
+              if (isFinancialOrNumeric) {
+                let colSum = 0;
+                let colCount = 0;
+                dataRows.forEach(row => {
+                  const rawVal = row[colIdx];
+                  if (rawVal !== undefined && rawVal !== null && String(rawVal).trim() !== '') {
+                    const parsedNum = typeof rawVal === 'number' ? rawVal : parseFloat(String(rawVal).replace(/[^0-9.-]+/g, ''));
+                    if (!isNaN(parsedNum)) {
+                      colSum += parsedNum;
+                      colCount++;
+                    }
+                  }
+                });
+                if (colCount > 0) {
+                  numericMetrics[header] = {
+                    sum: colSum,
+                    count: colCount,
+                    avg: Math.round(colSum / colCount)
+                  };
+                }
+              }
+            });
+
+            // Store preview rows (first 25 rows) to conserve memory
+            const sampleRows = dataRows.slice(0, 25).map(r => 
+              headers.map((_, idx) => String(r[idx] !== undefined ? r[idx] : '').trim())
+            );
+
+            sheetMetrics.push({
+              name: sheetName,
+              rowCount: dataRows.length,
+              columns: headers,
+              numericMetrics,
+              sampleRows
+            });
+
             allTables.push({
               headers,
-              rows: stringRows
+              rows: sampleRows
             });
+          });
 
-            // Statistical scan for financial columns
-            const amountColIndices = headers
-              .map((h, i) => ({ h: h.toLowerCase(), i }))
-              .filter(item => item.h.includes('amount') || item.h.includes('total') || item.h.includes('turnover') || item.h.includes('price') || item.h.includes('revenue') || item.h.includes('paid'));
+          // Detect Key Business Entities per sheet
+          const clientsSheet = sheetMetrics.find(s => /client|customer|member|user|lead|contact/i.test(s.name));
+          const invoicesSheet = sheetMetrics.find(s => /invoice|billing|bill/i.test(s.name));
+          const quotesSheet = sheetMetrics.find(s => /quote|proposal|estimate/i.test(s.name));
+          const paymentsSheet = sheetMetrics.find(s => /payment|receipt|transaction/i.test(s.name));
+          const inventorySheet = sheetMetrics.find(s => /inventory|product|service|equipment|stock|item|package/i.test(s.name));
 
-            let sheetFinancialSum = 0;
-            if (amountColIndices.length > 0) {
-              const targetIdx = amountColIndices[0].i;
-              dataRows.forEach(row => {
-                const val = parseFloat(String(row[targetIdx]).replace(/[^0-9.-]+/g, ''));
-                if (!isNaN(val)) {
-                  sheetFinancialSum += val;
-                  totalFinancialSum += val;
-                  hasFinancialSum = true;
-                }
+          // Build a crystal-clear, structured Factual Digest for the AI model
+          let textDigest = `### 📊 SPREADSHEET ANALYSIS & AUDIT REPORT\n`;
+          textDigest += `**File Name:** ${fileName}\n`;
+          textDigest += `**Total Worksheets:** ${workbook.SheetNames.length} (${workbook.SheetNames.join(', ')})\n`;
+          textDigest += `**Total Across All Sheets:** ${totalRowsCount.toLocaleString()} data rows\n\n`;
+
+          textDigest += `### 🏢 DETECTED BUSINESS ENTITIES & EXACT COUNTS\n`;
+          if (clientsSheet) {
+            textDigest += `• **Client Records:** **${clientsSheet.rowCount.toLocaleString()} clients** in sheet "${clientsSheet.name}"\n`;
+          }
+          if (invoicesSheet) {
+            const invTotal = Object.entries(invoicesSheet.numericMetrics).find(([k]) => /total|amount|grand/i.test(k));
+            const invPaid = Object.entries(invoicesSheet.numericMetrics).find(([k]) => /paid|received/i.test(k));
+            const invBal = Object.entries(invoicesSheet.numericMetrics).find(([k]) => /balance|due|outstanding/i.test(k));
+
+            textDigest += `• **Invoices Issued:** **${invoicesSheet.rowCount.toLocaleString()} invoices** in sheet "${invoicesSheet.name}"\n`;
+            if (invTotal) textDigest += `    – Total Invoiced Turnover: **KES ${invTotal[1].sum.toLocaleString()}**\n`;
+            if (invPaid) textDigest += `    – Total Cash Collected/Paid: **KES ${invPaid[1].sum.toLocaleString()}**\n`;
+            if (invBal) textDigest += `    – Total Outstanding Receivables: **KES ${invBal[1].sum.toLocaleString()}**\n`;
+          }
+          if (quotesSheet) {
+            const qTotal = Object.entries(quotesSheet.numericMetrics).find(([k]) => /total|amount/i.test(k));
+            textDigest += `• **Quotations:** **${quotesSheet.rowCount.toLocaleString()} quotes** in sheet "${quotesSheet.name}"${qTotal ? ` (Total Quoted Value: KES ${qTotal[1].sum.toLocaleString()})` : ''}\n`;
+          }
+          if (paymentsSheet) {
+            const pTotal = Object.entries(paymentsSheet.numericMetrics).find(([k]) => /amount|total/i.test(k));
+            textDigest += `• **Payment Logs:** **${paymentsSheet.rowCount.toLocaleString()} payments** in sheet "${paymentsSheet.name}"${pTotal ? ` (Total Volume: KES ${pTotal[1].sum.toLocaleString()})` : ''}\n`;
+          }
+          if (inventorySheet) {
+            textDigest += `• **Products / Inventory Items:** **${inventorySheet.rowCount.toLocaleString()} items** in sheet "${inventorySheet.name}"\n`;
+          }
+
+          textDigest += `\n### 📑 DETAILED SHEET-BY-SHEET BREAKDOWN\n`;
+          sheetMetrics.forEach(s => {
+            textDigest += `\n#### Sheet: "${s.name}" (${s.rowCount.toLocaleString()} rows)\n`;
+            textDigest += `• **Columns (${s.columns.length}):** ${s.columns.join(', ')}\n`;
+            if (Object.keys(s.numericMetrics).length > 0) {
+              textDigest += `• **Computed Column Totals:**\n`;
+              Object.entries(s.numericMetrics).forEach(([col, val]) => {
+                textDigest += `    – **${col}:** KES ${val.sum.toLocaleString()} (across ${val.count.toLocaleString()} entries, avg KES ${val.avg.toLocaleString()})\n`;
               });
             }
-
-            sheetSummaries.push(
-              `Sheet "${sheetName}": ${dataRows.length.toLocaleString()} rows | Columns (${headers.length}): [${headers.join(', ')}]${sheetFinancialSum > 0 ? ` | Sum of ${headers[amountColIndices[0].i]}: KES ${sheetFinancialSum.toLocaleString()}` : ''}`
-            );
           });
 
-          // Build factual data digest so Gemini has exact verified metrics
-          let textDigest = `### 📊 SPREADSHEET ANALYSIS REPORT\n`;
-          textDigest += `File Name: ${fileName}\n`;
-          textDigest += `Total Worksheets: ${workbook.SheetNames.length} (${workbook.SheetNames.join(', ')})\n`;
-          textDigest += `Total Record Rows Across Sheets: ${totalRowsCount.toLocaleString()} rows\n`;
-          if (hasFinancialSum) {
-            textDigest += `Calculated Financial Turnover / Volume: KES ${totalFinancialSum.toLocaleString()}\n`;
-          }
-          textDigest += `\n**Sheet Breakdowns:**\n`;
-          sheetSummaries.forEach(s => {
-            textDigest += `• ${s}\n`;
-          });
-
-          // Include sample preview rows for context
-          if (allTables.length > 0 && allTables[0].rows.length > 0) {
-            const firstTable = allTables[0];
-            textDigest += `\n**Sample Data Preview (First 15 of ${firstTable.rows.length.toLocaleString()} rows in "${workbook.SheetNames[0]}"):**\n`;
-            textDigest += `| ${firstTable.headers.join(' | ')} |\n`;
-            textDigest += `| ${firstTable.headers.map(() => '---').join(' | ')} |\n`;
-            firstTable.rows.slice(0, 15).forEach(r => {
+          // Sample preview
+          if (sheetMetrics.length > 0 && sheetMetrics[0].sampleRows.length > 0) {
+            const s0 = sheetMetrics[0];
+            textDigest += `\n### 📋 DATA PREVIEW (First ${s0.sampleRows.length} of ${s0.rowCount.toLocaleString()} rows in "${s0.name}")\n`;
+            textDigest += `| ${s0.columns.join(' | ')} |\n`;
+            textDigest += `| ${s0.columns.map(() => '---').join(' | ')} |\n`;
+            s0.sampleRows.forEach(r => {
               textDigest += `| ${r.join(' | ')} |\n`;
             });
+          }
+
+          // Assign financialDoc only if it is a single-sheet financial invoice/statement
+          let financialDoc: ExtractedFinancialDocument | undefined;
+          if (invoicesSheet && sheetMetrics.length === 1) {
+            const invTotal = Object.entries(invoicesSheet.numericMetrics).find(([k]) => /total|amount|grand/i.test(k));
+            financialDoc = {
+              documentType: 'customer_invoice',
+              totalAmount: invTotal ? invTotal[1].sum : undefined,
+              currency: 'KES'
+            };
+          } else if (clientsSheet && sheetMetrics.length === 1) {
+            financialDoc = {
+              documentType: 'client_list',
+              currency: 'KES'
+            };
           }
 
           resolve({
@@ -344,11 +425,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
             textContent: textDigest,
             extractedData: {
               tables: allTables,
-              financialDoc: hasFinancialSum ? {
-                documentType: 'bank_statement',
-                totalAmount: totalFinancialSum,
-                currency: 'KES'
-              } : undefined
+              financialDoc
             },
             parseStatus: 'success'
           });
@@ -441,7 +518,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
           if (rawTable.length > 0) {
             tables = [{
               headers: rawTable[0] || [],
-              rows: rawTable.slice(1)
+              rows: rawTable.slice(1, 26) // Store top 25 preview rows
             }];
           }
         }

@@ -491,10 +491,9 @@ const ChatInputBar = memo(function ChatInputBar({
         </form>
       </div>
 
-      {/* Powered by Binti AI Footer Branding */}
-      <div className="flex items-center justify-center space-x-1.5 pt-1 text-[10px] text-gray-400 font-semibold select-none">
-        <Sparkles className="w-3 h-3 text-[#D4AF37]" />
-        <span>Powered by Binti AI</span>
+      {/* Bottom Center AI Disclaimer */}
+      <div className="flex items-center justify-center pt-1 text-[11px] text-gray-400 font-normal select-none tracking-tight">
+        <span>Binti AI can make mistakes. Check important info.</span>
       </div>
     </div>
   );

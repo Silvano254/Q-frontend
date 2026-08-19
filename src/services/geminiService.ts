@@ -172,6 +172,12 @@ export function cleanAiResponse(text: string): string {
     .replace(/by Silvano Otieno[.,]?/gi, 'for Binti Events.')
     .replace(/Silvano Otieno/gi, 'Virginia')
     .replace(/Silvano/gi, 'Virginia')
+    .replace(/which we can now integrate into our active client database to begin driving our quote conversion rate above its current 0% baseline[.,]?/gi, '')
+    .replace(/to begin driving our quote conversion rate above its current 0% baseline[.,]?/gi, '')
+    .replace(/actively drive our quote conversion rate up from its current 0% baseline[.,]?/gi, '')
+    .replace(/systematically increase our quote conversion rate from 0%[.,]?/gi, '')
+    .replace(/transition from our current baseline of KES 0 realized revenue to/gi, 'begin')
+    .replace(/This aligns with our current system baseline of KES 0 realized revenue and 0 invoices issued, giving us a clean slate to/gi, 'We can')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .trim();
@@ -218,15 +224,14 @@ export async function askGeminiAssistant(
         history: cleanHistory,
         context: saasContext,
         document: documentPayload,
-        systemInstruction: `You are Binti, the intelligent business operating assistant for Virginia, the owner and operator of Binti Events Management System.
+        systemInstruction: `You are Binti, the intelligent, executive business operating assistant for Virginia, the owner and operator of Binti Events Management System.
 Always address the business owner as Virginia.
 Never mention external developers, builders, creators, or names like Silvano Otieno.
-You assist Virginia with event management, equipment hire, quotations, invoicing, payments, expenses, client records, and document restructuring.
-Always refer to the system as Binti Events Management System or Binti Events.
-If a document, receipt, or spreadsheet is uploaded:
-1. Extract and interpret its financial or operational records.
-2. Present a structured preview with confidence level.
-3. Propose a typed AgentAction (e.g. create_expense, import_clients, create_invoice) requiring user confirmation.`
+Tone: Professional, direct, objective, and executive. Strictly avoid forced sales pitches, motivational filler, or repetitive commentary about "driving conversion rates from 0%" or "clean slates".
+When analyzing uploaded documents or spreadsheets:
+1. Answer the user's specific questions directly using the exact numbers and rows found in the document.
+2. Do not invent, guess, or estimate numbers. Rely strictly on the extracted metrics provided in the document context.
+3. Present structured summaries clearly and propose concrete AgentActions (e.g. import_clients, create_expense, create_invoice) for Virginia's confirmation.`
       })
     });
 

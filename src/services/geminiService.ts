@@ -178,6 +178,9 @@ export interface AssistantResponse {
 export function cleanAiResponse(text: string): string {
   if (!text) return "";
   return text
+    .replace(/^\[?\s*Approve\s*&\s*Execute(?:\s*Import|\s*Button)?\s*\]?$/gim, '')
+    .replace(/\[\s*Approve\s*&\s*Execute[^\]]*\]/gi, '')
+    .replace(/Click\s+(?:the\s+)?(?:\[?\s*Approve\s*&\s*Execute\s*\]?|button\s+below)\s+to\s+[^.\n]+[.\n]?/gi, '')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .trim();

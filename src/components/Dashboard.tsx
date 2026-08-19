@@ -309,7 +309,7 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
             Binti Events Management System
           </span>
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-white font-sans break-normal">
-            {getGreeting()}, {currentUser?.name || "Executive Admin"}
+            {getGreeting()}, {currentUser?.name || "Virginia"}
           </h2>
           <p className="text-gray-300 text-xs sm:text-sm leading-relaxed break-normal">
             Manage your event operations, stretch tents hire, quotations, and invoicing from a single, unified workspace.

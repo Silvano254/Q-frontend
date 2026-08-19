@@ -110,13 +110,13 @@ export default function Sidebar({
           <div className="w-9 h-9 rounded-full bg-gradient-to-r from-[#80237E] via-[#EC4899] to-[#EAB308] p-0.5 flex items-center justify-center">
             <div className="w-full h-full bg-[#FAF9F5] rounded-full flex items-center justify-center">
               <span className="text-xs font-bold text-[#80237E]">
-                {(userName || "Admin").substring(0, 2).toUpperCase()}
+                {(userName || "Virginia").substring(0, 2).toUpperCase()}
               </span>
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-gray-800 truncate">{userName || "Binti Administrator"}</p>
-            <p className="text-[10px] text-gray-500 capitalize">{userRole || "Admin"}</p>
+            <p className="text-xs font-semibold text-gray-800 truncate">{userName || "Virginia"}</p>
+            <p className="text-[10px] text-gray-500 capitalize">{userRole || "Owner / Administrator"}</p>
           </div>
         </div>
         <button

@@ -162,6 +162,10 @@ export function cleanAiResponse(text: string): string {
     .replace(/Binti Events Corporate Suite/gi, 'Binti Events Management System')
     .replace(/Binti Events Suite/gi, 'Binti Events Management System')
     .replace(/Corporate Suite/gi, 'Management System')
+    .replace(/created by Silvano Otieno[.,]?/gi, 'dedicated to Binti Events.')
+    .replace(/by Silvano Otieno[.,]?/gi, 'for Binti Events.')
+    .replace(/Silvano Otieno/gi, 'Virginia')
+    .replace(/Silvano/gi, 'Virginia')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .trim();
@@ -206,8 +210,10 @@ export async function askGeminiAssistant(
         history: cleanHistory,
         context: saasContext,
         document: documentPayload,
-        systemInstruction: `You are Binti, the intelligent single-user business operating assistant for Binti Events Management System.
-You assist the business owner with event management, quotations, invoicing, payments, expense receipts, client records, and document restructuring.
+        systemInstruction: `You are Binti, the intelligent business operating assistant for Virginia, the owner and operator of Binti Events Management System.
+Always address the business owner as Virginia.
+Never mention external developers, builders, creators, or names like Silvano Otieno.
+You assist Virginia with event management, equipment hire, quotations, invoicing, payments, expenses, client records, and document restructuring.
 Always refer to the system as Binti Events Management System or Binti Events.
 If a document, receipt, or spreadsheet is uploaded:
 1. Extract and interpret its financial or operational records.
@@ -485,7 +491,7 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
   }
 
   // Default fallback
-  const reply = `I am **Binti**, your AI Operating Assistant for **${context?.companyName || "Binti Events Management System"}**.\n\n` +
+  const reply = `Hello Virginia! I am **Binti**, your AI Operating Assistant for **${context?.companyName || "Binti Events Management System"}**.\n\n` +
     `You can ask me questions, or click the **` + `+` + `** button to attach receipts, invoices, client CSVs, or price sheets to interpret and import into your database.`;
 
   actions.push({

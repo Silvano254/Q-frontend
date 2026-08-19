@@ -785,7 +785,7 @@ export default function App() {
   };
 
   // AI Agent Action Execution Dispatcher (Level 1 UI + Level 3 Mutations)
-  const handleExecuteAiAction = async (action: AgentAction) => {
+  const handleExecuteAiAction = async (action: AgentAction, onProgress?: (msg: string) => void) => {
     switch (action.type) {
       case "navigate":
         if (action.payload?.tab) {
@@ -878,18 +878,30 @@ export default function App() {
       case "import_clients": {
         const clientList = action.payload?.clients || action.payload?.Clients || (Array.isArray(action.payload) ? action.payload : []);
         if (Array.isArray(clientList) && clientList.length > 0) {
-          for (const c of clientList) {
-            await handleCreateClient({
-              name: c.name || c.Name || c.clientName || 'Client',
-              company: c.company || c.Company || '',
-              phone: c.phone || c.Phone || '',
-              email: c.email || c.Email || '',
-              address: c.address || c.Address || '',
-              taxNumber: c.taxNumber || c.tax_number || c.TaxPIN || ''
-            });
+          const total = clientList.length;
+          const chunkSize = 20;
+          let committed = 0;
+
+          for (let i = 0; i < total; i += chunkSize) {
+            const chunk = clientList.slice(i, i + chunkSize);
+            onProgress?.(`Writing clients to database (${Math.min(i + chunkSize, total)}/${total})...`);
+            
+            await Promise.all(chunk.map(c => 
+              handleCreateClient({
+                name: c.name || c.Name || c.clientName || 'Client',
+                company: c.company || c.Company || '',
+                phone: c.phone || c.Phone || '',
+                email: c.email || c.Email || '',
+                address: c.address || c.Address || '',
+                taxNumber: c.taxNumber || c.tax_number || c.TaxPIN || ''
+              })
+            ));
+            committed += chunk.length;
           }
-          logAuditEvent("import_clients", `Imported ${clientList.length} clients from uploaded document.`, { count: clientList.length });
-          showToast(`Successfully imported ${clientList.length} clients into directory.`);
+
+          logAuditEvent("import_clients", `Imported ${committed} clients from uploaded document.`, { count: committed });
+          showToast(`Successfully imported ${committed} clients into directory.`);
+          await fetchAllData();
           setActiveTab("clients");
         } else {
           showToast("No client records found to import.", "warning");
@@ -899,18 +911,30 @@ export default function App() {
       case "import_products": {
         const prodList = action.payload?.products || action.payload?.Products || (Array.isArray(action.payload) ? action.payload : []);
         if (Array.isArray(prodList) && prodList.length > 0) {
-          for (const p of prodList) {
-            await handleCreateProduct({
-              name: p.name || p.Name || 'Product / Service',
-              description: p.description || p.Description || '',
-              category: p.category || p.Category || 'General',
-              unitType: p.unitType || p.unit_type || 'Day',
-              unitPrice: Number(p.unitPrice || p.price || 0),
-              taxRate: Number(p.taxRate || 16)
-            });
+          const total = prodList.length;
+          const chunkSize = 20;
+          let committed = 0;
+
+          for (let i = 0; i < total; i += chunkSize) {
+            const chunk = prodList.slice(i, i + chunkSize);
+            onProgress?.(`Writing catalog items to database (${Math.min(i + chunkSize, total)}/${total})...`);
+            
+            await Promise.all(chunk.map(p => 
+              handleCreateProduct({
+                name: p.name || p.Name || 'Product / Service',
+                description: p.description || p.Description || '',
+                category: p.category || p.Category || 'General',
+                unitType: p.unitType || p.unit_type || 'Day',
+                unitPrice: Number(p.unitPrice || p.price || 0),
+                taxRate: Number(p.taxRate || 16)
+              })
+            ));
+            committed += chunk.length;
           }
-          logAuditEvent("import_products", `Imported ${prodList.length} catalog items from document.`, { count: prodList.length });
-          showToast(`Successfully imported ${prodList.length} catalog items.`);
+
+          logAuditEvent("import_products", `Imported ${committed} catalog items from document.`, { count: committed });
+          showToast(`Successfully imported ${committed} catalog items.`);
+          await fetchAllData();
           setActiveTab("products");
         } else {
           showToast("No catalog records found to import.", "warning");

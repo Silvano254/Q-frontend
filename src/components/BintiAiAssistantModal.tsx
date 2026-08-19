@@ -195,14 +195,20 @@ export default function BintiAiAssistantModal({
             detail: "Committing records to active database tables",
             status: 'in_progress'
           });
-          await onExecuteAction(pendingAction);
+          await (onExecuteAction as any)(pendingAction, (msg: string) => {
+            handleDynamicStep({
+              title: `Writing to database: ${pendingAction.label}`,
+              detail: msg,
+              status: 'in_progress'
+            });
+          });
           if (pendingAction.id) {
             setExecutedActionIds(prev => new Set(prev).add(pendingAction.id!));
           }
           if (stopwatchRef.current) clearInterval(stopwatchRef.current);
           const confirmMsg: ChatMessage = {
             role: "model",
-            content: `**Action Executed Successfully**: ${pendingAction.label}.\n\nThe records have been saved to your active database tables.`,
+            content: `**Database Operation Completed**: ${pendingAction.label}.\n\nThe records have been written and committed to your active database tables.`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
           setMessages(prev => [...prev, confirmMsg]);

@@ -58,6 +58,7 @@ export interface ParsedDocument {
   textContent?: string;
   extractedData?: {
     tables?: Array<{
+      name?: string;
       headers: string[];
       rows: string[][];
     }>;
@@ -214,7 +215,7 @@ export async function parseUploadedDocument(file: File, onStep?: StepCallback): 
         try {
           const buffer = e.target?.result as ArrayBuffer;
           const workbook = XLSX.read(buffer, { type: 'array' });
-          const allTables: Array<{ headers: string[]; rows: string[][] }> = [];
+          const allTables: Array<{ name?: string; headers: string[]; rows: string[][] }> = [];
           
           onStep?.({
             title: `Unpacked Excel workbook with SheetJS`,
@@ -286,6 +287,7 @@ export async function parseUploadedDocument(file: File, onStep?: StepCallback): 
             });
 
             allTables.push({
+              name: sheetName,
               headers,
               rows: sampleRows
             });

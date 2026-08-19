@@ -796,72 +796,113 @@ export default function App() {
         setActiveTab("invoices");
         showToast("Filtering invoices ledger");
         break;
-      case "create_quote":
-        if (action.payload?.items && action.payload.items.length > 0) {
-          await handleCreateQuote(action.payload as Partial<Quote>);
-          logAuditEvent("create_quote", `Created quotation for ${action.payload.clientName || 'Client'}`, action.payload);
+      case "create_quote": {
+        const payload = action.payload || {};
+        if (payload.items && Array.isArray(payload.items) && payload.items.length > 0) {
+          await handleCreateQuote(payload as Partial<Quote>);
+          logAuditEvent("create_quote", `Created quotation for ${payload.clientName || 'Client'}`, payload);
+          showToast(`Quotation created for ${payload.clientName || 'Client'}.`);
+          setActiveTab("quotes");
         } else {
           setActiveTab("quotes");
-          if (action.payload?.clientName) {
-            showToast(`Opening Quote Builder for ${action.payload.clientName}`);
+          if (payload.clientName) {
+            showToast(`Opening Quote Builder for ${payload.clientName}`);
           } else {
             showToast("Opening Quote Builder");
           }
         }
         break;
-      case "create_invoice":
-        if (action.payload?.items && action.payload.items.length > 0) {
-          await handleCreateInvoice(action.payload as Partial<Invoice>);
-          logAuditEvent("create_invoice", `Issued tax invoice for ${action.payload.clientName || 'Client'}`, action.payload);
+      }
+      case "create_invoice": {
+        const payload = action.payload || {};
+        if (payload.items && Array.isArray(payload.items) && payload.items.length > 0) {
+          await handleCreateInvoice(payload as Partial<Invoice>);
+          logAuditEvent("create_invoice", `Issued tax invoice for ${payload.clientName || 'Client'}`, payload);
+          showToast(`Tax invoice issued for ${payload.clientName || 'Client'}.`);
+          setActiveTab("invoices");
         } else {
           setActiveTab("invoices");
-          if (action.payload?.clientName) {
-            showToast(`Opening Invoice Builder for ${action.payload.clientName}`);
+          if (payload.clientName) {
+            showToast(`Opening Invoice Builder for ${payload.clientName}`);
           } else {
             showToast("Opening Invoice Builder");
           }
         }
         break;
-      case "record_payment":
-        if (action.payload?.invoiceId && action.payload.amountPaid) {
-          await handleRecordPayment(action.payload.invoiceId, {
-            amountPaid: Number(action.payload.amountPaid),
-            paymentMethod: action.payload.paymentMethod || 'cash',
-            referenceNumber: action.payload.referenceNumber || '',
-            paymentDate: action.payload.paymentDate || new Date().toISOString(),
-            notes: action.payload.notes
+      }
+      case "record_payment": {
+        const payload = action.payload || {};
+        const matchedInv = invoices.find(inv => 
+          (payload.invoiceId && inv.id === payload.invoiceId) ||
+          (payload.invoiceNumber && inv.invoiceNumber.toLowerCase() === payload.invoiceNumber.toLowerCase()) ||
+          (payload.clientName && inv.clientName.toLowerCase().includes(payload.clientName.toLowerCase()))
+        );
+        const invId = matchedInv?.id || payload.invoiceId;
+        const amt = Number(payload.amountPaid || matchedInv?.balanceRemaining || matchedInv?.grandTotal || 0);
+
+        if (invId && amt > 0) {
+          await handleRecordPayment(invId, {
+            amountPaid: amt,
+            paymentMethod: payload.paymentMethod || 'cash',
+            referenceNumber: payload.referenceNumber || `PM-${Date.now().toString().slice(-4)}`,
+            paymentDate: payload.paymentDate || new Date().toISOString(),
+            notes: payload.notes || 'Recorded via Binti AI'
           });
           logAuditEvent(
             "record_payment", 
-            `Recorded payment of ${companySettings.currency || 'KES'} ${Number(action.payload.amountPaid).toLocaleString()} for ${action.payload.invoiceNumber || 'Invoice'}`, 
-            action.payload
+            `Recorded payment of ${companySettings.currency || 'KES'} ${amt.toLocaleString()} for ${matchedInv?.invoiceNumber || payload.invoiceNumber || 'Invoice'}`, 
+            payload
           );
+          showToast(`Payment of ${companySettings.currency || 'KES'} ${amt.toLocaleString()} recorded.`);
+          setActiveTab("invoices");
         } else {
           setActiveTab("invoices");
+          showToast("Opened Invoices to record payment.");
         }
         break;
-      case "import_clients":
-        if (action.payload?.clients && Array.isArray(action.payload.clients)) {
-          const clientList = action.payload.clients;
+      }
+      case "import_clients": {
+        const clientList = action.payload?.clients || action.payload?.Clients || (Array.isArray(action.payload) ? action.payload : []);
+        if (Array.isArray(clientList) && clientList.length > 0) {
           for (const c of clientList) {
-            await handleCreateClient(c);
+            await handleCreateClient({
+              name: c.name || c.Name || c.clientName || 'Client',
+              company: c.company || c.Company || '',
+              phone: c.phone || c.Phone || '',
+              email: c.email || c.Email || '',
+              address: c.address || c.Address || '',
+              taxNumber: c.taxNumber || c.tax_number || c.TaxPIN || ''
+            });
           }
           logAuditEvent("import_clients", `Imported ${clientList.length} clients from uploaded document.`, { count: clientList.length });
           showToast(`Successfully imported ${clientList.length} clients into directory.`);
           setActiveTab("clients");
+        } else {
+          showToast("No client records found to import.", "warning");
         }
         break;
-      case "import_products":
-        if (action.payload?.products && Array.isArray(action.payload.products)) {
-          const prodList = action.payload.products;
+      }
+      case "import_products": {
+        const prodList = action.payload?.products || action.payload?.Products || (Array.isArray(action.payload) ? action.payload : []);
+        if (Array.isArray(prodList) && prodList.length > 0) {
           for (const p of prodList) {
-            await handleCreateProduct(p);
+            await handleCreateProduct({
+              name: p.name || p.Name || 'Product / Service',
+              description: p.description || p.Description || '',
+              category: p.category || p.Category || 'General',
+              unitType: p.unitType || p.unit_type || 'Day',
+              unitPrice: Number(p.unitPrice || p.price || 0),
+              taxRate: Number(p.taxRate || 16)
+            });
           }
           logAuditEvent("import_products", `Imported ${prodList.length} catalog items from document.`, { count: prodList.length });
           showToast(`Successfully imported ${prodList.length} catalog items.`);
           setActiveTab("products");
+        } else {
+          showToast("No catalog records found to import.", "warning");
         }
         break;
+      }
       case "open_client":
         setActiveTab("clients");
         showToast("Opening Client directory");

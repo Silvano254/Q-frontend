@@ -25,7 +25,9 @@ import {
   Plus,
   Paperclip,
   FileSpreadsheet,
-  FileCheck
+  FileCheck,
+  Image,
+  ClipboardList
 } from "lucide-react";
 import { 
   askGeminiAssistant, 
@@ -212,7 +214,7 @@ const CleanResponseRenderer = memo(function CleanResponseRenderer({
 });
 
 /**
- * Reusable Chat Input Bar with Document Attachment (+) Support
+ * Reusable Chat Input Bar with (+) Dropdown Action Menu (like Gemini / ChatGPT)
  */
 interface ChatInputBarProps {
   value: string;
@@ -235,9 +237,26 @@ const ChatInputBar = memo(function ChatInputBar({
   selectedFile,
   onSelectFile
 }: ChatInputBarProps) {
+  const [showAttachMenu, setShowAttachMenu] = useState<boolean>(false);
   const localRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
+  const menuContainerRef = useRef<HTMLDivElement>(null);
   const activeRef = inputRef || localRef;
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuContainerRef.current && !menuContainerRef.current.contains(event.target as Node)) {
+        setShowAttachMenu(false);
+      }
+    };
+    if (showAttachMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showAttachMenu]);
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange(e.target.value);
@@ -262,26 +281,119 @@ const ChatInputBar = memo(function ChatInputBar({
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       onSelectFile(e.target.files[0]);
+      setShowAttachMenu(false);
+      e.target.value = "";
     }
   };
 
-  if (variant === "centered") {
-    return (
-      <div className="space-y-2">
-        {selectedFile && (
-          <div className="flex items-center justify-between p-2.5 bg-purple-50/90 border border-purple-200 rounded-2xl text-xs text-purple-900 animate-fade-in shadow-xs">
-            <div className="flex items-center space-x-2 truncate">
+  const handlePasteTemplate = () => {
+    onChange(
+      value + (value ? "\n\n" : "") +
+      "Client Name, Company, Phone, Email\n" +
+      "John Doe, Acme Ltd, +254 700 000 000, john@acme.co.ke"
+    );
+    setShowAttachMenu(false);
+    setTimeout(() => {
+      activeRef.current?.focus();
+    }, 50);
+  };
+
+  return (
+    <div className={`space-y-2 relative ${variant === "docked" ? "p-4 bg-white border-t border-gray-100 animate-slide-up" : ""}`}>
+      {/* Hidden file inputs for docs and media */}
+      <input
+        type="file"
+        ref={docInputRef}
+        onChange={handleFileInputChange}
+        accept=".csv,.xlsx,.xls,.txt,.pdf,.json"
+        className="hidden"
+      />
+      <input
+        type="file"
+        ref={mediaInputRef}
+        onChange={handleFileInputChange}
+        accept="image/*"
+        className="hidden"
+      />
+
+      {/* Selected File Chip */}
+      {selectedFile && (
+        <div className="flex items-center justify-between p-2.5 bg-purple-50/90 border border-purple-200 rounded-2xl text-xs text-purple-900 animate-fade-in shadow-xs">
+          <div className="flex items-center space-x-2 truncate">
+            {selectedFile.type.startsWith("image/") ? (
+              <Image className="w-4 h-4 text-[#80237E] shrink-0" />
+            ) : (
               <FileSpreadsheet className="w-4 h-4 text-[#80237E] shrink-0" />
-              <span className="font-bold truncate">{selectedFile.name}</span>
-              <span className="text-[10px] text-purple-600 shrink-0">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+            )}
+            <span className="font-bold truncate">{selectedFile.name}</span>
+            <span className="text-[10px] text-purple-600 shrink-0">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelectFile(null)}
+            aria-label="Remove attached document"
+            className="p-1 text-purple-400 hover:text-purple-700 rounded-lg transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Input container */}
+      <div className="relative">
+        {/* Floating Attachment Popover Menu (ChatGPT / Gemini style) */}
+        {showAttachMenu && (
+          <div 
+            ref={menuContainerRef}
+            className="absolute bottom-full left-0 mb-2 w-64 bg-white rounded-2xl shadow-2xl border border-gray-100 p-2 z-50 animate-fade-in space-y-1 font-sans"
+          >
+            <div className="px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
+              Add to Conversation
             </div>
+
+            {/* Document option */}
             <button
               type="button"
-              onClick={() => onSelectFile(null)}
-              aria-label="Remove attached document"
-              className="p-1 text-purple-400 hover:text-purple-700 rounded-lg"
+              onClick={() => docInputRef.current?.click()}
+              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-2.5 text-left transition-colors group"
             >
-              <X className="w-3.5 h-3.5" />
+              <div className="w-7 h-7 rounded-lg bg-purple-100 text-[#80237E] flex items-center justify-center shrink-0 group-hover:bg-[#80237E] group-hover:text-white transition-colors">
+                <FileSpreadsheet className="w-4 h-4" />
+              </div>
+              <div className="truncate">
+                <p className="text-xs font-bold text-gray-800 group-hover:text-[#80237E]">Upload Document</p>
+                <p className="text-[10px] text-gray-500 truncate">CSV, Excel, PDF, Text lists</p>
+              </div>
+            </button>
+
+            {/* Media / Image receipt option */}
+            <button
+              type="button"
+              onClick={() => mediaInputRef.current?.click()}
+              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-2.5 text-left transition-colors group"
+            >
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                <Image className="w-4 h-4" />
+              </div>
+              <div className="truncate">
+                <p className="text-xs font-bold text-gray-800 group-hover:text-emerald-700">Upload Media / Receipt</p>
+                <p className="text-[10px] text-gray-500 truncate">Vouchers, scanned slips, photos</p>
+              </div>
+            </button>
+
+            {/* Paste Data Table option */}
+            <button
+              type="button"
+              onClick={handlePasteTemplate}
+              className="w-full p-2 hover:bg-purple-50/60 rounded-xl flex items-center space-x-2.5 text-left transition-colors group"
+            >
+              <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                <ClipboardList className="w-4 h-4" />
+              </div>
+              <div className="truncate">
+                <p className="text-xs font-bold text-gray-800 group-hover:text-blue-700">Paste Table Template</p>
+                <p className="text-[10px] text-gray-500 truncate">Quick paste format for clients</p>
+              </div>
             </button>
           </div>
         )}
@@ -291,25 +403,24 @@ const ChatInputBar = memo(function ChatInputBar({
             e.preventDefault();
             if (!loading && (value.trim() || selectedFile)) onSubmit();
           }}
-          className="relative bg-white border-2 border-[#80237E]/20 hover:border-[#80237E]/40 focus-within:border-[#80237E] rounded-2xl shadow-lg shadow-purple-900/5 p-2 flex items-end space-x-2 transition-all"
+          className={`relative bg-white border-2 border-[#80237E]/20 hover:border-[#80237E]/40 focus-within:border-[#80237E] rounded-2xl shadow-lg shadow-purple-900/5 p-2 flex items-end space-x-2 transition-all ${
+            variant === "docked" ? "border-gray-200" : ""
+          }`}
         >
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileInputChange}
-            accept=".csv,.xlsx,.xls,.txt,.pdf,.json,image/*"
-            className="hidden"
-          />
-
+          {/* (+) Attachment Button that opens Menu */}
           <button
             type="button"
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="Attach document or spreadsheet"
-            title="Upload CSV, spreadsheet, or business documents"
+            onClick={() => setShowAttachMenu(prev => !prev)}
+            aria-label="Open attachment options menu"
+            title="Upload CSV, documents, receipts, or data"
             disabled={loading}
-            className="p-2 text-gray-500 hover:text-[#80237E] hover:bg-purple-50 rounded-xl transition-all shrink-0 mb-0.5 flex items-center justify-center"
+            className={`p-2 rounded-xl transition-all shrink-0 mb-0.5 flex items-center justify-center ${
+              showAttachMenu
+                ? "bg-[#80237E] text-white rotate-45 scale-105"
+                : "text-gray-500 hover:text-[#80237E] hover:bg-purple-50"
+            }`}
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 transition-transform duration-200" />
           </button>
 
           <textarea
@@ -318,11 +429,11 @@ const ChatInputBar = memo(function ChatInputBar({
             value={value}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Binti anything..."
+            placeholder={variant === "centered" ? "Ask Binti anything..." : "Ask a follow-up or command... (Shift+Enter for newline)"}
             disabled={loading}
             aria-label="Message prompt for Binti AI Assistant"
             className="flex-1 p-2 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px]"
-            style={{ minHeight: "44px" }}
+            style={{ minHeight: variant === "centered" ? "44px" : "38px" }}
           />
 
           <button
@@ -336,77 +447,12 @@ const ChatInputBar = memo(function ChatInputBar({
           </button>
         </form>
       </div>
-    );
-  }
 
-  return (
-    <div className="p-4 bg-white border-t border-gray-100 animate-slide-up space-y-2">
-      {selectedFile && (
-        <div className="flex items-center justify-between p-2 bg-purple-50/90 border border-purple-200 rounded-xl text-xs text-purple-900 animate-fade-in shadow-xs">
-          <div className="flex items-center space-x-2 truncate">
-            <FileSpreadsheet className="w-3.5 h-3.5 text-[#80237E] shrink-0" />
-            <span className="font-bold truncate text-[11px]">{selectedFile.name}</span>
-            <span className="text-[10px] text-purple-600 shrink-0">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => onSelectFile(null)}
-            aria-label="Remove attached document"
-            className="p-1 text-purple-400 hover:text-purple-700 rounded"
-          >
-            <X className="w-3 h-3" />
-          </button>
-        </div>
-      )}
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!loading && (value.trim() || selectedFile)) onSubmit();
-        }}
-        className="flex items-end space-x-2"
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileInputChange}
-          accept=".csv,.xlsx,.xls,.txt,.pdf,.json,image/*"
-          className="hidden"
-        />
-
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          aria-label="Attach document or spreadsheet"
-          title="Upload CSV, spreadsheet, or business documents"
-          disabled={loading}
-          className="p-2 text-gray-500 hover:text-[#80237E] hover:bg-purple-50 rounded-xl transition-all shrink-0 mb-0.5 flex items-center justify-center border border-gray-200"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
-
-        <textarea
-          ref={activeRef}
-          rows={1}
-          value={value}
-          onChange={handleInput}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask a follow-up or command... (Shift+Enter for newline)"
-          disabled={loading}
-          aria-label="Follow-up message prompt"
-          className="flex-1 px-3.5 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#80237E]/20 focus:border-[#80237E] bg-gray-50/50 disabled:opacity-60 transition-all font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px]"
-          style={{ minHeight: "38px" }}
-        />
-        <button
-          type="submit"
-          disabled={loading || (!value.trim() && !selectedFile)}
-          aria-label="Send follow-up message"
-          className="px-4 py-2 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-90 text-white font-semibold rounded-xl text-xs shadow-md shadow-purple-900/10 flex items-center space-x-1.5 disabled:opacity-50 transition-all active:scale-95 shrink-0 mb-0.5"
-        >
-          <span>Send</span>
-          <Send className="w-3.5 h-3.5" />
-        </button>
-      </form>
+      {/* Powered by Binti AI Footer Branding */}
+      <div className="flex items-center justify-center space-x-1.5 pt-1 text-[10px] text-gray-400 font-semibold select-none">
+        <Sparkles className="w-3 h-3 text-[#D4AF37]" />
+        <span>Powered by Binti AI</span>
+      </div>
     </div>
   );
 });
@@ -421,6 +467,7 @@ export default function BintiAiAssistantModal({
   const [inputMessage, setInputMessage] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [loadingText, setLoadingText] = useState<string>("Binti is thinking...");
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
@@ -516,6 +563,7 @@ export default function BintiAiAssistantModal({
     setMessages(prev => [...prev, userMsg]);
     setInputMessage("");
     setLoading(true);
+    setLoadingText(fileToProcess ? "Binti is analyzing document..." : "Binti is thinking...");
     setErrorMsg(null);
     setLastFailedPrompt(null);
 
@@ -555,14 +603,23 @@ export default function BintiAiAssistantModal({
     }
   }, [inputMessage, loading, messages, saasContext, selectedFile]);
 
-  const handleActionExecution = async (act: AgentAction) => {
-    const actionId = act.id || `${act.type}-${Date.now()}`;
-    if (onExecuteAction) {
-      await onExecuteAction(act);
+  const [executingActionId, setExecutingActionId] = useState<string | null>(null);
+
+  const handleActionExecution = async (act: AgentAction, actionId: string) => {
+    setExecutingActionId(actionId);
+    try {
+      if (onExecuteAction) {
+        await onExecuteAction(act);
+      }
       setExecutedActionIds(prev => new Set(prev).add(actionId));
       if (!act.isMutation) {
         onClose();
       }
+    } catch (err: any) {
+      console.error("Action execution failed:", err);
+      setErrorMsg(`Action failed: ${err?.message || 'Could not complete operation'}`);
+    } finally {
+      setExecutingActionId(null);
     }
   };
 
@@ -729,7 +786,7 @@ export default function BintiAiAssistantModal({
           className="flex-1 p-4 overflow-y-auto space-y-4 bg-gradient-to-b from-[#FDFBFD] to-white flex flex-col justify-between"
         >
           
-          {/* FRESH STATE: Centered Greeting + Centered Input with (+) Button + Quick Prompt Buttons */}
+          {/* FRESH STATE: Centered Greeting + Centered Input with (+) Dropdown + Quick Cards */}
           {isFreshChat && (
             <div className="my-auto py-2 space-y-6 animate-fade-in">
               
@@ -744,11 +801,11 @@ export default function BintiAiAssistantModal({
                   <span>How can I assist your business today?</span>
                 </h3>
                 <p className="text-xs text-gray-500 max-w-xs mx-auto leading-relaxed">
-                  Ask me questions or click the <strong className="text-[#80237E] font-bold">+</strong> button to upload spreadsheets & client lists to restructure into your database.
+                  Ask me questions or click the <strong className="text-[#80237E] font-bold">+</strong> button to attach CSV lists, spreadsheets, or receipts.
                 </p>
               </div>
 
-              {/* Centered Multi-line Input Bar with (+) Upload Button */}
+              {/* Centered Multi-line Input Bar with (+) Dropdown */}
               <ChatInputBar
                 variant="centered"
                 value={inputMessage}
@@ -869,11 +926,22 @@ export default function BintiAiAssistantModal({
                                 {!isExecuted && (
                                   <div className="flex items-center space-x-2 pt-1">
                                     <button
-                                      onClick={() => handleActionExecution(act)}
-                                      className="px-3.5 py-1.5 bg-[#80237E] hover:bg-[#6b1e6a] text-white font-bold rounded-xl text-[11px] transition-all shadow-xs flex items-center space-x-1.5"
+                                      type="button"
+                                      disabled={executingActionId === actionId}
+                                      onClick={() => handleActionExecution(act, actionId)}
+                                      className="px-3.5 py-1.5 bg-[#80237E] hover:bg-[#6b1e6a] text-white font-bold rounded-xl text-[11px] transition-all shadow-xs flex items-center space-x-1.5 disabled:opacity-50"
                                     >
-                                      <span>Approve & Execute</span>
-                                      <Check className="w-3 h-3" />
+                                      {executingActionId === actionId ? (
+                                        <>
+                                          <RefreshCw className="w-3 h-3 animate-spin" />
+                                          <span>Executing...</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span>Approve & Execute</span>
+                                          <Check className="w-3 h-3" />
+                                        </>
+                                      )}
                                     </button>
                                   </div>
                                 )}
@@ -884,11 +952,17 @@ export default function BintiAiAssistantModal({
                           return (
                             <button
                               key={actIdx}
-                              onClick={() => handleActionExecution(act)}
+                              type="button"
+                              disabled={executingActionId === actionId}
+                              onClick={() => handleActionExecution(act, actionId)}
                               aria-label={`Execute action: ${act.label}`}
-                              className="px-3 py-1.5 bg-gradient-to-r from-[#80237E]/10 to-[#6B46C1]/10 hover:from-[#80237E] hover:to-[#6B46C1] text-[#80237E] hover:text-white border border-[#80237E]/20 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center space-x-1.5 group/btn active:scale-95"
+                              className="px-3 py-1.5 bg-gradient-to-r from-[#80237E]/10 to-[#6B46C1]/10 hover:from-[#80237E] hover:to-[#6B46C1] text-[#80237E] hover:text-white border border-[#80237E]/20 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center space-x-1.5 group/btn active:scale-95 disabled:opacity-50"
                             >
-                              <Zap className="w-3.5 h-3.5 text-[#D4AF37] group-hover/btn:text-white group-hover/btn:scale-110 transition-transform shrink-0" />
+                              {executingActionId === actionId ? (
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#80237E]" />
+                              ) : (
+                                <Zap className="w-3.5 h-3.5 text-[#D4AF37] group-hover/btn:text-white group-hover/btn:scale-110 transition-transform shrink-0" />
+                              )}
                               <span>{act.label}</span>
                               <ArrowRight className="w-3 h-3 text-purple-400 group-hover/btn:text-white group-hover/btn:translate-x-0.5 transition-transform shrink-0" />
                             </button>
@@ -929,7 +1003,7 @@ export default function BintiAiAssistantModal({
                   </div>
                   <div className="p-3 bg-white border border-gray-100 rounded-2xl rounded-tl-none text-xs text-gray-500 flex items-center space-x-2 shadow-xs">
                     <div className="w-2 h-2 bg-[#80237E] rounded-full animate-ping" />
-                    <span>Binti is processing document...</span>
+                    <span>{loadingText}</span>
                   </div>
                 </div>
               )}
@@ -940,7 +1014,7 @@ export default function BintiAiAssistantModal({
 
         </div>
 
-        {/* BOTTOM DOCKED MULTI-LINE INPUT BAR WITH (+) ATTACHMENT */}
+        {/* BOTTOM DOCKED MULTI-LINE INPUT BAR WITH (+) ATTACHMENT MENU */}
         {!isFreshChat && (
           <ChatInputBar
             variant="docked"

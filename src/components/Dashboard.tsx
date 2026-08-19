@@ -2,16 +2,16 @@ import React, { useState } from "react";
 import { 
   DollarSign, 
   Clock, 
-  CheckCircle, 
   FileText, 
   Receipt, 
   Users, 
   Percent, 
   Sparkles, 
   ArrowUpRight, 
-  TrendingUp,
-  Activity,
-  ArrowRight
+  TrendingUp, 
+  ArrowRight,
+  AlertTriangle,
+  Zap
 } from "lucide-react";
 import { Client, Quote, Invoice } from "../types";
 import { askGeminiAssistant } from "../services/geminiService";
@@ -35,6 +35,7 @@ interface DashboardProps {
   setActiveTab: (tab: string) => void;
   onSelectInvoice: (invoice: Invoice) => void;
   onSelectQuote: (quote: Quote) => void;
+  onOpenBintiPrompt?: (prompt: string) => void;
 }
 
 export default function Dashboard({ 
@@ -46,12 +47,13 @@ export default function Dashboard({
   currency, 
   setActiveTab,
   onSelectInvoice,
-  onSelectQuote
+  onSelectQuote,
+  onOpenBintiPrompt
 }: DashboardProps) {
   const [aiReport, setAiReport] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
 
-  // Dynamic Time-of-Day Greeting Helper
+  // Time-of-Day Greeting Helper
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
@@ -59,7 +61,6 @@ export default function Dashboard({
     return "Good evening";
   };
 
-  // Helper to format currency
   const formatCur = (val: number) => {
     return new Intl.NumberFormat("en-KE", {
       style: "currency",
@@ -69,7 +70,6 @@ export default function Dashboard({
     }).format(val);
   };
 
-  // Static Sparkline trend generators
   const renderSparkline = (type: "up" | "down" | "flat") => {
     const color = type === "up" ? "#10B981" : type === "down" ? "#EF4444" : "#F59E0B";
     const points = type === "up" 
@@ -91,10 +91,8 @@ export default function Dashboard({
     );
   };
 
-  // State for metric timeframe filter
   const [timeframe, setTimeframe] = useState<"all" | "this_month" | "last_month">("all");
 
-  // Dynamic Month-over-Month (MoM) calculations
   const now = new Date();
   const curMonth = now.getMonth();
   const curYear = now.getFullYear();
@@ -102,7 +100,6 @@ export default function Dashboard({
   const prevMonth = curMonth === 0 ? 11 : curMonth - 1;
   const prevYear = curMonth === 0 ? curYear - 1 : curYear;
 
-  // Monthly Paid
   let curMonthPaid = 0;
   let prevMonthPaid = 0;
 
@@ -136,7 +133,6 @@ export default function Dashboard({
     ? ((curMonthPaid - prevMonthPaid) / prevMonthPaid) * 100 
     : curMonthPaid > 0 ? 100 : 0;
 
-  // Monthly Invoiced & Invoice Counts
   let curMonthInvoiced = 0;
   let prevMonthInvoiced = 0;
   let curMonthInvoicesCount = 0;
@@ -166,7 +162,6 @@ export default function Dashboard({
   const curAvgInvoiceValue = curMonthInvoicesCount > 0 ? curMonthInvoiced / curMonthInvoicesCount : 0;
   const prevAvgInvoiceValue = prevMonthInvoicesCount > 0 ? prevMonthInvoiced / prevMonthInvoicesCount : 0;
 
-  // Monthly Quotes
   let curMonthQuotes = 0;
   let prevMonthQuotes = 0;
 
@@ -185,7 +180,6 @@ export default function Dashboard({
     ? ((curMonthQuotes - prevMonthQuotes) / prevMonthQuotes) * 100 
     : curMonthQuotes > 0 ? 100 : 0;
 
-  // Dynamic Value based on Timeframe filter
   const displayPaid = timeframe === "this_month" ? curMonthPaid : timeframe === "last_month" ? prevMonthPaid : stats.totalPaid;
   const displayInvoiced = timeframe === "this_month" ? curMonthInvoiced : timeframe === "last_month" ? prevMonthInvoiced : stats.totalInvoicesValue;
   const displayOutstanding = timeframe === "this_month" ? curMonthOutstanding : timeframe === "last_month" ? prevMonthOutstanding : stats.totalOutstanding;
@@ -194,7 +188,13 @@ export default function Dashboard({
 
   const outstandingRatio = displayInvoiced > 0 ? (displayOutstanding / displayInvoiced) * 100 : 0;
 
-  // Card definitions with Month-over-Month indicators
+  // Overdue and open quote calculation for proactive brief
+  const overdueInvoices = invoices.filter(i => i.status === "overdue" || (i.status !== "paid" && (i.balanceRemaining ?? i.grandTotal) > 0 && i.dueDate && new Date(i.dueDate).getTime() < Date.now()));
+  const openQuotes = quotes.filter(q => q.status === "draft" || q.status === "sent");
+  const collectionRate = (stats.totalPaid + stats.totalOutstanding) > 0 
+    ? Math.round((stats.totalPaid / (stats.totalPaid + stats.totalOutstanding)) * 100) 
+    : 100;
+
   const statCards = [
     {
       title: "Payments Received",
@@ -268,7 +268,6 @@ export default function Dashboard({
     }
   ];
 
-  // Request Gemini report
   const handleGenerateAiReport = async () => {
     setLoadingAi(true);
     try {
@@ -299,7 +298,7 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-8 animate-fade-in font-sans">
       {/* Welcome Hero Panel */}
       <div className="bg-gradient-to-r from-[#1F2937] via-[#2F3349] to-[#6B46C1] rounded-3xl p-8 text-white relative overflow-hidden shadow-xl border border-[#6B46C1]/20">
         <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
@@ -313,7 +312,7 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
             {getGreeting()}, {currentUser?.name || "Executive Admin"}
           </h2>
           <p className="text-gray-300 text-sm leading-relaxed">
-            Manage your event operations, stretch tents hire, quotations, and invoicing from a single, beautiful unified workspace.
+            Manage your event operations, stretch tents hire, quotations, and invoicing from a single, unified workspace.
           </p>
           <div className="pt-2 flex items-center space-x-4">
             <button
@@ -333,6 +332,78 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
         </div>
       </div>
 
+      {/* Proactive Binti Business Brief Card */}
+      <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#80237E] flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-[#D4AF37]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-gray-900">Binti Executive Brief</h3>
+              <p className="text-[11px] text-gray-500">Live operational priorities & business cash flow</p>
+            </div>
+          </div>
+          {onOpenBintiPrompt && (
+            <button
+              onClick={() => onOpenBintiPrompt("Provide a complete executive business brief covering money, proposals, and attention items.")}
+              className="px-3.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-[#80237E] font-bold rounded-xl text-xs flex items-center space-x-1.5 transition-colors self-start sm:self-auto"
+            >
+              <Zap className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <span>Ask Binti for Advice</span>
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          {/* Section 1: Money */}
+          <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl space-y-2">
+            <div className="flex items-center justify-between text-emerald-800 font-bold">
+              <span className="flex items-center space-x-1">
+                <DollarSign className="w-4 h-4 text-emerald-600" />
+                <span>Liquid Cash & Collections</span>
+              </span>
+              <span className="text-[10px] bg-emerald-100 px-2 py-0.5 rounded-full">{collectionRate}% collected</span>
+            </div>
+            <p className="text-gray-700 leading-relaxed">
+              <strong>{formatCur(stats.totalPaid)}</strong> settled liquid revenue, with <strong>{formatCur(stats.totalOutstanding)}</strong> in active receivables.
+            </p>
+          </div>
+
+          {/* Section 2: Quotes Pipeline */}
+          <div className="p-4 bg-purple-50/50 border border-purple-100 rounded-2xl space-y-2">
+            <div className="flex items-center justify-between text-[#80237E] font-bold">
+              <span className="flex items-center space-x-1">
+                <FileText className="w-4 h-4 text-[#80237E]" />
+                <span>Proposals Pipeline</span>
+              </span>
+              <span className="text-[10px] bg-purple-100 px-2 py-0.5 rounded-full">{stats.conversionRate.toFixed(0)}% conversion</span>
+            </div>
+            <p className="text-gray-700 leading-relaxed">
+              <strong>{openQuotes.length}</strong> active quote proposals awaiting customer booking confirmation.
+            </p>
+          </div>
+
+          {/* Section 3: Attention Items */}
+          <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl space-y-2">
+            <div className="flex items-center justify-between text-amber-900 font-bold">
+              <span className="flex items-center space-x-1">
+                <AlertTriangle className="w-4 h-4 text-amber-600" />
+                <span>Attention Items</span>
+              </span>
+              <span className="text-[10px] bg-amber-100 px-2 py-0.5 rounded-full">{overdueInvoices.length} overdue</span>
+            </div>
+            <p className="text-gray-700 leading-relaxed">
+              {overdueInvoices.length > 0 ? (
+                <span>{overdueInvoices.length} invoices are past due and eligible for an automated follow-up reminder.</span>
+              ) : (
+                <span>All client accounts and issued invoices are currently settled or in good standing.</span>
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Grid of Metric Cards with Timeframe Selector */}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
@@ -341,7 +412,6 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
             <span>Core Billing Metrics</span>
           </h3>
 
-          {/* Timeframe Filter Switcher */}
           <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200/80 text-xs font-bold">
             <button
               type="button"
@@ -392,7 +462,6 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
                   )}
                 </div>
 
-                {/* Mini trendline sparkline */}
                 <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
                   <span className="text-[10px] text-gray-400 font-medium">Activity Sparkline</span>
                   {renderSparkline(card.sparkline as any)}
@@ -436,7 +505,6 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
           </button>
         </div>
 
-        {/* AI Insight Result text */}
         {aiReport && (
           <div className="mt-5 p-5 bg-white rounded-2xl border border-purple-100 shadow-inner prose prose-purple prose-sm max-w-none text-gray-700 whitespace-pre-line leading-relaxed">
             <div className="font-bold text-xs text-[#6B46C1] uppercase tracking-widest mb-3 flex items-center space-x-1.5">

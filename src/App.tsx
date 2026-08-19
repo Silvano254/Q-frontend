@@ -13,7 +13,7 @@ import SettingsModule from "./components/SettingsModule";
 import LoginScreen from "./components/LoginScreen";
 import BintiAiAssistantModal from "./components/BintiAiAssistantModal";
 import { apiRequest, clearAuthToken, setAuthToken } from "./services/apiClient";
-import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord } from "./types";
+import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord, AuditLogEntry } from "./types";
 import { AgentAction } from "./services/geminiService";
 import { normalizeMultilineText, generateNextDocumentNumber } from "./utils/text";
 
@@ -757,8 +757,35 @@ export default function App() {
     }
   };
 
-  // AI Agent Action Execution Dispatcher
-  const handleExecuteAiAction = (action: AgentAction) => {
+  // Audit Trail State (Lightweight Single-User Compliance Log)
+  const [auditTrail, setAuditTrail] = useState<AuditLogEntry[]>(() => {
+    const saved = localStorage.getItem("binti_audit_trail");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return [];
+  });
+
+  const logAuditEvent = (actionType: string, summary: string, details?: any) => {
+    const entry: AuditLogEntry = {
+      id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+      timestamp: new Date().toISOString(),
+      actionType,
+      summary,
+      executedBy: currentUser?.name || "Business Owner",
+      details
+    };
+    setAuditTrail(prev => {
+      const updated = [entry, ...prev].slice(0, 100);
+      localStorage.setItem("binti_audit_trail", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  // AI Agent Action Execution Dispatcher (Level 1 UI + Level 3 Mutations)
+  const handleExecuteAiAction = async (action: AgentAction) => {
     switch (action.type) {
       case "navigate":
         if (action.payload?.tab) {
@@ -770,19 +797,47 @@ export default function App() {
         showToast("Filtering invoices ledger");
         break;
       case "create_quote":
-        setActiveTab("quotes");
-        if (action.payload?.clientName) {
-          showToast(`Opening Quote Builder for ${action.payload.clientName}`);
+        if (action.payload?.items && action.payload.items.length > 0) {
+          await handleCreateQuote(action.payload);
+          logAuditEvent("create_quote", `Created quotation for ${action.payload.clientName || 'Client'}`, action.payload);
         } else {
-          showToast("Opening Quote Builder");
+          setActiveTab("quotes");
+          if (action.payload?.clientName) {
+            showToast(`Opening Quote Builder for ${action.payload.clientName}`);
+          } else {
+            showToast("Opening Quote Builder");
+          }
         }
         break;
       case "create_invoice":
-        setActiveTab("invoices");
-        if (action.payload?.clientName) {
-          showToast(`Opening Invoice Builder for ${action.payload.clientName}`);
+        if (action.payload?.items && action.payload.items.length > 0) {
+          await handleCreateInvoice(action.payload);
+          logAuditEvent("create_invoice", `Issued tax invoice for ${action.payload.clientName || 'Client'}`, action.payload);
         } else {
-          showToast("Opening Invoice Builder");
+          setActiveTab("invoices");
+          if (action.payload?.clientName) {
+            showToast(`Opening Invoice Builder for ${action.payload.clientName}`);
+          } else {
+            showToast("Opening Invoice Builder");
+          }
+        }
+        break;
+      case "record_payment":
+        if (action.payload?.invoiceId && action.payload.amountPaid) {
+          await handleRecordPayment(action.payload.invoiceId, {
+            amountPaid: Number(action.payload.amountPaid),
+            paymentMethod: action.payload.paymentMethod || 'cash',
+            referenceNumber: action.payload.referenceNumber || '',
+            paymentDate: action.payload.paymentDate || new Date().toISOString(),
+            notes: action.payload.notes
+          });
+          logAuditEvent(
+            "record_payment", 
+            `Recorded payment of ${companySettings.currency || 'KES'} ${Number(action.payload.amountPaid).toLocaleString()} for ${action.payload.invoiceNumber || 'Invoice'}`, 
+            action.payload
+          );
+        } else {
+          setActiveTab("invoices");
         }
         break;
       case "open_client":
@@ -791,9 +846,6 @@ export default function App() {
         break;
       case "open_settings":
         setActiveTab("settings");
-        break;
-      case "record_payment":
-        setActiveTab("invoices");
         break;
       default:
         if (action.payload?.tab) {
@@ -911,6 +963,10 @@ export default function App() {
             onSelectInvoice={(inv) => {
               setSelectedInvoice(inv);
               setActiveTab("invoices");
+            }}
+            onOpenBintiPrompt={(prompt) => {
+              setBintiInitialPrompt(prompt);
+              setIsAiAssistantOpen(true);
             }}
           />
         );
@@ -1270,14 +1326,35 @@ export default function App() {
         saasContext={{
           clientCount: clients.length,
           totalQuotes: quotes.length,
+          convertedQuotes: quotes.filter(q => q.status === "converted").length,
           totalInvoices: invoices.length,
           totalRevenue: invoices.reduce((sum, inv) => {
             const pSum = (inv.payments || []).reduce((pSumAcc, pm) => pSumAcc + (pm.amountPaid || 0), 0);
             return sum + (pSum > 0 ? pSum : Math.max(0, (inv.grandTotal || 0) - (inv.balanceRemaining || 0)));
           }, 0),
           pendingBalance: invoices.reduce((sum, inv) => sum + (inv.balanceRemaining || 0), 0),
+          collectionRate: (invoices.reduce((sum, inv) => {
+            const pSum = (inv.payments || []).reduce((pSumAcc, pm) => pSumAcc + (pm.amountPaid || 0), 0);
+            return sum + (pSum > 0 ? pSum : Math.max(0, (inv.grandTotal || 0) - (inv.balanceRemaining || 0)));
+          }, 0) + invoices.reduce((sum, inv) => sum + (inv.balanceRemaining || 0), 0)) > 0
+            ? Math.round(
+                (invoices.reduce((sum, inv) => {
+                  const pSum = (inv.payments || []).reduce((pSumAcc, pm) => pSumAcc + (pm.amountPaid || 0), 0);
+                  return sum + (pSum > 0 ? pSum : Math.max(0, (inv.grandTotal || 0) - (inv.balanceRemaining || 0)));
+                }, 0) /
+                  (invoices.reduce((sum, inv) => {
+                    const pSum = (inv.payments || []).reduce((pSumAcc, pm) => pSumAcc + (pm.amountPaid || 0), 0);
+                    return sum + (pSum > 0 ? pSum : Math.max(0, (inv.grandTotal || 0) - (inv.balanceRemaining || 0)));
+                  }, 0) +
+                    invoices.reduce((sum, inv) => sum + (inv.balanceRemaining || 0), 0))) *
+                  100
+              )
+            : 100,
+          conversionRate: quotes.length > 0 ? Math.round((quotes.filter(q => q.status === "converted").length / quotes.length) * 100) : 0,
           currency: companySettings.currency,
           companyName: companySettings.companyName,
+          lastSyncedAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          connectedModules: ["Clients", "Quotes Pipeline", "Invoices Ledger", "Product Catalog", "Billing Settings"],
           clientsSummary: clients.map(c => ({
             id: c.id,
             name: c.name,

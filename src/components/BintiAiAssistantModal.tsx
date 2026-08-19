@@ -18,7 +18,10 @@ import {
   ChevronRight,
   Zap,
   ArrowRight,
-  RotateCcw
+  RotateCcw,
+  CheckCircle2,
+  Database,
+  Info
 } from "lucide-react";
 import { 
   askGeminiAssistant, 
@@ -33,39 +36,38 @@ interface BintiAiAssistantModalProps {
   onClose: () => void;
   saasContext?: SaaSContext;
   initialPrompt?: string;
-  onExecuteAction?: (action: AgentAction) => void;
+  onExecuteAction?: (action: AgentAction) => Promise<boolean | void> | boolean | void;
 }
 
 const QUICK_CARDS = [
   {
     icon: TrendingUp,
-    title: "Analyze my business",
-    subtitle: "Cash flow, booking trends & revenue recovery",
-    prompt: "Provide an analysis of our current business performance, quote conversions, and outstanding receivables."
+    title: "Binti Business Brief",
+    subtitle: "Money, open proposals & attention items",
+    prompt: "Provide a complete business brief covering money collected, open quotes, and items needing attention."
   },
   {
     icon: FileText,
     title: "Create or convert a quote",
-    subtitle: "Step-by-step guidance & drafting help",
+    subtitle: "Draft proposal & convert to invoice",
     prompt: "How do I create a quotation and convert it into a tax invoice?"
   },
   {
     icon: CreditCard,
-    title: "Payment & invoice helper",
-    subtitle: "Track balances & draft payment reminders",
-    prompt: "Draft a polite follow-up payment reminder email for a client with an unpaid invoice."
+    title: "Payment & debt recovery",
+    subtitle: "Track unpaid balances & reminder drafts",
+    prompt: "Show me all overdue invoices and draft a follow-up reminder for overdue clients."
   },
   {
     icon: HelpCircle,
-    title: "Ask me anything",
-    subtitle: "System navigation, terms & company setup",
+    title: "Booking policies & terms",
+    subtitle: "Deposit standards & event cancellation",
     prompt: "What standard payment terms and deposit policies should we use for event bookings?"
   }
 ];
 
 /**
  * Clean Formatter: Executive-grade renderer without horizontal lines or markdown clutter.
- * Memoized to prevent re-parsing on input keystrokes.
  */
 const CleanResponseRenderer = memo(function CleanResponseRenderer({ 
   content, 
@@ -79,7 +81,6 @@ const CleanResponseRenderer = memo(function CleanResponseRenderer({
     return <div className="whitespace-pre-wrap">{sanitized}</div>;
   }
 
-  // Strip any raw horizontal rule markdown syntax (---, ***, ___)
   const cleanContent = sanitized
     .replace(/^[-*_]{3,}$/gm, '')
     .replace(/\n{3,}/g, '\n\n');
@@ -147,7 +148,6 @@ const CleanResponseRenderer = memo(function CleanResponseRenderer({
   lines.forEach((line, index) => {
     const trimmed = line.trim();
 
-    // Check for Markdown table line
     if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
       const cells = trimmed.split("|").slice(1, -1);
       if (cells.every(c => c.trim().replace(/:/g, '').replace(/-/g, '') === '')) {
@@ -164,13 +164,11 @@ const CleanResponseRenderer = memo(function CleanResponseRenderer({
       elements.push(renderCurrentTable(index));
     }
 
-    // Ignore horizontal lines completely (replaced by clean spacing)
     if (/^([-*_]){3,}$/.test(trimmed)) {
       elements.push(<div key={index} className="h-2" />);
       return;
     }
 
-    // Headings (### or ## or #)
     if (trimmed.startsWith("#")) {
       const headingText = trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '');
       elements.push(
@@ -181,7 +179,6 @@ const CleanResponseRenderer = memo(function CleanResponseRenderer({
       return;
     }
 
-    // Bullet points (* or - or •)
     if (/^[-*•]\s+/.test(trimmed)) {
       const bulletContent = trimmed.replace(/^[-*•]\s+/, '');
       elements.push(
@@ -193,13 +190,11 @@ const CleanResponseRenderer = memo(function CleanResponseRenderer({
       return;
     }
 
-    // Empty lines
     if (!trimmed) {
       elements.push(<div key={index} className="h-2" />);
       return;
     }
 
-    // Regular paragraphs
     elements.push(
       <p key={index} className="my-1 text-gray-800 leading-relaxed">
         {processInlineFormatting(trimmed)}
@@ -215,7 +210,7 @@ const CleanResponseRenderer = memo(function CleanResponseRenderer({
 });
 
 /**
- * Reusable Chat Input Bar (DRY & Auto-growing Textarea)
+ * Reusable Chat Input Bar
  */
 interface ChatInputBarProps {
   value: string;
@@ -237,7 +232,6 @@ const ChatInputBar = memo(function ChatInputBar({
   const localRef = useRef<HTMLTextAreaElement>(null);
   const activeRef = inputRef || localRef;
 
-  // Auto-resize textarea height to accommodate multi-line queries
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onChange(e.target.value);
     const textarea = e.target;
@@ -273,7 +267,7 @@ const ChatInputBar = memo(function ChatInputBar({
           value={value}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
-          placeholder="Ask Binti anything... e.g. Analyze my business, draft a quote, find overdue invoices... (Press Shift+Enter for new line)"
+          placeholder="Ask Binti... e.g. Business brief, overdue invoices, draft a quote... (Shift+Enter for newline)"
           disabled={loading}
           aria-label="Message prompt for Binti AI Assistant"
           className="flex-1 p-2 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px]"
@@ -323,16 +317,6 @@ const ChatInputBar = memo(function ChatInputBar({
           <Send className="w-3.5 h-3.5" />
         </button>
       </form>
-      <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400 px-1">
-        <span className="flex items-center space-x-1">
-          <Sparkles className="w-3 h-3 text-[#D4AF37]" />
-          <span>Powered by Gemini</span>
-        </span>
-        <span className="flex items-center space-x-1 text-emerald-600 font-medium">
-          <ShieldCheck className="w-3 h-3" />
-          <span>Active Context</span>
-        </span>
-      </div>
     </div>
   );
 });
@@ -350,17 +334,22 @@ export default function BintiAiAssistantModal({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
+  const [executedActionIds, setExecutedActionIds] = useState<Set<string>>(new Set());
+  const [showContextModal, setShowContextModal] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const centerInputRef = useRef<HTMLTextAreaElement>(null);
   const bottomInputRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // Escape key handler for keyboard accessibility
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
-        onClose();
+        if (showContextModal) {
+          setShowContextModal(false);
+        } else {
+          onClose();
+        }
       }
     };
     if (isOpen) {
@@ -369,9 +358,8 @@ export default function BintiAiAssistantModal({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, showContextModal, onClose]);
 
-  // Clean up any in-flight requests on modal close or unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
@@ -380,7 +368,6 @@ export default function BintiAiAssistantModal({
     };
   }, [isOpen]);
 
-  // Initial prompt auto-trigger and focus handling
   useEffect(() => {
     if (isOpen) {
       if (initialPrompt && initialPrompt.trim().length > 0) {
@@ -393,7 +380,6 @@ export default function BintiAiAssistantModal({
     }
   }, [isOpen, initialPrompt]);
 
-  // Scroll to bottom when new messages arrive
   useEffect(() => {
     if (isOpen && messages.length > 0) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -405,7 +391,6 @@ export default function BintiAiAssistantModal({
     const query = textToSend || inputMessage;
     if (!query || query.trim() === "" || loading) return;
 
-    // Abort any previous pending request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -438,14 +423,16 @@ export default function BintiAiAssistantModal({
       const assistantMsg: ChatMessage = {
         role: "model",
         content: result.reply,
-        actions: result.actions,
+        actions: result.actions?.map((act, i) => ({
+          ...act,
+          id: act.id || `action-${Date.now()}-${i}`
+        })),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
       if (err?.name === "AbortError" || currentController.signal.aborted) {
-        // Request was safely cancelled, ignore
         return;
       }
       console.error("Binti AI error:", err);
@@ -458,7 +445,17 @@ export default function BintiAiAssistantModal({
     }
   }, [inputMessage, loading, messages, saasContext]);
 
-  // Safe copy formatter that removes markdown tags without mangling hyphenated words
+  const handleActionExecution = async (act: AgentAction) => {
+    const actionId = act.id || `${act.type}-${Date.now()}`;
+    if (onExecuteAction) {
+      await onExecuteAction(act);
+      setExecutedActionIds(prev => new Set(prev).add(actionId));
+      if (!act.isMutation) {
+        onClose();
+      }
+    }
+  };
+
   const handleCopy = useCallback((content: string, index: number) => {
     const cleanText = content
       .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -503,10 +500,9 @@ export default function BintiAiAssistantModal({
     <div 
       role="dialog"
       aria-modal="true"
-      aria-label="Binti AI Assistant"
+      aria-label="Binti AI Operating Assistant"
       className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-black/40 backdrop-blur-sm transition-opacity duration-300"
     >
-      {/* Slide-over Container */}
       <div className="w-full sm:max-w-lg bg-white h-full shadow-2xl flex flex-col justify-between transform transition-transform duration-300 ease-in-out border-l border-gray-100 font-sans">
         
         {/* Drawer Header */}
@@ -526,10 +522,10 @@ export default function BintiAiAssistantModal({
                   <span>Binti</span>
                 </h2>
                 <span className="bg-[#D4AF37]/20 border border-[#D4AF37]/40 text-[#D4AF37] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  AI
+                  Operating Assistant
                 </span>
               </div>
-              <p className="text-xs text-gray-300 mt-0.5 font-medium">Event Assistant</p>
+              <p className="text-xs text-gray-300 mt-0.5 font-medium">Binti Events Management System</p>
             </div>
           </div>
 
@@ -538,7 +534,7 @@ export default function BintiAiAssistantModal({
             {!isFreshChat && (
               <button
                 onClick={handleClearChat}
-                title="Reset to New Conversation"
+                title="Reset conversation"
                 aria-label="Reset conversation"
                 className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
               >
@@ -557,21 +553,32 @@ export default function BintiAiAssistantModal({
           </div>
         </div>
 
-        {/* Live Context Metric Bar */}
+        {/* Live Context & Data Connection Transparency Bar */}
         {saasContext && (
-          <div className="bg-[#F8F9FA] px-4 py-2 border-b border-gray-100 flex items-center justify-between overflow-x-auto text-[11px] text-gray-600 space-x-3">
-            <span className="flex items-center space-x-1.5 font-medium text-gray-700 whitespace-nowrap">
-              <Users className="w-3.5 h-3.5 text-[#80237E]" />
-              <span>Clients: {saasContext.clientCount ?? 0}</span>
-            </span>
-            <span className="flex items-center space-x-1.5 font-medium text-gray-700 whitespace-nowrap">
-              <FileText className="w-3.5 h-3.5 text-blue-600" />
-              <span>Quotes: {saasContext.totalQuotes ?? 0}</span>
-            </span>
-            <span className="flex items-center space-x-1.5 font-medium text-gray-700 whitespace-nowrap">
-              <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Revenue: {saasContext.currency || "$"}{(saasContext.totalRevenue || 0).toLocaleString()}</span>
-            </span>
+          <div className="bg-[#F8F9FA] px-4 py-2 border-b border-gray-100 flex items-center justify-between overflow-x-auto text-[11px] text-gray-600 space-x-2">
+            <button
+              onClick={() => setShowContextModal(true)}
+              className="flex items-center space-x-1.5 text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100/80 px-2 py-1 rounded-lg border border-emerald-200/60 font-semibold transition-colors"
+              title="Click to view connected business data status"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>Business Data Connected</span>
+              <Info className="w-3 h-3 text-emerald-600/70 ml-0.5" />
+            </button>
+            <div className="flex items-center space-x-3 text-gray-700">
+              <span className="flex items-center space-x-1 font-medium whitespace-nowrap">
+                <Users className="w-3 h-3 text-[#80237E]" />
+                <span>{saasContext.clientCount ?? 0}</span>
+              </span>
+              <span className="flex items-center space-x-1 font-medium whitespace-nowrap">
+                <FileText className="w-3 h-3 text-blue-600" />
+                <span>{saasContext.totalQuotes ?? 0}</span>
+              </span>
+              <span className="flex items-center space-x-1 font-medium whitespace-nowrap">
+                <DollarSign className="w-3 h-3 text-emerald-600" />
+                <span>{(saasContext.currency || "KES")} {(saasContext.totalRevenue || 0).toLocaleString()}</span>
+              </span>
+            </div>
           </div>
         )}
 
@@ -611,7 +618,7 @@ export default function BintiAiAssistantModal({
           className="flex-1 p-4 overflow-y-auto space-y-4 bg-gradient-to-b from-[#FDFBFD] to-white flex flex-col justify-between"
         >
           
-          {/* FRESH STATE: Centered Greeting + Centered Multi-line Input + Quick Prompt Buttons */}
+          {/* FRESH STATE: Centered Greeting + Centered Input + Quick Prompt Buttons */}
           {isFreshChat && (
             <div className="my-auto py-2 space-y-6 animate-fade-in">
               
@@ -623,10 +630,10 @@ export default function BintiAiAssistantModal({
                   </div>
                 </div>
                 <h3 className="text-xl font-extrabold text-gray-900 tracking-tight flex items-center justify-center space-x-2">
-                  <span>How can I help you today?</span>
+                  <span>How can I assist your business today?</span>
                 </h3>
                 <p className="text-xs text-gray-500 max-w-xs mx-auto leading-relaxed">
-                  Ask me to analyze your revenue, draft quotations, find invoices, or look up client records.
+                  I can provide an executive business brief, prepare quotes, search receivables, and help execute event operations.
                 </p>
               </div>
 
@@ -640,7 +647,7 @@ export default function BintiAiAssistantModal({
                 inputRef={centerInputRef}
               />
 
-              {/* Quick Prompt Cards Underneath Input Field */}
+              {/* Quick Prompt Cards */}
               <div className="grid grid-cols-1 gap-2 pt-1">
                 {QUICK_CARDS.map((card, cIdx) => {
                   const Icon = card.icon;
@@ -708,26 +715,63 @@ export default function BintiAiAssistantModal({
                       <CleanResponseRenderer content={msg.content} isUser={msg.role === "user"} />
                     </div>
 
-                    {/* Interactive Action Cards */}
+                    {/* Interactive Action Confirmation Cards (Level 3 Execution) */}
                     {msg.role === "model" && msg.actions && msg.actions.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5 animate-fade-in">
-                        {msg.actions.map((act, actIdx) => (
-                          <button
-                            key={actIdx}
-                            onClick={() => {
-                              if (onExecuteAction) {
-                                onExecuteAction(act);
-                                onClose();
-                              }
-                            }}
-                            aria-label={`Execute action: ${act.label}`}
-                            className="px-3 py-1.5 bg-gradient-to-r from-[#80237E]/10 to-[#6B46C1]/10 hover:from-[#80237E] hover:to-[#6B46C1] text-[#80237E] hover:text-white border border-[#80237E]/20 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center space-x-1.5 group/btn active:scale-95"
-                          >
-                            <Zap className="w-3.5 h-3.5 text-[#D4AF37] group-hover/btn:text-white group-hover/btn:scale-110 transition-transform shrink-0" />
-                            <span>{act.label}</span>
-                            <ArrowRight className="w-3 h-3 text-purple-400 group-hover/btn:text-white group-hover/btn:translate-x-0.5 transition-transform shrink-0" />
-                          </button>
-                        ))}
+                      <div className="mt-2.5 space-y-2 animate-fade-in">
+                        {msg.actions.map((act, actIdx) => {
+                          const actionId = act.id || `act-${idx}-${actIdx}`;
+                          const isExecuted = executedActionIds.has(actionId);
+
+                          if (act.isMutation) {
+                            return (
+                              <div 
+                                key={actIdx}
+                                className="p-3 bg-purple-50/80 border border-purple-200 rounded-2xl space-y-2 shadow-xs"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#80237E] flex items-center space-x-1">
+                                    <Zap className="w-3 h-3 text-[#D4AF37]" />
+                                    <span>Proposed Action (Confirmation Required)</span>
+                                  </span>
+                                  {isExecuted && (
+                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center space-x-1">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      <span>Executed & Verified</span>
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs font-bold text-gray-900">{act.label}</p>
+                                {act.summary && (
+                                  <p className="text-[11px] text-gray-600">{act.summary}</p>
+                                )}
+                                {!isExecuted && (
+                                  <div className="flex items-center space-x-2 pt-1">
+                                    <button
+                                      onClick={() => handleActionExecution(act)}
+                                      className="px-3.5 py-1.5 bg-[#80237E] hover:bg-[#6b1e6a] text-white font-bold rounded-xl text-[11px] transition-all shadow-xs flex items-center space-x-1.5"
+                                    >
+                                      <span>Approve & Execute</span>
+                                      <Check className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <button
+                              key={actIdx}
+                              onClick={() => handleActionExecution(act)}
+                              aria-label={`Execute action: ${act.label}`}
+                              className="px-3 py-1.5 bg-gradient-to-r from-[#80237E]/10 to-[#6B46C1]/10 hover:from-[#80237E] hover:to-[#6B46C1] text-[#80237E] hover:text-white border border-[#80237E]/20 rounded-xl text-[11px] font-bold transition-all shadow-xs flex items-center space-x-1.5 group/btn active:scale-95"
+                            >
+                              <Zap className="w-3.5 h-3.5 text-[#D4AF37] group-hover/btn:text-white group-hover/btn:scale-110 transition-transform shrink-0" />
+                              <span>{act.label}</span>
+                              <ArrowRight className="w-3 h-3 text-purple-400 group-hover/btn:text-white group-hover/btn:translate-x-0.5 transition-transform shrink-0" />
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 
@@ -763,7 +807,7 @@ export default function BintiAiAssistantModal({
                   </div>
                   <div className="p-3 bg-white border border-gray-100 rounded-2xl rounded-tl-none text-xs text-gray-500 flex items-center space-x-2 shadow-xs">
                     <div className="w-2 h-2 bg-[#80237E] rounded-full animate-ping" />
-                    <span>Binti is thinking...</span>
+                    <span>Binti is preparing your answer...</span>
                   </div>
                 </div>
               )}
@@ -774,7 +818,7 @@ export default function BintiAiAssistantModal({
 
         </div>
 
-        {/* BOTTOM DOCKED MULTI-LINE INPUT BAR: Only shown once conversation has started */}
+        {/* BOTTOM DOCKED MULTI-LINE INPUT BAR */}
         {!isFreshChat && (
           <ChatInputBar
             variant="docked"
@@ -787,6 +831,75 @@ export default function BintiAiAssistantModal({
         )}
 
       </div>
+
+      {/* Connected Business Data Transparency Modal */}
+      {showContextModal && (
+        <div 
+          role="dialog"
+          aria-modal="true"
+          aria-label="Connected Business Data Details"
+          className="fixed inset-0 z-60 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+        >
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-gray-100 font-sans space-y-4 relative">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center space-x-2 text-emerald-700">
+                <Database className="w-5 h-5" />
+                <h3 className="font-extrabold text-sm text-gray-900">Connected Business Data</h3>
+              </div>
+              <button
+                onClick={() => setShowContextModal(false)}
+                aria-label="Close context details"
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-gray-600 leading-relaxed">
+              <p>
+                Binti is directly synchronized with your live single-user business database. The assistant operates under deterministic financial rules:
+              </p>
+              
+              <div className="p-3 bg-gray-50 rounded-2xl space-y-1.5 border border-gray-100 text-[11px]">
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500 font-medium">Clients Module:</span>
+                  <span className="font-bold text-gray-800">{saasContext?.clientCount ?? 0} active accounts</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500 font-medium">Quotations Ledger:</span>
+                  <span className="font-bold text-gray-800">{saasContext?.totalQuotes ?? 0} proposals ({saasContext?.conversionRate ?? 0}% converted)</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500 font-medium">Invoices & Receivables:</span>
+                  <span className="font-bold text-gray-800">{saasContext?.totalInvoices ?? 0} invoices ({saasContext?.collectionRate ?? 100}% collection rate)</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500 font-medium">Equipment & Services:</span>
+                  <span className="font-bold text-gray-800">{saasContext?.productsCatalog?.length ?? 0} catalog items</span>
+                </div>
+                <div className="flex justify-between py-0.5">
+                  <span className="text-gray-500 font-medium">Last Synchronized:</span>
+                  <span className="font-bold text-gray-800">{saasContext?.lastSyncedAt || "Real-time active"}</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-gray-500">
+                🔒 Gemini acts strictly as an interpreter and planner. All financial math and database changes are validated and executed by your verified backend application logic.
+              </p>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowContextModal(false)}
+                className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-xl text-xs transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

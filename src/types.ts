@@ -82,6 +82,17 @@ export interface Invoice {
   terms?: string;
 }
 
+export interface Expense {
+  id: string;
+  date: string;
+  category: 'Transport & Logistics' | 'Labor & Crew' | 'Equipment Maintenance' | 'Fuel' | 'Decor & Consumables' | 'Utilities & Rent' | 'Other';
+  description: string;
+  amount: number;
+  eventName?: string;
+  referenceNumber?: string;
+  notes?: string;
+}
+
 export interface CompanySettings {
   companyName: string;
   email?: string;
@@ -103,10 +114,20 @@ export interface AdminUser {
   role: 'admin' | 'manager';
 }
 
+export interface AuditLogEntry {
+  id: string;
+  timestamp: string;
+  actionType: string;
+  summary: string;
+  executedBy: string;
+  details?: Record<string, any>;
+}
+
 export interface DBState {
   clients: Client[];
   products: ProductService[];
   quotes: Quote[];
   invoices: Invoice[];
+  expenses?: Expense[];
   settings: CompanySettings;
 }

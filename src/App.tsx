@@ -798,7 +798,7 @@ export default function App() {
         break;
       case "create_quote":
         if (action.payload?.items && action.payload.items.length > 0) {
-          await handleCreateQuote(action.payload);
+          await handleCreateQuote(action.payload as Partial<Quote>);
           logAuditEvent("create_quote", `Created quotation for ${action.payload.clientName || 'Client'}`, action.payload);
         } else {
           setActiveTab("quotes");
@@ -811,7 +811,7 @@ export default function App() {
         break;
       case "create_invoice":
         if (action.payload?.items && action.payload.items.length > 0) {
-          await handleCreateInvoice(action.payload);
+          await handleCreateInvoice(action.payload as Partial<Invoice>);
           logAuditEvent("create_invoice", `Issued tax invoice for ${action.payload.clientName || 'Client'}`, action.payload);
         } else {
           setActiveTab("invoices");
@@ -838,6 +838,28 @@ export default function App() {
           );
         } else {
           setActiveTab("invoices");
+        }
+        break;
+      case "import_clients":
+        if (action.payload?.clients && Array.isArray(action.payload.clients)) {
+          const clientList = action.payload.clients;
+          for (const c of clientList) {
+            await handleCreateClient(c);
+          }
+          logAuditEvent("import_clients", `Imported ${clientList.length} clients from uploaded document.`, { count: clientList.length });
+          showToast(`Successfully imported ${clientList.length} clients into directory.`);
+          setActiveTab("clients");
+        }
+        break;
+      case "import_products":
+        if (action.payload?.products && Array.isArray(action.payload.products)) {
+          const prodList = action.payload.products;
+          for (const p of prodList) {
+            await handleCreateProduct(p);
+          }
+          logAuditEvent("import_products", `Imported ${prodList.length} catalog items from document.`, { count: prodList.length });
+          showToast(`Successfully imported ${prodList.length} catalog items.`);
+          setActiveTab("products");
         }
         break;
       case "open_client":

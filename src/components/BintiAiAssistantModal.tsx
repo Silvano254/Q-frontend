@@ -21,7 +21,11 @@ import {
   RotateCcw,
   CheckCircle2,
   Database,
-  Info
+  Info,
+  Plus,
+  Paperclip,
+  FileSpreadsheet,
+  FileCheck
 } from "lucide-react";
 import { 
   askGeminiAssistant, 
@@ -30,6 +34,7 @@ import {
   AgentAction,
   cleanAiResponse 
 } from "../services/geminiService";
+import { parseUploadedDocument, ParsedDocument } from "../utils/fileParser";
 
 interface BintiAiAssistantModalProps {
   isOpen: boolean;
@@ -47,6 +52,12 @@ const QUICK_CARDS = [
     prompt: "Provide a complete business brief covering money collected, open quotes, and items needing attention."
   },
   {
+    icon: FileSpreadsheet,
+    title: "Upload & restructure business data",
+    subtitle: "Import CSV client lists, sales & inventory",
+    prompt: "I want to upload a document to import clients and data into Binti Events."
+  },
+  {
     icon: FileText,
     title: "Create or convert a quote",
     subtitle: "Draft proposal & convert to invoice",
@@ -57,18 +68,9 @@ const QUICK_CARDS = [
     title: "Payment & debt recovery",
     subtitle: "Track unpaid balances & reminder drafts",
     prompt: "Show me all overdue invoices and draft a follow-up reminder for overdue clients."
-  },
-  {
-    icon: HelpCircle,
-    title: "Booking policies & terms",
-    subtitle: "Deposit standards & event cancellation",
-    prompt: "What standard payment terms and deposit policies should we use for event bookings?"
   }
 ];
 
-/**
- * Clean Formatter: Executive-grade renderer without horizontal lines or markdown clutter.
- */
 const CleanResponseRenderer = memo(function CleanResponseRenderer({ 
   content, 
   isUser 
@@ -210,7 +212,7 @@ const CleanResponseRenderer = memo(function CleanResponseRenderer({
 });
 
 /**
- * Reusable Chat Input Bar
+ * Reusable Chat Input Bar with Document Attachment (+) Support
  */
 interface ChatInputBarProps {
   value: string;
@@ -219,6 +221,8 @@ interface ChatInputBarProps {
   loading: boolean;
   variant: "centered" | "docked";
   inputRef?: React.RefObject<HTMLTextAreaElement>;
+  selectedFile: File | null;
+  onSelectFile: (file: File | null) => void;
 }
 
 const ChatInputBar = memo(function ChatInputBar({
@@ -227,9 +231,12 @@ const ChatInputBar = memo(function ChatInputBar({
   onSubmit,
   loading,
   variant,
-  inputRef
+  inputRef,
+  selectedFile,
+  onSelectFile
 }: ChatInputBarProps) {
   const localRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const activeRef = inputRef || localRef;
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -243,7 +250,7 @@ const ChatInputBar = memo(function ChatInputBar({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      if (!loading && value.trim()) {
+      if (!loading && (value.trim() || selectedFile)) {
         onSubmit();
         if (activeRef.current) {
           activeRef.current.style.height = variant === "centered" ? "44px" : "38px";
@@ -252,49 +259,132 @@ const ChatInputBar = memo(function ChatInputBar({
     }
   };
 
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      onSelectFile(e.target.files[0]);
+    }
+  };
+
   if (variant === "centered") {
     return (
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!loading && value.trim()) onSubmit();
-        }}
-        className="relative bg-white border-2 border-[#80237E]/20 hover:border-[#80237E]/40 focus-within:border-[#80237E] rounded-2xl shadow-lg shadow-purple-900/5 p-2 flex items-end space-x-2 transition-all"
-      >
-        <textarea
-          ref={activeRef}
-          rows={1}
-          value={value}
-          onChange={handleInput}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask Binti anything..."
-          disabled={loading}
-          aria-label="Message prompt for Binti AI Assistant"
-          className="flex-1 p-2 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px]"
-          style={{ minHeight: "44px" }}
-        />
-        <button
-          type="submit"
-          disabled={loading || !value.trim()}
-          aria-label="Send message"
-          className="px-4 py-2.5 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-95 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-900/15 flex items-center space-x-1.5 disabled:opacity-40 transition-all active:scale-95 shrink-0 mb-0.5"
+      <div className="space-y-2">
+        {selectedFile && (
+          <div className="flex items-center justify-between p-2.5 bg-purple-50/90 border border-purple-200 rounded-2xl text-xs text-purple-900 animate-fade-in shadow-xs">
+            <div className="flex items-center space-x-2 truncate">
+              <FileSpreadsheet className="w-4 h-4 text-[#80237E] shrink-0" />
+              <span className="font-bold truncate">{selectedFile.name}</span>
+              <span className="text-[10px] text-purple-600 shrink-0">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => onSelectFile(null)}
+              aria-label="Remove attached document"
+              className="p-1 text-purple-400 hover:text-purple-700 rounded-lg"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!loading && (value.trim() || selectedFile)) onSubmit();
+          }}
+          className="relative bg-white border-2 border-[#80237E]/20 hover:border-[#80237E]/40 focus-within:border-[#80237E] rounded-2xl shadow-lg shadow-purple-900/5 p-2 flex items-end space-x-2 transition-all"
         >
-          <span>Send</span>
-          <Send className="w-3.5 h-3.5" />
-        </button>
-      </form>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileInputChange}
+            accept=".csv,.xlsx,.xls,.txt,.pdf,.json,image/*"
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Attach document or spreadsheet"
+            title="Upload CSV, spreadsheet, or business documents"
+            disabled={loading}
+            className="p-2 text-gray-500 hover:text-[#80237E] hover:bg-purple-50 rounded-xl transition-all shrink-0 mb-0.5 flex items-center justify-center"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+
+          <textarea
+            ref={activeRef}
+            rows={1}
+            value={value}
+            onChange={handleInput}
+            onKeyDown={handleKeyDown}
+            placeholder="Ask Binti anything..."
+            disabled={loading}
+            aria-label="Message prompt for Binti AI Assistant"
+            className="flex-1 p-2 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px]"
+            style={{ minHeight: "44px" }}
+          />
+
+          <button
+            type="submit"
+            disabled={loading || (!value.trim() && !selectedFile)}
+            aria-label="Send message"
+            className="px-4 py-2.5 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-95 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-900/15 flex items-center space-x-1.5 disabled:opacity-40 transition-all active:scale-95 shrink-0 mb-0.5"
+          >
+            <span>Send</span>
+            <Send className="w-3.5 h-3.5" />
+          </button>
+        </form>
+      </div>
     );
   }
 
   return (
-    <div className="p-4 bg-white border-t border-gray-100 animate-slide-up">
+    <div className="p-4 bg-white border-t border-gray-100 animate-slide-up space-y-2">
+      {selectedFile && (
+        <div className="flex items-center justify-between p-2 bg-purple-50/90 border border-purple-200 rounded-xl text-xs text-purple-900 animate-fade-in shadow-xs">
+          <div className="flex items-center space-x-2 truncate">
+            <FileSpreadsheet className="w-3.5 h-3.5 text-[#80237E] shrink-0" />
+            <span className="font-bold truncate text-[11px]">{selectedFile.name}</span>
+            <span className="text-[10px] text-purple-600 shrink-0">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSelectFile(null)}
+            aria-label="Remove attached document"
+            className="p-1 text-purple-400 hover:text-purple-700 rounded"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (!loading && value.trim()) onSubmit();
+          if (!loading && (value.trim() || selectedFile)) onSubmit();
         }}
         className="flex items-end space-x-2"
       >
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileInputChange}
+          accept=".csv,.xlsx,.xls,.txt,.pdf,.json,image/*"
+          className="hidden"
+        />
+
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="Attach document or spreadsheet"
+          title="Upload CSV, spreadsheet, or business documents"
+          disabled={loading}
+          className="p-2 text-gray-500 hover:text-[#80237E] hover:bg-purple-50 rounded-xl transition-all shrink-0 mb-0.5 flex items-center justify-center border border-gray-200"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+
         <textarea
           ref={activeRef}
           rows={1}
@@ -309,7 +399,7 @@ const ChatInputBar = memo(function ChatInputBar({
         />
         <button
           type="submit"
-          disabled={loading || !value.trim()}
+          disabled={loading || (!value.trim() && !selectedFile)}
           aria-label="Send follow-up message"
           className="px-4 py-2 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-90 text-white font-semibold rounded-xl text-xs shadow-md shadow-purple-900/10 flex items-center space-x-1.5 disabled:opacity-50 transition-all active:scale-95 shrink-0 mb-0.5"
         >
@@ -336,6 +426,7 @@ export default function BintiAiAssistantModal({
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
   const [executedActionIds, setExecutedActionIds] = useState<Set<string>>(new Set());
   const [showContextModal, setShowContextModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const centerInputRef = useRef<HTMLTextAreaElement>(null);
@@ -389,7 +480,8 @@ export default function BintiAiAssistantModal({
 
   const handleSendMessage = useCallback(async (textToSend?: string) => {
     const query = textToSend || inputMessage;
-    if (!query || query.trim() === "" || loading) return;
+    if ((!query || query.trim() === "") && !selectedFile) return;
+    if (loading) return;
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -397,11 +489,28 @@ export default function BintiAiAssistantModal({
     const currentController = new AbortController();
     abortControllerRef.current = currentController;
 
+    const fileToProcess = selectedFile;
+    setSelectedFile(null);
+
+    let parsedDoc: ParsedDocument | null = null;
+    if (fileToProcess) {
+      try {
+        parsedDoc = await parseUploadedDocument(fileToProcess);
+      } catch (err) {
+        console.error("Failed to parse file:", err);
+      }
+    }
+
     const userTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMsg: ChatMessage = {
       role: "user",
-      content: query.trim(),
-      timestamp: userTimestamp
+      content: query.trim() || (fileToProcess ? `Analyzed document: ${fileToProcess.name}` : ""),
+      timestamp: userTimestamp,
+      attachment: fileToProcess ? {
+        name: fileToProcess.name,
+        size: fileToProcess.size,
+        type: fileToProcess.name.split('.').pop() || 'doc'
+      } : undefined
     };
 
     setMessages(prev => [...prev, userMsg]);
@@ -412,10 +521,11 @@ export default function BintiAiAssistantModal({
 
     try {
       const result = await askGeminiAssistant(
-        query.trim(),
+        query.trim() || `Please analyze this attached document and extract structured records: ${fileToProcess?.name}`,
         messages,
         saasContext,
-        currentController.signal
+        currentController.signal,
+        parsedDoc
       );
 
       if (currentController.signal.aborted) return;
@@ -443,7 +553,7 @@ export default function BintiAiAssistantModal({
         setLoading(false);
       }
     }
-  }, [inputMessage, loading, messages, saasContext]);
+  }, [inputMessage, loading, messages, saasContext, selectedFile]);
 
   const handleActionExecution = async (act: AgentAction) => {
     const actionId = act.id || `${act.type}-${Date.now()}`;
@@ -479,6 +589,7 @@ export default function BintiAiAssistantModal({
     setErrorMsg(null);
     setLastFailedPrompt(null);
     setInputMessage("");
+    setSelectedFile(null);
     setTimeout(() => {
       centerInputRef.current?.focus();
     }, 100);
@@ -618,7 +729,7 @@ export default function BintiAiAssistantModal({
           className="flex-1 p-4 overflow-y-auto space-y-4 bg-gradient-to-b from-[#FDFBFD] to-white flex flex-col justify-between"
         >
           
-          {/* FRESH STATE: Centered Greeting + Centered Input + Quick Prompt Buttons */}
+          {/* FRESH STATE: Centered Greeting + Centered Input with (+) Button + Quick Prompt Buttons */}
           {isFreshChat && (
             <div className="my-auto py-2 space-y-6 animate-fade-in">
               
@@ -633,11 +744,11 @@ export default function BintiAiAssistantModal({
                   <span>How can I assist your business today?</span>
                 </h3>
                 <p className="text-xs text-gray-500 max-w-xs mx-auto leading-relaxed">
-                  I can provide an executive business brief, prepare quotes, search receivables, and help execute event operations.
+                  Ask me questions or click the <strong className="text-[#80237E] font-bold">+</strong> button to upload spreadsheets & client lists to restructure into your database.
                 </p>
               </div>
 
-              {/* Reusable Centered Multi-line Input Bar */}
+              {/* Centered Multi-line Input Bar with (+) Upload Button */}
               <ChatInputBar
                 variant="centered"
                 value={inputMessage}
@@ -645,6 +756,8 @@ export default function BintiAiAssistantModal({
                 onSubmit={handleSendMessage}
                 loading={loading}
                 inputRef={centerInputRef}
+                selectedFile={selectedFile}
+                onSelectFile={setSelectedFile}
               />
 
               {/* Quick Prompt Cards */}
@@ -704,7 +817,16 @@ export default function BintiAiAssistantModal({
                   </div>
 
                   {/* Message Bubble */}
-                  <div className="max-w-[85%] group relative">
+                  <div className="max-w-[85%] group relative space-y-1.5">
+                    {/* Attachment Badge on User Message */}
+                    {msg.attachment && (
+                      <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-100 text-[#80237E] rounded-xl text-[11px] font-bold self-end border border-purple-200 shadow-xs">
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-[#80237E]" />
+                        <span className="truncate">{msg.attachment.name}</span>
+                        <span className="text-[10px] text-purple-600 font-normal">({(msg.attachment.size / 1024).toFixed(1)} KB)</span>
+                      </div>
+                    )}
+
                     <div
                       className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm ${
                         msg.role === "user"
@@ -731,12 +853,12 @@ export default function BintiAiAssistantModal({
                                 <div className="flex items-center justify-between">
                                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#80237E] flex items-center space-x-1">
                                     <Zap className="w-3 h-3 text-[#D4AF37]" />
-                                    <span>Proposed Action (Confirmation Required)</span>
+                                    <span>Database Operation (Confirmation Required)</span>
                                   </span>
                                   {isExecuted && (
                                     <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center space-x-1">
                                       <CheckCircle2 className="w-3 h-3" />
-                                      <span>Executed & Verified</span>
+                                      <span>Imported & Logged</span>
                                     </span>
                                   )}
                                 </div>
@@ -807,7 +929,7 @@ export default function BintiAiAssistantModal({
                   </div>
                   <div className="p-3 bg-white border border-gray-100 rounded-2xl rounded-tl-none text-xs text-gray-500 flex items-center space-x-2 shadow-xs">
                     <div className="w-2 h-2 bg-[#80237E] rounded-full animate-ping" />
-                    <span>Binti is preparing your answer...</span>
+                    <span>Binti is processing document...</span>
                   </div>
                 </div>
               )}
@@ -818,7 +940,7 @@ export default function BintiAiAssistantModal({
 
         </div>
 
-        {/* BOTTOM DOCKED MULTI-LINE INPUT BAR */}
+        {/* BOTTOM DOCKED MULTI-LINE INPUT BAR WITH (+) ATTACHMENT */}
         {!isFreshChat && (
           <ChatInputBar
             variant="docked"
@@ -827,6 +949,8 @@ export default function BintiAiAssistantModal({
             onSubmit={handleSendMessage}
             loading={loading}
             inputRef={bottomInputRef}
+            selectedFile={selectedFile}
+            onSelectFile={setSelectedFile}
           />
         )}
 
@@ -857,7 +981,7 @@ export default function BintiAiAssistantModal({
 
             <div className="space-y-3 text-xs text-gray-600 leading-relaxed">
               <p>
-                Binti is directly synchronized with your live single-user business database. The assistant operates under deterministic financial rules:
+                Binti is synchronized with your live single-user business database and supports direct document ingestion:
               </p>
               
               <div className="p-3 bg-gray-50 rounded-2xl space-y-1.5 border border-gray-100 text-[11px]">
@@ -874,8 +998,8 @@ export default function BintiAiAssistantModal({
                   <span className="font-bold text-gray-800">{saasContext?.totalInvoices ?? 0} invoices ({saasContext?.collectionRate ?? 100}% collection rate)</span>
                 </div>
                 <div className="flex justify-between py-0.5">
-                  <span className="text-gray-500 font-medium">Equipment & Services:</span>
-                  <span className="font-bold text-gray-800">{saasContext?.productsCatalog?.length ?? 0} catalog items</span>
+                  <span className="text-gray-500 font-medium">Document Import Engine:</span>
+                  <span className="font-bold text-emerald-700">Active (CSV, XLSX, PDF, TXT)</span>
                 </div>
                 <div className="flex justify-between py-0.5">
                   <span className="text-gray-500 font-medium">Last Synchronized:</span>
@@ -884,7 +1008,7 @@ export default function BintiAiAssistantModal({
               </div>
 
               <p className="text-[11px] text-gray-500">
-                🔒 Gemini acts strictly as an interpreter and planner. All financial math and database changes are validated and executed by your verified backend application logic.
+                🔒 All document imports require your explicit confirmation before records are saved to the database.
               </p>
             </div>
 

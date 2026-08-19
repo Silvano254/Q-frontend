@@ -1,11 +1,13 @@
 /**
  * Enhanced Document Processing & Financial Extraction Utilities for Binti AI
- * Stage 1: Extraction & Parsing (Excel XLSX/XLS with SheetJS, CSV RFC-4180, JSON Structure, Multimodal Images, Binary PDF, File Size Guards)
+ * Stage 1: Extraction & Parsing (Excel XLSX/XLS with SheetJS, PapaParse CSV, Day.js dates, JSON, Multimodal Images, Binary PDF, File Size Guards)
  * Stage 2: Financial Document Interpretation (Normalizes receipts, invoices, and quotations)
  * Stage 3: Mathematical Reconciliation & Business Validation
  */
 
 import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
+import dayjs from 'dayjs';
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB limit for AI document processing
 
@@ -78,105 +80,36 @@ export interface ParsedDocument {
 }
 
 /**
- * Robust RFC-4180 compliant CSV parser.
- * Handles commas inside double quotes, escaped quotes (""), newlines, and varied delimiters (, or ; or \t).
+ * Normalizes varied date formats into ISO YYYY-MM-DD using Day.js
  */
-export function parseRFC4180CSV(input: string): string[][] {
-  const result: string[][] = [];
-  let row: string[] = [];
-  let currentVal = '';
-  let inQuotes = false;
-  let i = 0;
-
-  // Auto-detect delimiter
-  const firstLines = input.split(/\r?\n/).slice(0, 5).join('\n');
-  let delimiter = ',';
-  if (firstLines.includes('\t') && (firstLines.split('\t').length > firstLines.split(',').length)) {
-    delimiter = '\t';
-  } else if (firstLines.includes(';') && (firstLines.split(';').length > firstLines.split(',').length)) {
-    delimiter = ';';
-  }
-
-  while (i < input.length) {
-    const char = input[i];
-    const nextChar = input[i + 1];
-
-    if (inQuotes) {
-      if (char === '"') {
-        if (nextChar === '"') {
-          currentVal += '"';
-          i += 2;
-          continue;
-        } else {
-          inQuotes = false;
-          i++;
-          continue;
-        }
-      } else {
-        currentVal += char;
-        i++;
-        continue;
-      }
-    } else {
-      if (char === '"') {
-        inQuotes = true;
-        i++;
-        continue;
-      } else if (char === delimiter) {
-        row.push(currentVal.trim());
-        currentVal = '';
-        i++;
-        continue;
-      } else if (char === '\r' || char === '\n') {
-        if (char === '\r' && nextChar === '\n') {
-          i++;
-        }
-        row.push(currentVal.trim());
-        if (row.some(cell => cell.length > 0)) {
-          result.push(row);
-        }
-        row = [];
-        currentVal = '';
-        i++;
-        continue;
-      } else {
-        currentVal += char;
-        i++;
-        continue;
-      }
-    }
-  }
-
-  if (currentVal.length > 0 || row.length > 0) {
-    row.push(currentVal.trim());
-    if (row.some(cell => cell.length > 0)) {
-      result.push(row);
-    }
-  }
-
-  return result;
+export function normalizeDate(rawDate?: string | number | Date): string | undefined {
+  if (!rawDate) return undefined;
+  const d = dayjs(rawDate);
+  return d.isValid() ? d.format('YYYY-MM-DD') : undefined;
 }
 
 /**
- * Converts RFC-4180 CSV rows to key-value objects
+ * High-performance RFC-4180 compliant CSV parser powered by PapaParse.
+ * Handles quoted commas, escaped quotes, multiline values, and auto-detects delimiters.
+ */
+export function parseRFC4180CSV(input: string): string[][] {
+  const parsed = Papa.parse<string[]>(input, {
+    skipEmptyLines: 'greedy',
+    delimiter: '' // Auto-detect delimiter
+  });
+  return (parsed.data || []).filter(row => Array.isArray(row) && row.some(cell => String(cell).trim() !== ''));
+}
+
+/**
+ * Converts CSV rows to key-value objects using PapaParse
  */
 export function parseCsvRows(csvText: string): Array<Record<string, string>> {
-  const table = parseRFC4180CSV(csvText);
-  if (table.length < 2) return [];
-
-  const headers = table[0].map(h => h.trim().replace(/^["']|["']$/g, ''));
-  const records: Array<Record<string, string>> = [];
-
-  for (let r = 1; r < table.length; r++) {
-    const row = table[r];
-    const obj: Record<string, string> = {};
-    headers.forEach((header, idx) => {
-      obj[header] = row[idx] !== undefined ? row[idx] : '';
-    });
-    records.push(obj);
-  }
-
-  return records;
+  const parsed = Papa.parse<Record<string, string>>(csvText, {
+    header: true,
+    skipEmptyLines: 'greedy',
+    transformHeader: (h) => h.trim().replace(/^["']|["']$/g, '')
+  });
+  return parsed.data || [];
 }
 
 /**
@@ -487,7 +420,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
                   supplierName: parsedJson.supplierName,
                   customerName: parsedJson.customerName,
                   documentNumber: parsedJson.documentNumber,
-                  transactionDate: parsedJson.transactionDate,
+                  transactionDate: normalizeDate(parsedJson.transactionDate),
                   subtotal:
                     parsedJson.subtotal !== undefined && parsedJson.subtotal !== null
                       ? Number(parsedJson.subtotal)
@@ -512,7 +445,7 @@ export async function parseUploadedDocument(file: File): Promise<ParsedDocument>
           }
         }
 
-        // CSV & TSV Parsing
+        // CSV & TSV Parsing with PapaParse
         if (fileType === 'csv' || fileType === 'tsv' || (fileType !== 'json' && textContent.includes(','))) {
           const rawTable = parseRFC4180CSV(textContent);
           if (rawTable.length > 0) {

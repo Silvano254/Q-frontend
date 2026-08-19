@@ -14,6 +14,7 @@ export const ResponseRenderer = memo(function ResponseRenderer({
   }
 
   const cleanContent = (content || "")
+    .replace(/\[\s*Approve\s*&\s*Execute\s*(?:Button)?\s*\]/gi, '**Approve & Execute**')
     .replace(/^[-*_]{3,}$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();

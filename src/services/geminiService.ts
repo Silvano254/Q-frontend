@@ -291,12 +291,12 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
   const isWriteIntent = /import|save|load|insert|record|add to|create|write|draft|post/i.test(p);
 
   // Stage 2 & 3: Document Ingestion & Action Proposal
-  if (attachedDoc && isWriteIntent) {
+  if (attachedDoc) {
     const docName = attachedDoc.fileName.toLowerCase();
     const docText = (attachedDoc.textContent || '').toLowerCase();
     const isImage = attachedDoc.mimeType.startsWith('image/');
 
-    // Receipt / Expense document write intent
+    // Receipt / Expense document
     if (isImage || docName.includes('receipt') || docName.includes('expense') || docText.includes('total:') || docText.includes('amount:')) {
       const finDoc = attachedDoc.extractedData?.financialDoc;
       const amount = finDoc?.totalAmount;
@@ -305,6 +305,7 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
 
       if (amount && amount > 0) {
         actions.push({
+          id: `act-exp-${Date.now()}`,
           type: "create_expense",
           label: `Record Expense: KES ${amount.toLocaleString()} (${supplier})`,
           icon: "receipt",
@@ -319,16 +320,18 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
             date: finDoc?.transactionDate || new Date().toISOString().split('T')[0]
           }
         });
-        return actions;
       }
     }
 
-    // Tabular Excel / CSV Tables write intent
+    // Tabular Excel / CSV Tables
     if (attachedDoc.extractedData?.tables && attachedDoc.extractedData.tables.length > 0) {
       const allTables = attachedDoc.extractedData.tables;
       
-      // Extract clients if requested
-      const clientTable = allTables.find(t => t.headers.some(h => /client|customer|name|contact/i.test(h)));
+      // Extract clients
+      const clientTable = allTables.find(t => 
+        (t.name && /client|customer|member|lead|contact/i.test(t.name)) ||
+        (t.headers && t.headers.some(h => /client|customer|name|contact/i.test(h)))
+      );
       if (clientTable && clientTable.rows.length > 0) {
         const hMap: Record<string, number> = {};
         clientTable.headers.forEach((h, idx) => {
@@ -356,6 +359,7 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
 
         if (parsedClients.length > 0) {
           actions.push({
+            id: `act-imp-clients-${Date.now()}`,
             type: "import_clients",
             label: `Import ${displayCount} Clients into Database`,
             icon: "database",
@@ -364,8 +368,28 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
             summary: `Add ${displayCount} validated client records from ${attachedDoc.fileName} directly to your client directory.`,
             payload: { clients: parsedClients }
           });
-          return actions;
         }
+      }
+
+      // Extract products / inventory
+      const productTable = allTables.find(t => 
+        (t.name && /product|service|catalog|item|inventory|equipment/i.test(t.name)) ||
+        (t.headers && t.headers.some(h => /service|item|product|price|unit/i.test(h)))
+      );
+      if (productTable && productTable.rows.length > 0) {
+        const prodCountMatch = (attachedDoc.textContent || '').match(/(\d[\d,]*)\s+(?:products|items|services)/i);
+        const displayProdCount = prodCountMatch ? prodCountMatch[1] : productTable.rows.length.toLocaleString();
+
+        actions.push({
+          id: `act-imp-prods-${Date.now()}`,
+          type: "import_products",
+          label: `Import ${displayProdCount} Catalog Items into Products`,
+          icon: "database",
+          isMutation: true,
+          riskLevel: "medium",
+          summary: `Add ${displayProdCount} product & service items from ${attachedDoc.fileName} into your active product catalog.`,
+          payload: { productsCount: productTable.rows.length }
+        });
       }
     }
   }

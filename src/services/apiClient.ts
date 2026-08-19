@@ -69,23 +69,6 @@ export async function apiRequest<T>(
           }
         }
 
-        // If path has an ID component (e.g. /api/clients/c_123), ensure id is in body for Edge Functions
-        const pathSegments = path.replace(/^\/api\//, '').split('/');
-        if (pathSegments.length >= 2 && (method === 'PUT' || method === 'DELETE' || method === 'POST')) {
-          const resourceId = pathSegments[1];
-          if (resourceId && resourceId !== 'payments' && resourceId !== 'reset' && resourceId !== 'login' && resourceId !== 'verify') {
-            try {
-              const existingBody = typeof requestBody === 'string' ? JSON.parse(requestBody) : (requestBody || {});
-              if (!existingBody.id) {
-                existingBody.id = resourceId;
-                requestBody = JSON.stringify(existingBody);
-              }
-            } catch {
-              // Body wasn't JSON
-            }
-          }
-        }
-
         const response = await fetch(getApiUrl(path), {
           ...init,
           body: requestBody,

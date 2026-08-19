@@ -172,22 +172,12 @@ export interface AssistantResponse {
   actions?: AgentAction[];
 }
 
+/**
+ * Standard text sanitizer
+ */
 export function cleanAiResponse(text: string): string {
   if (!text) return "";
   return text
-    .replace(/Binti Events Corporate Suite/gi, 'Binti Events Management System')
-    .replace(/Binti Events Suite/gi, 'Binti Events Management System')
-    .replace(/Corporate Suite/gi, 'Management System')
-    .replace(/created by Silvano Otieno[.,]?/gi, 'dedicated to Binti Events.')
-    .replace(/by Silvano Otieno[.,]?/gi, 'for Binti Events.')
-    .replace(/Silvano Otieno/gi, 'Virginia')
-    .replace(/Silvano/gi, 'Virginia')
-    .replace(/which we can now integrate into our active client database to begin driving our quote conversion rate above its current 0% baseline[.,]?/gi, '')
-    .replace(/to begin driving our quote conversion rate above its current 0% baseline[.,]?/gi, '')
-    .replace(/actively drive our quote conversion rate up from its current 0% baseline[.,]?/gi, '')
-    .replace(/systematically increase our quote conversion rate from 0%[.,]?/gi, '')
-    .replace(/transition from our current baseline of KES 0 realized revenue to/gi, 'begin')
-    .replace(/This aligns with our current system baseline of KES 0 realized revenue and 0 invoices issued, giving us a clean slate to/gi, 'We can')
     .replace(/\r\n/g, '\n')
     .replace(/\r/g, '\n')
     .trim();
@@ -334,28 +324,30 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
     const isImage = attachedDoc.mimeType.startsWith('image/');
 
     // Receipt / Expense document write intent
-    if (isImage || docName.includes('receipt') || docName.includes('fuel') || docName.includes('expense') || docText.includes('total:') || docText.includes('amount:')) {
-      const isFuel = docName.includes('fuel') || docName.includes('shell') || docName.includes('total') || docText.includes('fuel') || docText.includes('diesel') || docText.includes('petrol');
-      const supplier = isFuel ? 'Shell Service Station' : (docName.split('.')[0].replace(/[-_]/g, ' ') || 'Supplier');
-      const amount = 6500;
-      const category = isFuel ? 'Fuel' : 'Transport & Logistics';
+    if (isImage || docName.includes('receipt') || docName.includes('expense') || docText.includes('total:') || docText.includes('amount:')) {
+      const finDoc = attachedDoc.extractedData?.financialDoc;
+      const amount = finDoc?.totalAmount;
+      const supplier = finDoc?.supplierName || (docName.split('.')[0].replace(/[-_]/g, ' ') || 'Supplier');
+      const category = finDoc?.category || 'Transport & Logistics';
 
-      actions.push({
-        type: "create_expense",
-        label: `Record Expense: KES ${amount.toLocaleString()} (${supplier})`,
-        icon: "receipt",
-        isMutation: true,
-        riskLevel: "medium",
-        summary: `Record a ${category} expense of KES ${amount.toLocaleString()} from ${supplier} into your business expense ledger.`,
-        payload: {
-          category,
-          description: `${category} purchase - ${supplier}`,
-          amount,
-          referenceNumber: `EXP-${Date.now().toString().slice(-4)}`,
-          date: new Date().toISOString().split('T')[0]
-        }
-      });
-      return actions;
+      if (amount && amount > 0) {
+        actions.push({
+          type: "create_expense",
+          label: `Record Expense: KES ${amount.toLocaleString()} (${supplier})`,
+          icon: "receipt",
+          isMutation: true,
+          riskLevel: "medium",
+          summary: `Record a ${category} expense of KES ${amount.toLocaleString()} from ${supplier} into your business expense ledger.`,
+          payload: {
+            category,
+            description: `${category} purchase - ${supplier}`,
+            amount,
+            referenceNumber: finDoc?.documentNumber || `EXP-${Date.now().toString().slice(-4)}`,
+            date: finDoc?.transactionDate || new Date().toISOString().split('T')[0]
+          }
+        });
+        return actions;
+      }
     }
 
     // Tabular Excel / CSV Tables write intent
@@ -448,35 +440,34 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
 
     // 1. Structured Financial Document / Receipt / Expense Image
     const finDoc = attachedDoc.extractedData?.financialDoc;
-    if (finDoc || isImage || docName.includes('receipt') || docName.includes('fuel') || docName.includes('expense') || docText.includes('total:') || docText.includes('amount:')) {
-      const isFuel = docName.includes('fuel') || docName.includes('shell') || docText.includes('fuel') || docText.includes('diesel') || docText.includes('petrol');
-      const supplier = finDoc?.supplierName || (isFuel ? 'Shell Service Station' : (attachedDoc.fileName.split('.')[0].replace(/[-_]/g, ' ') || 'Supplier'));
-      const amount = finDoc?.totalAmount !== undefined && finDoc.totalAmount !== null ? finDoc.totalAmount : 6500;
-      const category: CreateExpensePayload['category'] = (finDoc?.category as any) || (isFuel ? 'Fuel' : 'Transport & Logistics');
-      const date = finDoc?.transactionDate || new Date().toISOString().split('T')[0];
+    if (finDoc?.totalAmount && finDoc.totalAmount > 0) {
+      const supplier = finDoc.supplierName || attachedDoc.fileName.split('.')[0].replace(/[-_]/g, ' ') || 'Supplier';
+      const amount = finDoc.totalAmount;
+      const category: CreateExpensePayload['category'] = (finDoc.category as any) || 'Transport & Logistics';
+      const date = finDoc.transactionDate || new Date().toISOString().split('T')[0];
 
       // Stage 3: Mathematical Reconciliation
       const reconciliation = validateAndReconcileFinancialDoc({
-        documentType: finDoc?.documentType || 'receipt',
+        documentType: finDoc.documentType || 'receipt',
         supplierName: supplier,
         totalAmount: amount,
-        subtotal: finDoc?.subtotal,
-        taxAmount: finDoc?.taxAmount,
-        currency: finDoc?.currency || curr,
-        items: finDoc?.items
+        subtotal: finDoc.subtotal,
+        taxAmount: finDoc.taxAmount,
+        currency: finDoc.currency || curr,
+        items: finDoc.items
       });
 
-      let reply = `### 🧾 Document Interpreted: ${attachedDoc.fileName}\n\n`;
-      reply += `| Field | Extracted Detail | Confidence |\n`;
+      let reply = `> ⚠️ **Notice**: AI cloud service is currently unreachable. Showing local deterministic analysis.\n\n`;
+      reply += `### 🧾 Document Interpreted: ${attachedDoc.fileName}\n\n`;
+      reply += `| Field | Extracted Detail | Status |\n`;
       reply += `| :--- | :--- | :--- |\n`;
-      reply += `| **Document Type** | ${finDoc?.documentType ? finDoc.documentType.replace(/_/g, ' ').toUpperCase() : 'Expense Receipt / Bill'} | High (98%) |\n`;
-      reply += `| **Supplier / Entity** | **${supplier}** | High |\n`;
-      reply += `| **Category** | **${category}** | High |\n`;
-      reply += `| **Total Amount** | **${curr} ${amount.toLocaleString()}** | High |\n`;
-      reply += `| **Transaction Date** | **${date}** | High |\n`;
+      reply += `| **Document Type** | ${finDoc.documentType ? finDoc.documentType.replace(/_/g, ' ').toUpperCase() : 'Expense Receipt'} | Extracted |\n`;
+      reply += `| **Supplier / Entity** | **${supplier}** | Extracted |\n`;
+      reply += `| **Category** | **${category}** | Assigned |\n`;
+      reply += `| **Total Amount** | **${curr} ${amount.toLocaleString()}** | Extracted |\n`;
+      reply += `| **Transaction Date** | **${date}** | Extracted |\n`;
       reply += `| **Reconciliation** | ${reconciliation.message} | Validated |\n\n`;
-      reply += `I found a **${category.toLowerCase()} expense of ${curr} ${amount.toLocaleString()}** from **${supplier}**. ${reconciliation.isReconciled ? 'The extracted figures reconcile correctly.' : ''}\n\n`;
-      reply += `Would you like to record this expense into your live **Binti Events** ledger? Click below to approve and execute.`;
+      reply += `Found an expense of **${curr} ${amount.toLocaleString()}** from **${supplier}**. Would you like to record it?`;
 
       actions.push({
         type: "create_expense",
@@ -489,7 +480,7 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
           category,
           description: `${category} expense - ${supplier}`,
           amount,
-          referenceNumber: finDoc?.documentNumber || `EXP-${Date.now().toString().slice(-4)}`,
+          referenceNumber: finDoc.documentNumber || `EXP-${Date.now().toString().slice(-4)}`,
           date
         }
       });

@@ -861,6 +861,20 @@ export default function App() {
         }
         break;
       }
+      case "create_expense": {
+        const payload = action.payload || {};
+        const amount = Number(payload.amount || 0);
+        const category = payload.category || 'Other';
+        const desc = payload.description || 'Expense Entry';
+
+        logAuditEvent(
+          "create_expense",
+          `Recorded expense of ${companySettings.currency || 'KES'} ${amount.toLocaleString()} (${category} - ${desc})`,
+          payload
+        );
+        showToast(`Expense of ${companySettings.currency || 'KES'} ${amount.toLocaleString()} recorded.`);
+        break;
+      }
       case "import_clients": {
         const clientList = action.payload?.clients || action.payload?.Clients || (Array.isArray(action.payload) ? action.payload : []);
         if (Array.isArray(clientList) && clientList.length > 0) {

@@ -248,7 +248,8 @@ CRITICAL GROUNDING RULES:
 1. When a SPREADSHEET ANALYSIS & AUDIT REPORT is attached, you MUST use the exact numbers and counts stated in the report.
 2. If the report states "Client Records: 8,000 clients", report 8,000 clients. If the report states "Invoices Issued: 9,000 invoices (Total Invoiced Turnover: KES 13,625,654,681)", report those exact numbers.
 3. NEVER invent, round, or guess client, invoice, or revenue figures.
-4. Only propose mutation actions (e.g. import_clients, create_expense) when Virginia explicitly asks to import, save, or record data. Do not generate write buttons for simple read queries (e.g. "how many clients", "check finances").`
+4. Only propose mutation actions (e.g. import_clients, create_expense) when Virginia explicitly asks to import, save, or record data. Do not generate write buttons for simple read queries (e.g. "how many clients", "check finances").
+5. REAL DATABASE MUTATIONS: You do NOT execute silent database commits through conversational text alone. NEVER claim "Status: Committed" or pretend SQL insertion scripts completed in plain text. When an import or write is requested, summarize the mapped records and instruct Virginia to click [Approve & Execute] to commit them to the live database.`
       })
     });
 

@@ -599,6 +599,36 @@ export default function BintiAiAssistantModal({
     setErrorMsg(null);
     setLastFailedPrompt(null);
 
+    // Conversational confirmation: check if user is confirming a pending action
+    const trimmedQuery = query.trim().toLowerCase();
+    const isAffirmative = /^(yes|confirm|proceed|do it|import|write|execute|ok|okay|approve|please do)$/i.test(trimmedQuery);
+    
+    if (isAffirmative && messages.length > 0 && !fileToProcess) {
+      const lastModelMsg = [...messages].reverse().find(m => m.role === "model" && m.actions && m.actions.length > 0);
+      const pendingAction = lastModelMsg?.actions?.find(a => a.isMutation && a.id && !executedActionIds.has(a.id));
+      
+      if (pendingAction && onExecuteAction) {
+        setLoading(true);
+        setLoadingText("Executing database write...");
+        try {
+          await onExecuteAction(pendingAction);
+          if (pendingAction.id) {
+            setExecutedActionIds(prev => new Set(prev).add(pendingAction.id!));
+          }
+          const confirmMsg: ChatMessage = {
+            role: "model",
+            content: `**Action Executed Successfully**: ${pendingAction.label}.\n\nThe records have been saved to your active database tables.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setMessages(prev => [...prev, confirmMsg]);
+          setLoading(false);
+          return;
+        } catch (err: any) {
+          console.error("Auto-execution failed:", err);
+        }
+      }
+    }
+
     try {
       const result = await askGeminiAssistant(
         query.trim() || `Please analyze this attached document and extract structured records: ${fileToProcess?.name}`,

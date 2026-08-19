@@ -78,7 +78,7 @@ export default function Dashboard({
       ? "0,2 15,6 30,15 45,10 60,18 75,14 90,20"
       : "0,12 15,10 30,14 45,12 60,11 75,13 90,12";
     return (
-      <svg className="w-16 h-8 overflow-visible" viewBox="0 0 90 20">
+      <svg className="w-14 sm:w-16 h-7 sm:h-8 overflow-visible shrink-0" viewBox="0 0 90 20">
         <polyline
           fill="none"
           stroke={color}
@@ -298,33 +298,35 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
   };
 
   return (
-    <div className="space-y-8 animate-fade-in font-sans">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in font-sans">
       {/* Welcome Hero Panel */}
-      <div className="bg-gradient-to-r from-[#1F2937] via-[#2F3349] to-[#6B46C1] rounded-3xl p-8 text-white relative overflow-hidden shadow-xl border border-[#6B46C1]/20">
-        <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none">
-          <Sparkles className="w-48 h-48" />
+      <div className="bg-gradient-to-r from-[#1F2937] via-[#2F3349] to-[#6B46C1] rounded-3xl p-5 sm:p-8 text-white relative overflow-hidden shadow-xl border border-[#6B46C1]/20">
+        <div className="absolute top-0 right-0 p-8 sm:p-12 opacity-10 pointer-events-none">
+          <Sparkles className="w-32 sm:w-48 h-32 sm:h-48" />
         </div>
         <div className="max-w-2xl relative z-10 space-y-3">
-          <span className="bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37] px-3.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">
+          <span className="bg-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#D4AF37] px-3 py-1 rounded-full text-[10px] sm:text-xs font-semibold uppercase tracking-wider inline-block whitespace-nowrap">
             Binti Events Management System
           </span>
-          <h2 className="text-3xl font-bold tracking-tight text-white font-sans">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-white font-sans break-normal">
             {getGreeting()}, {currentUser?.name || "Executive Admin"}
           </h2>
-          <p className="text-gray-300 text-sm leading-relaxed">
+          <p className="text-gray-300 text-xs sm:text-sm leading-relaxed break-normal">
             Manage your event operations, stretch tents hire, quotations, and invoicing from a single, unified workspace.
           </p>
-          <div className="pt-2 flex items-center space-x-4">
+          <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-4">
             <button
+              type="button"
               onClick={() => setActiveTab("quotes")}
-              className="px-5 py-2.5 bg-gradient-to-r from-[#6B46C1] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6B46C1] text-white rounded-xl text-xs font-semibold shadow-lg shadow-[#6B46C1]/30 transition-all flex items-center space-x-2"
+              className="px-5 py-2.5 bg-gradient-to-r from-[#6B46C1] to-[#7C3AED] hover:from-[#7C3AED] hover:to-[#6B46C1] text-white rounded-xl text-xs font-semibold shadow-lg shadow-[#6B46C1]/30 transition-all flex items-center justify-center space-x-2 whitespace-nowrap"
             >
               <span>Create New Quote</span>
-              <ArrowUpRight className="w-4 h-4" />
+              <ArrowUpRight className="w-4 h-4 shrink-0" />
             </button>
             <button
+              type="button"
               onClick={() => setActiveTab("invoices")}
-              className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white border border-white/10 rounded-xl text-xs font-semibold transition-all"
+              className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white border border-white/10 rounded-xl text-xs font-semibold transition-all text-center whitespace-nowrap"
             >
               Manage Invoices
             </button>
@@ -333,67 +335,68 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
       </div>
 
       {/* Proactive Binti Business Brief Card */}
-      <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm space-y-4">
+      <div className="bg-white border border-gray-100 rounded-3xl p-4 sm:p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#80237E] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#80237E] flex items-center justify-center shrink-0">
               <Sparkles className="w-4 h-4 text-[#D4AF37]" />
             </div>
             <div>
-              <h3 className="text-sm font-extrabold text-gray-900">Binti Executive Brief</h3>
-              <p className="text-[11px] text-gray-500">Live operational priorities & business cash flow</p>
+              <h3 className="text-sm font-extrabold text-gray-900 break-normal">Binti Executive Brief</h3>
+              <p className="text-[11px] text-gray-500 break-normal">Live operational priorities & business cash flow</p>
             </div>
           </div>
           {onOpenBintiPrompt && (
             <button
+              type="button"
               onClick={() => onOpenBintiPrompt("Provide a complete executive business brief covering money, proposals, and attention items.")}
-              className="px-3.5 py-1.5 bg-purple-50 hover:bg-purple-100 text-[#80237E] font-bold rounded-xl text-xs flex items-center space-x-1.5 transition-colors self-start sm:self-auto"
+              className="px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-[#80237E] font-bold rounded-xl text-xs flex items-center justify-center space-x-1.5 transition-colors w-full sm:w-auto shrink-0 whitespace-nowrap"
             >
-              <Zap className="w-3.5 h-3.5 text-[#D4AF37]" />
+              <Zap className="w-3.5 h-3.5 text-[#D4AF37] shrink-0" />
               <span>Ask Binti for Advice</span>
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 text-xs">
           {/* Section 1: Money */}
-          <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between text-emerald-800 font-bold">
-              <span className="flex items-center space-x-1">
-                <DollarSign className="w-4 h-4 text-emerald-600" />
-                <span>Liquid Cash & Collections</span>
+          <div className="p-3.5 sm:p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl space-y-1.5">
+            <div className="flex items-center justify-between text-emerald-800 font-bold gap-2">
+              <span className="flex items-center space-x-1 truncate">
+                <DollarSign className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="truncate">Liquid Cash & Collections</span>
               </span>
-              <span className="text-[10px] bg-emerald-100 px-2 py-0.5 rounded-full">{collectionRate}% collected</span>
+              <span className="text-[10px] bg-emerald-100 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">{collectionRate}% collected</span>
             </div>
-            <p className="text-gray-700 leading-relaxed">
-              <strong>{formatCur(stats.totalPaid)}</strong> settled liquid revenue, with <strong>{formatCur(stats.totalOutstanding)}</strong> in active receivables.
+            <p className="text-gray-700 leading-relaxed break-normal">
+              <strong className="whitespace-nowrap">{formatCur(stats.totalPaid)}</strong> settled liquid revenue, with <strong className="whitespace-nowrap">{formatCur(stats.totalOutstanding)}</strong> in active receivables.
             </p>
           </div>
 
           {/* Section 2: Quotes Pipeline */}
-          <div className="p-4 bg-purple-50/50 border border-purple-100 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between text-[#80237E] font-bold">
-              <span className="flex items-center space-x-1">
-                <FileText className="w-4 h-4 text-[#80237E]" />
-                <span>Proposals Pipeline</span>
+          <div className="p-3.5 sm:p-4 bg-purple-50/50 border border-purple-100 rounded-2xl space-y-1.5">
+            <div className="flex items-center justify-between text-[#80237E] font-bold gap-2">
+              <span className="flex items-center space-x-1 truncate">
+                <FileText className="w-4 h-4 text-[#80237E] shrink-0" />
+                <span className="truncate">Proposals Pipeline</span>
               </span>
-              <span className="text-[10px] bg-purple-100 px-2 py-0.5 rounded-full">{stats.conversionRate.toFixed(0)}% conversion</span>
+              <span className="text-[10px] bg-purple-100 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">{stats.conversionRate.toFixed(0)}% conversion</span>
             </div>
-            <p className="text-gray-700 leading-relaxed">
-              <strong>{openQuotes.length}</strong> active quote proposals awaiting customer booking confirmation.
+            <p className="text-gray-700 leading-relaxed break-normal">
+              <strong className="whitespace-nowrap">{openQuotes.length}</strong> active quote proposals awaiting customer booking confirmation.
             </p>
           </div>
 
           {/* Section 3: Attention Items */}
-          <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between text-amber-900 font-bold">
-              <span className="flex items-center space-x-1">
-                <AlertTriangle className="w-4 h-4 text-amber-600" />
-                <span>Attention Items</span>
+          <div className="p-3.5 sm:p-4 bg-amber-50/50 border border-amber-100 rounded-2xl space-y-1.5">
+            <div className="flex items-center justify-between text-amber-900 font-bold gap-2">
+              <span className="flex items-center space-x-1 truncate">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span className="truncate">Attention Items</span>
               </span>
-              <span className="text-[10px] bg-amber-100 px-2 py-0.5 rounded-full">{overdueInvoices.length} overdue</span>
+              <span className="text-[10px] bg-amber-100 px-2 py-0.5 rounded-full shrink-0 whitespace-nowrap">{overdueInvoices.length} overdue</span>
             </div>
-            <p className="text-gray-700 leading-relaxed">
+            <p className="text-gray-700 leading-relaxed break-normal">
               {overdueInvoices.length > 0 ? (
                 <span>{overdueInvoices.length} invoices are past due and eligible for an automated follow-up reminder.</span>
               ) : (
@@ -406,64 +409,64 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
 
       {/* Grid of Metric Cards with Timeframe Selector */}
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-          <h3 className="text-base font-bold text-gray-800 flex items-center space-x-2">
-            <TrendingUp className="w-4 h-4 text-[#6B46C1]" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-5">
+          <h3 className="text-sm sm:text-base font-bold text-gray-800 flex items-center space-x-2">
+            <TrendingUp className="w-4 h-4 text-[#6B46C1] shrink-0" />
             <span>Core Billing Metrics</span>
           </h3>
 
-          <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200/80 text-xs font-bold">
+          <div className="flex items-center bg-gray-100 p-1 rounded-xl border border-gray-200/80 text-xs font-bold w-full sm:w-auto overflow-x-auto justify-between sm:justify-start">
             <button
               type="button"
               onClick={() => setTimeframe("all")}
-              className={`px-3 py-1.5 rounded-lg transition-all ${timeframe === "all" ? "bg-white text-[#80237E] shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+              className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex-1 sm:flex-none text-center ${timeframe === "all" ? "bg-white text-[#80237E] shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
             >
               All Time
             </button>
             <button
               type="button"
               onClick={() => setTimeframe("this_month")}
-              className={`px-3 py-1.5 rounded-lg transition-all ${timeframe === "this_month" ? "bg-white text-[#80237E] shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+              className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex-1 sm:flex-none text-center ${timeframe === "this_month" ? "bg-white text-[#80237E] shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
             >
               This Month
             </button>
             <button
               type="button"
               onClick={() => setTimeframe("last_month")}
-              className={`px-3 py-1.5 rounded-lg transition-all ${timeframe === "last_month" ? "bg-white text-[#80237E] shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+              className={`px-3 py-1.5 rounded-lg transition-all whitespace-nowrap flex-1 sm:flex-none text-center ${timeframe === "last_month" ? "bg-white text-[#80237E] shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
             >
               Last Month
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
           {statCards.map((card, idx) => {
             const Icon = card.icon;
             return (
               <div 
                 key={idx}
-                className="glass-card p-6 border-l-4 hover:shadow-md transition-all flex flex-col justify-between"
+                className="glass-card p-4 sm:p-6 border-l-4 hover:shadow-md transition-all flex flex-col justify-between"
                 style={{ borderLeftColor: card.accent }}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{card.title}</span>
-                  <div className={`p-2.5 rounded-xl bg-gradient-to-br ${card.color}`}>
-                    <Icon className="w-4 h-4" />
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wider truncate">{card.title}</span>
+                  <div className={`p-2 sm:p-2.5 rounded-xl bg-gradient-to-br ${card.color} shrink-0`}>
+                    <Icon className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                   </div>
                 </div>
 
-                <div className="mt-4 flex items-baseline justify-between">
-                  <h4 className="text-2xl font-bold text-gray-800 tracking-tight">{card.value}</h4>
+                <div className="mt-3 sm:mt-4 flex flex-wrap sm:flex-nowrap items-baseline justify-between gap-1.5">
+                  <h4 className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight whitespace-nowrap">{card.value}</h4>
                   {card.momValue && (
-                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${card.momIsPositive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0 ${card.momIsPositive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
                       {card.momValue}
                     </span>
                   )}
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
-                  <span className="text-[10px] text-gray-400 font-medium">Activity Sparkline</span>
+                <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-50 flex items-center justify-between">
+                  <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">Activity Sparkline</span>
                   {renderSparkline(card.sparkline as any)}
                 </div>
               </div>
@@ -473,23 +476,24 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
       </div>
 
       {/* AI Business Insights Panel */}
-      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 rounded-3xl p-6 shadow-sm">
+      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 rounded-3xl p-4 sm:p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start space-x-3.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-600/10 text-[#6B46C1] flex items-center justify-center shrink-0">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-600/10 text-[#6B46C1] flex items-center justify-center shrink-0">
+              <Sparkles className="w-4 sm:w-5 h-4 sm:h-5" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-gray-800">Binti Business Analyst</h4>
-              <p className="text-xs text-gray-500 mt-1">
+              <h4 className="text-sm font-bold text-gray-800 break-normal">Binti Business Analyst</h4>
+              <p className="text-xs text-gray-500 mt-1 leading-relaxed break-normal">
                 Generate instant strategic insights about events cash flows, outstanding balances, and customized recommendations.
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={handleGenerateAiReport}
             disabled={loadingAi}
-            className="shrink-0 px-5 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold shadow-lg shadow-[#6B46C1]/20 transition-all flex items-center space-x-2 disabled:opacity-50"
+            className="shrink-0 px-4 sm:px-5 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-semibold shadow-lg shadow-[#6B46C1]/20 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 w-full md:w-auto whitespace-nowrap"
           >
             {loadingAi ? (
               <span className="flex items-center space-x-2">
@@ -506,8 +510,8 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
         </div>
 
         {aiReport && (
-          <div className="mt-5 p-5 bg-white rounded-2xl border border-purple-100 shadow-inner prose prose-purple prose-sm max-w-none text-gray-700 whitespace-pre-line leading-relaxed">
-            <div className="font-bold text-xs text-[#6B46C1] uppercase tracking-widest mb-3 flex items-center space-x-1.5">
+          <div className="mt-4 sm:mt-5 p-4 sm:p-5 bg-white rounded-2xl border border-purple-100 shadow-inner prose prose-purple prose-sm max-w-none text-gray-700 whitespace-pre-line leading-relaxed text-xs sm:text-sm">
+            <div className="font-bold text-[11px] sm:text-xs text-[#6B46C1] uppercase tracking-widest mb-2 sm:mb-3 flex items-center space-x-1.5">
               <span>● CURRENT REPORT GENERATED</span>
             </div>
             {aiReport}
@@ -516,39 +520,41 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
       </div>
 
       {/* Split layout: Recent Quotes & Recent Invoices */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
         {/* Recent Quotes */}
-        <div className="glass-card p-6">
-          <div className="flex items-center justify-between mb-5">
+        <div className="glass-card p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-4 sm:mb-5">
             <div>
-              <h4 className="text-sm font-bold text-gray-800">Recent Event Quotes</h4>
-              <p className="text-xs text-gray-500 mt-1">Status of proposed event & hire packages.</p>
+              <h4 className="text-sm font-bold text-gray-800 break-normal">Recent Event Quotes</h4>
+              <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 break-normal">Status of proposed event & hire packages.</p>
             </div>
             <button 
+              type="button"
               onClick={() => setActiveTab("quotes")} 
-              className="text-[#6B46C1] hover:text-purple-800 text-xs font-semibold flex items-center space-x-1"
+              className="text-[#6B46C1] hover:text-purple-800 text-xs font-semibold flex items-center space-x-1 shrink-0 whitespace-nowrap"
             >
               <span>View all</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <table className="w-full text-left border-collapse min-w-[480px]">
               <thead>
                 <tr className="border-b border-gray-100 text-[10px] text-gray-400 uppercase tracking-wider">
-                  <th className="pb-3 font-semibold">Quote #</th>
-                  <th className="pb-3 font-semibold">Client</th>
-                  <th className="pb-3 font-semibold">Date</th>
-                  <th className="pb-3 font-semibold">Total</th>
-                  <th className="pb-3 font-semibold text-right">Status</th>
+                  <th className="pb-3 font-semibold whitespace-nowrap">Quote #</th>
+                  <th className="pb-3 font-semibold whitespace-nowrap">Client</th>
+                  <th className="pb-3 font-semibold whitespace-nowrap">Date</th>
+                  <th className="pb-3 font-semibold whitespace-nowrap">Total</th>
+                  <th className="pb-3 font-semibold text-right whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {quotes.slice(0, 5).map((quote) => (
                   <tr key={quote.id} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="py-3.5">
+                    <td className="py-3.5 whitespace-nowrap">
                       <button
+                        type="button"
                         onClick={() => onSelectQuote(quote)}
                         className="text-xs font-semibold text-[#6B46C1] hover:underline"
                       >
@@ -556,12 +562,12 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
                       </button>
                     </td>
                     <td className="py-3.5">
-                      <p className="text-xs font-medium text-gray-700">{quote.clientName}</p>
+                      <p className="text-xs font-medium text-gray-700 max-w-[140px] sm:max-w-none truncate">{quote.clientName}</p>
                     </td>
-                    <td className="py-3.5 text-xs text-gray-500">{quote.quoteDate}</td>
-                    <td className="py-3.5 text-xs font-bold text-gray-800">{formatCur(quote.grandTotal)}</td>
-                    <td className="py-3.5 text-right">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                    <td className="py-3.5 text-xs text-gray-500 whitespace-nowrap">{quote.quoteDate}</td>
+                    <td className="py-3.5 text-xs font-bold text-gray-800 whitespace-nowrap">{formatCur(quote.grandTotal)}</td>
+                    <td className="py-3.5 text-right whitespace-nowrap">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider whitespace-nowrap ${
                         quote.status === "converted" ? "bg-green-50 text-green-600" :
                         quote.status === "sent" ? "bg-blue-50 text-blue-600" :
                         quote.status === "draft" ? "bg-gray-100 text-gray-600" :
@@ -578,37 +584,39 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
         </div>
 
         {/* Recent Invoices */}
-        <div className="glass-card p-6">
-          <div className="flex items-center justify-between mb-5">
+        <div className="glass-card p-4 sm:p-6">
+          <div className="flex items-center justify-between mb-4 sm:mb-5">
             <div>
-              <h4 className="text-sm font-bold text-gray-800">Recent Event Invoices</h4>
-              <p className="text-xs text-gray-500 mt-1">Real-time status of pending, partial & settled invoices.</p>
+              <h4 className="text-sm font-bold text-gray-800 break-normal">Recent Event Invoices</h4>
+              <p className="text-[11px] sm:text-xs text-gray-500 mt-0.5 break-normal">Real-time status of pending, partial & settled invoices.</p>
             </div>
             <button 
+              type="button"
               onClick={() => setActiveTab("invoices")} 
-              className="text-[#6B46C1] hover:text-purple-800 text-xs font-semibold flex items-center space-x-1"
+              className="text-[#6B46C1] hover:text-purple-800 text-xs font-semibold flex items-center space-x-1 shrink-0 whitespace-nowrap"
             >
               <span>View all</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+            <table className="w-full text-left border-collapse min-w-[480px]">
               <thead>
                 <tr className="border-b border-gray-100 text-[10px] text-gray-400 uppercase tracking-wider">
-                  <th className="pb-3 font-semibold">Invoice #</th>
-                  <th className="pb-3 font-semibold">Client</th>
-                  <th className="pb-3 font-semibold">Due Date</th>
-                  <th className="pb-3 font-semibold">Total</th>
-                  <th className="pb-3 font-semibold text-right">Status</th>
+                  <th className="pb-3 font-semibold whitespace-nowrap">Invoice #</th>
+                  <th className="pb-3 font-semibold whitespace-nowrap">Client</th>
+                  <th className="pb-3 font-semibold whitespace-nowrap">Due Date</th>
+                  <th className="pb-3 font-semibold whitespace-nowrap">Total</th>
+                  <th className="pb-3 font-semibold text-right whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {invoices.slice(0, 5).map((inv) => (
                   <tr key={inv.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3.5">
+                    <td className="py-3.5 whitespace-nowrap">
                       <button
+                        type="button"
                         onClick={() => onSelectInvoice(inv)}
                         className="text-xs font-semibold text-[#6B46C1] hover:underline"
                       >
@@ -616,12 +624,12 @@ Provide 3 key business insights and 2 actionable recommendations for increasing 
                       </button>
                     </td>
                     <td className="py-3.5">
-                      <p className="text-xs font-medium text-gray-700">{inv.clientName}</p>
+                      <p className="text-xs font-medium text-gray-700 max-w-[140px] sm:max-w-none truncate">{inv.clientName}</p>
                     </td>
-                    <td className="py-3.5 text-xs text-gray-500">{inv.dueDate}</td>
-                    <td className="py-3.5 text-xs font-bold text-gray-800">{formatCur(inv.grandTotal)}</td>
-                    <td className="py-3.5 text-right">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                    <td className="py-3.5 text-xs text-gray-500 whitespace-nowrap">{inv.dueDate}</td>
+                    <td className="py-3.5 text-xs font-bold text-gray-800 whitespace-nowrap">{formatCur(inv.grandTotal)}</td>
+                    <td className="py-3.5 text-right whitespace-nowrap">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider whitespace-nowrap ${
                         inv.status === "paid" ? "bg-green-100 text-green-700" :
                         inv.status === "partially_paid" ? "bg-amber-100 text-amber-700" :
                         inv.status === "overdue" ? "bg-red-100 text-red-700" :

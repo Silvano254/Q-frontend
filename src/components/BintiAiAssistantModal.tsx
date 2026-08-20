@@ -321,35 +321,38 @@ export default function BintiAiAssistantModal({
         if (e.target === e.currentTarget) handleClose();
       }}
     >
-      <div className="bg-white w-full sm:w-[520px] md:w-[600px] lg:w-[660px] xl:w-[720px] h-full shadow-2xl border-l border-gray-100 flex flex-col overflow-hidden relative animate-slide-in-right sm:rounded-l-3xl">
+      <div className="bg-white w-full sm:w-[520px] md:w-[600px] lg:w-[660px] xl:w-[720px] h-[100dvh] sm:h-screen shadow-2xl border-l border-gray-100 flex flex-col overflow-hidden relative animate-slide-in-right sm:rounded-l-3xl">
         
         {/* MODAL HEADER */}
-        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#1F2937] to-[#80237E] p-0.5 shadow-md flex items-center justify-center border border-[#D4AF37]/30">
-              <div className="w-full h-full bg-white rounded-[14px] flex items-center justify-center p-1.5">
+        <div className="px-3.5 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-[#1F2937] to-[#80237E] p-0.5 shadow-md flex items-center justify-center border border-[#D4AF37]/30 shrink-0">
+              <div className="w-full h-full bg-white rounded-[14px] flex items-center justify-center p-1 sm:p-1.5">
                 <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain" />
               </div>
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h2 className="font-extrabold text-sm text-gray-900 tracking-tight">Binti AI</h2>
-                <span className="text-[10px] bg-purple-100 text-[#80237E] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Operations & Import Assistant
+            <div className="min-w-0">
+              <div className="flex items-center space-x-1.5 sm:space-x-2">
+                <h2 className="font-extrabold text-sm sm:text-base text-gray-900 tracking-tight">Binti AI</h2>
+                <span className="text-[9px] sm:text-[10px] bg-purple-100 text-[#80237E] font-bold px-1.5 sm:px-2 py-0.5 rounded-full uppercase tracking-wider truncate max-w-[130px] sm:max-w-none">
+                  Operations & Import
                 </span>
               </div>
-              <p className="text-xs text-gray-500">Grounded in your business records & document parser</p>
+              <p className="hidden sm:block text-xs text-gray-500 truncate">Grounded in your business records & document parser</p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 sm:space-x-2 shrink-0">
             <button
               onClick={() => setShowContextModal(true)}
               aria-label="View connected business data transparency details"
-              className="px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/60 rounded-xl transition-all flex items-center space-x-1.5"
+              className="px-2 sm:px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/60 rounded-xl transition-all flex items-center space-x-1.5"
             >
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-mono text-[11px]">{saasContext?.clientCount ?? 0} clients connected</span>
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="font-mono text-[10px] sm:text-[11px]">
+                <span className="hidden sm:inline">{saasContext?.clientCount ?? 0} clients connected</span>
+                <span className="sm:hidden">{saasContext?.clientCount ?? 0} clients</span>
+              </span>
             </button>
 
             {messages.length > 0 && (
@@ -360,18 +363,18 @@ export default function BintiAiAssistantModal({
                 }}
                 aria-label="Start new conversation"
                 title="New Chat"
-                className="p-2 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors"
+                className="p-1.5 sm:p-2 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors"
               >
-                <RotateCcw className="w-4 h-4" />
+                <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
             )}
 
             <button
               onClick={handleClose}
               aria-label="Close assistant modal"
-              className="p-2 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors"
+              className="p-1.5 sm:p-2 hover:bg-gray-100 text-gray-400 hover:text-gray-600 rounded-xl transition-colors"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
@@ -380,11 +383,11 @@ export default function BintiAiAssistantModal({
         {errorMsg && (
           <div 
             role="alert"
-            className="mx-6 mt-3 p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between text-xs text-rose-700 shrink-0 animate-fade-in"
+            className="mx-3.5 sm:mx-6 mt-2.5 sm:mt-3 p-2.5 sm:p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between text-xs text-rose-700 shrink-0 animate-fade-in"
           >
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 min-w-0">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-              <span>{errorMsg}</span>
+              <span className="truncate">{errorMsg}</span>
             </div>
             {lastFailedPrompt && (
               <button
@@ -398,21 +401,21 @@ export default function BintiAiAssistantModal({
         )}
 
         {/* CHAT CONTAINER */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5 sm:space-y-4 [scrollbar-width:thin] bg-gray-50/40">
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-3.5 sm:space-y-4 [scrollbar-width:thin] bg-gray-50/40">
           
           {/* FRESH CHAT STATE: Welcome & Quick Prompts */}
           {isFreshChat && (
-            <div className="max-w-xl mx-auto py-6 space-y-6 animate-fade-in">
-              <div className="text-center space-y-2">
-                <div className="w-16 h-16 mx-auto rounded-3xl bg-gradient-to-tr from-[#1F2937] via-[#2D1B4E] to-[#80237E] p-0.5 shadow-xl flex items-center justify-center border border-[#D4AF37]/40">
-                  <div className="w-full h-full bg-white rounded-[22px] flex items-center justify-center p-2.5">
+            <div className="max-w-xl mx-auto py-3 sm:py-6 space-y-4 sm:space-y-6 animate-fade-in">
+              <div className="text-center space-y-1.5 sm:space-y-2">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto rounded-2xl sm:rounded-3xl bg-gradient-to-tr from-[#1F2937] via-[#2D1B4E] to-[#80237E] p-0.5 shadow-xl flex items-center justify-center border border-[#D4AF37]/40">
+                  <div className="w-full h-full bg-white rounded-[14px] sm:rounded-[22px] flex items-center justify-center p-1.5 sm:p-2.5">
                     <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain" />
                   </div>
                 </div>
-                <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">
+                <h3 className="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">
                   How can I assist your business today?
                 </h3>
-                <p className="text-xs text-gray-500 max-w-xs mx-auto leading-relaxed">
+                <p className="text-xs text-gray-500 max-w-xs mx-auto leading-relaxed px-2">
                   Ask questions or click the <strong className="text-[#80237E] font-bold">+</strong> button to attach spreadsheets, CSVs, or receipt photos.
                 </p>
               </div>
@@ -439,20 +442,20 @@ export default function BintiAiAssistantModal({
                       key={cIdx}
                       onClick={() => handleSendMessage(card.prompt)}
                       aria-label={card.title}
-                      className="p-3 bg-white hover:bg-purple-50/50 border border-gray-100 hover:border-[#80237E]/30 rounded-2xl text-left transition-all shadow-2xs hover:shadow-sm flex items-center justify-between group active:scale-[0.99]"
+                      className="p-2.5 sm:p-3 bg-white hover:bg-purple-50/50 border border-gray-100 hover:border-[#80237E]/30 rounded-2xl text-left transition-all shadow-2xs hover:shadow-sm flex items-center justify-between group active:scale-[0.99]"
                     >
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#80237E] group-hover:bg-[#80237E] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
-                          <Icon className="w-4 h-4" />
+                      <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-purple-50 text-[#80237E] group-hover:bg-[#80237E] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                          <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                         </div>
-                        <div>
-                          <h4 className="text-xs font-bold text-gray-800 group-hover:text-[#80237E] transition-colors">
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-gray-800 group-hover:text-[#80237E] transition-colors truncate">
                             {card.title}
                           </h4>
-                          <p className="text-[11px] text-gray-500 mt-0.5">{card.subtitle}</p>
+                          <p className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 truncate">{card.subtitle}</p>
                         </div>
                       </div>
-                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#80237E] group-hover:translate-x-0.5 transition-all shrink-0" />
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-[#80237E] group-hover:translate-x-0.5 transition-all shrink-0 ml-2" />
                     </button>
                   );
                 })}
@@ -462,35 +465,35 @@ export default function BintiAiAssistantModal({
 
           {/* ACTIVE CONVERSATION STREAM */}
           {!isFreshChat && (
-            <div className="space-y-4">
+            <div className="space-y-3.5 sm:space-y-4">
               {messages.map((msg, idx) => (
                 <div
                   key={idx}
-                  className={`flex items-start space-x-3 ${
+                  className={`flex items-start space-x-2.5 sm:space-x-3 ${
                     msg.role === "user" ? "flex-row-reverse space-x-reverse" : ""
                   }`}
                 >
                   <div
-                    className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
                       msg.role === "user"
                         ? "bg-[#80237E] text-white"
                         : "bg-[#1F2937] text-[#D4AF37] border border-[#D4AF37]/30"
                     }`}
                   >
-                    {msg.role === "user" ? <User className="w-4 h-4" /> : <Sparkles className="w-4 h-4 text-[#D4AF37]" />}
+                    {msg.role === "user" ? <User className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#D4AF37]" />}
                   </div>
 
-                  <div className="max-w-[85%] group relative space-y-1.5">
+                  <div className="max-w-[90%] sm:max-w-[85%] group relative space-y-1.5">
                     {msg.attachment && (
-                      <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-100 text-[#80237E] rounded-xl text-[11px] font-bold self-end border border-purple-200 shadow-xs">
-                        <FileSpreadsheet className="w-3.5 h-3.5 text-[#80237E]" />
-                        <span className="truncate">{msg.attachment.name}</span>
-                        <span className="text-[10px] text-purple-600 font-normal">({(msg.attachment.size / 1024).toFixed(1)} KB)</span>
+                      <div className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-purple-100 text-[#80237E] rounded-xl text-[10px] sm:text-[11px] font-bold self-end border border-purple-200 shadow-xs">
+                        <FileSpreadsheet className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#80237E]" />
+                        <span className="truncate max-w-[160px] sm:max-w-xs">{msg.attachment.name}</span>
+                        <span className="text-[9px] sm:text-[10px] text-purple-600 font-normal">({(msg.attachment.size / 1024).toFixed(1)} KB)</span>
                       </div>
                     )}
 
                     <div
-                      className={`p-4 rounded-2xl text-xs leading-relaxed shadow-sm ${
+                      className={`p-3 sm:p-4 rounded-2xl text-xs leading-relaxed shadow-sm ${
                         msg.role === "user"
                           ? "bg-[#80237E] text-white rounded-tr-none font-medium"
                           : "bg-white border border-gray-100 text-gray-800 rounded-tl-none shadow-gray-100/50"

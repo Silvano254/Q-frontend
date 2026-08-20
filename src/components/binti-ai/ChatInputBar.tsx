@@ -107,20 +107,20 @@ export const ChatInputBar = memo(function ChatInputBar({
   };
 
   return (
-    <div className={`w-full ${variant === "centered" ? "max-w-xl mx-auto" : "p-4 bg-white border-t border-gray-100 shrink-0"}`}>
+    <div className={`w-full ${variant === "centered" ? "max-w-xl mx-auto" : "p-3 sm:p-4 bg-white border-t border-gray-100 shrink-0"}`}>
       {/* Selected File Chip */}
       {selectedFile && (
-        <div className="mb-2 flex items-center justify-between px-3 py-2 bg-purple-50 border border-purple-200 rounded-xl text-xs text-[#80237E] font-medium shadow-xs">
-          <div className="flex items-center space-x-2 truncate">
+        <div className="mb-2 flex items-center justify-between px-3 py-1.5 sm:py-2 bg-purple-50 border border-purple-200 rounded-xl text-xs text-[#80237E] font-medium shadow-xs">
+          <div className="flex items-center space-x-2 truncate min-w-0">
             <FileSpreadsheet className="w-4 h-4 text-[#80237E] shrink-0" />
             <span className="truncate font-semibold">{selectedFile.name}</span>
-            <span className="text-[10px] text-purple-600 font-normal">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
+            <span className="text-[10px] text-purple-600 font-normal shrink-0">({(selectedFile.size / 1024).toFixed(1)} KB)</span>
           </div>
           <button
             type="button"
             onClick={() => onSelectFile(null)}
             aria-label="Remove attached file"
-            className="p-1 hover:bg-purple-200 rounded-lg text-purple-700 transition-colors shrink-0"
+            className="p-1 hover:bg-purple-200 rounded-lg text-purple-700 transition-colors shrink-0 ml-1.5"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -128,7 +128,7 @@ export const ChatInputBar = memo(function ChatInputBar({
       )}
 
       {/* Main Input Container */}
-      <div className={`relative flex items-end bg-white border border-gray-200 focus-within:border-[#80237E] focus-within:ring-2 focus-within:ring-[#80237E]/10 rounded-2xl shadow-xs transition-all ${variant === "centered" ? "p-2 min-h-[52px]" : "p-1.5"}`}>
+      <div className={`relative flex items-end bg-white border border-gray-200 focus-within:border-[#80237E] focus-within:ring-2 focus-within:ring-[#80237E]/10 rounded-2xl shadow-xs transition-all ${variant === "centered" ? "p-1.5 sm:p-2 min-h-[48px] sm:min-h-[52px]" : "p-1.5"}`}>
         {/* Hidden Inputs */}
         <input
           ref={fileInputRef}
@@ -167,14 +167,14 @@ export const ChatInputBar = memo(function ChatInputBar({
             aria-expanded={showAttachMenu}
             aria-label="Add attachment or action"
             title="Attach file, spreadsheet, or receipt"
-            className="p-2 text-gray-500 hover:text-[#80237E] hover:bg-purple-50 rounded-xl transition-all disabled:opacity-50"
+            className="p-1.5 sm:p-2 text-gray-500 hover:text-[#80237E] hover:bg-purple-50 rounded-xl transition-all disabled:opacity-50"
           >
             <Plus className={`w-4 h-4 transition-transform duration-200 ${showAttachMenu ? "rotate-45 text-[#80237E]" : ""}`} />
           </button>
 
           {/* Context Menu Dropdown */}
           {showAttachMenu && (
-            <div className="absolute bottom-full left-0 mb-2 w-72 bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-fade-in text-left">
+            <div className="absolute bottom-full left-0 mb-2 w-72 max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-xl border border-gray-100 p-1.5 z-50 animate-fade-in text-left">
               <div className="px-2.5 py-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                 Attach & Import
               </div>
@@ -182,42 +182,42 @@ export const ChatInputBar = memo(function ChatInputBar({
               <button
                 type="button"
                 onClick={() => csvInputRef.current?.click()}
-                className="w-full flex items-center space-x-3 px-3 py-2 text-xs text-gray-700 hover:bg-purple-50 hover:text-[#80237E] rounded-xl transition-colors text-left"
+                className="w-full flex items-center space-x-2.5 sm:space-x-3 px-2.5 sm:px-3 py-2 text-xs text-gray-700 hover:bg-purple-50 hover:text-[#80237E] rounded-xl transition-colors text-left"
               >
                 <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                 </div>
-                <div>
-                  <p className="font-bold">Spreadsheet or CSV List</p>
-                  <p className="text-[10px] text-gray-400">Import clients, invoices, quotes & inventory</p>
+                <div className="min-w-0">
+                  <p className="font-bold truncate">Spreadsheet or CSV List</p>
+                  <p className="text-[10px] text-gray-400 truncate">Import clients, invoices, quotes & inventory</p>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
-                className="w-full flex items-center space-x-3 px-3 py-2 text-xs text-gray-700 hover:bg-purple-50 hover:text-[#80237E] rounded-xl transition-colors text-left"
+                className="w-full flex items-center space-x-2.5 sm:space-x-3 px-2.5 sm:px-3 py-2 text-xs text-gray-700 hover:bg-purple-50 hover:text-[#80237E] rounded-xl transition-colors text-left"
               >
                 <div className="w-7 h-7 rounded-lg bg-purple-50 text-[#80237E] flex items-center justify-center shrink-0">
                   <Camera className="w-3.5 h-3.5" />
                 </div>
-                <div>
-                  <p className="font-bold">Receipt, Fuel Slip or Image</p>
-                  <p className="text-[10px] text-gray-400">Extract expense amounts & vendors via Vision</p>
+                <div className="min-w-0">
+                  <p className="font-bold truncate">Receipt, Fuel Slip or Image</p>
+                  <p className="text-[10px] text-gray-400 truncate">Extract expense amounts & vendors via Vision</p>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => draftInputRef.current?.click()}
-                className="w-full flex items-center space-x-3 px-3 py-2 text-xs text-gray-700 hover:bg-purple-50 hover:text-[#80237E] rounded-xl transition-colors text-left"
+                className="w-full flex items-center space-x-2.5 sm:space-x-3 px-2.5 sm:px-3 py-2 text-xs text-gray-700 hover:bg-purple-50 hover:text-[#80237E] rounded-xl transition-colors text-left"
               >
                 <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
                   <FileCheck className="w-3.5 h-3.5" />
                 </div>
-                <div>
-                  <p className="font-bold">Contract or PDF Proposal</p>
-                  <p className="text-[10px] text-gray-400">Extract scopes of work & client terms</p>
+                <div className="min-w-0">
+                  <p className="font-bold truncate">Contract or PDF Proposal</p>
+                  <p className="text-[10px] text-gray-400 truncate">Extract scopes of work & client terms</p>
                 </div>
               </button>
             </div>
@@ -235,19 +235,19 @@ export const ChatInputBar = memo(function ChatInputBar({
             value={value}
             onChange={handleInput}
             onKeyDown={handleKeyDown}
-            placeholder={variant === "centered" ? "Ask Binti anything..." : "Ask a follow-up or command... (Shift+Enter for newline)"}
+            placeholder={variant === "centered" ? "Ask Binti anything..." : "Ask follow-up or command..."}
             disabled={loading}
             aria-label="Message prompt for Binti AI Assistant"
-            className="flex-1 py-2 px-2.5 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            className="flex-1 py-2 px-2 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden min-w-0"
           />
 
           <button
             type="submit"
             disabled={loading || (!value.trim() && !selectedFile)}
             aria-label="Send message"
-            className="px-4 py-2.5 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-95 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-900/15 flex items-center space-x-1.5 disabled:opacity-40 transition-all active:scale-95 shrink-0 mb-0.5"
+            className="px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-[#1F2937] to-[#80237E] hover:opacity-95 text-white font-bold rounded-xl text-xs shadow-md shadow-purple-900/15 flex items-center space-x-1.5 disabled:opacity-40 transition-all active:scale-95 shrink-0 mb-0.5 ml-1 cursor-pointer"
           >
-            <span>Send</span>
+            <span className="hidden sm:inline">Send</span>
             <Send className="w-3.5 h-3.5" />
           </button>
         </form>

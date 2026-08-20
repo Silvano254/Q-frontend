@@ -230,21 +230,67 @@ export async function askGeminiAssistant(
       status: 'in_progress'
     });
 
-    const data = await apiRequest<{ success: boolean; reply?: string; actions?: AgentAction[] }>('/api/ai/chat', {
-      method: "POST",
-      signal,
-      body: JSON.stringify({
-        prompt: cleanPrompt,
-        history: cleanHistory,
-        document: documentPayload
-      })
-    });
+    let data: { success: boolean; reply?: string; actions?: AgentAction[] } | null = null;
+
+    // Tier 1: Try Primary Configured API / Express Backend
+    try {
+      data = await apiRequest<{ success: boolean; reply?: string; actions?: AgentAction[] }>(
+        '/api/ai/chat', 
+        {
+          method: "POST",
+          signal,
+          body: JSON.stringify({
+            prompt: cleanPrompt,
+            history: cleanHistory,
+            document: documentPayload
+          })
+        },
+        false // Do not block unauthenticated/guest sessions
+      );
+    } catch (primaryErr: any) {
+      if (primaryErr?.name === 'AbortError' || signal?.aborted) throw primaryErr;
+      console.warn('[Binti AI] Primary backend route unavailable, trying Edge Function:', primaryErr?.message);
+    }
+
+    // Tier 2: Try Direct Supabase Edge Function if Tier 1 failed
+    if (!data?.success && !signal?.aborted) {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+      
+      if (supabaseUrl) {
+        try {
+          const edgeUrl = `${supabaseUrl.replace(/\/$/, '')}/functions/v1/ai-chat`;
+          const edgeRes = await fetch(edgeUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(supabaseAnonKey ? { "apikey": supabaseAnonKey, "Authorization": `Bearer ${supabaseAnonKey}` } : {})
+            },
+            signal,
+            body: JSON.stringify({
+              prompt: cleanPrompt,
+              history: cleanHistory,
+              document: documentPayload
+            })
+          });
+
+          if (edgeRes.ok) {
+            data = await edgeRes.json();
+          } else {
+            console.warn(`[Binti AI] Supabase Edge Function returned HTTP ${edgeRes.status}`);
+          }
+        } catch (edgeErr: any) {
+          if (edgeErr?.name === 'AbortError' || signal?.aborted) throw edgeErr;
+          console.warn('[Binti AI] Supabase Edge Function unreachable:', edgeErr?.message);
+        }
+      }
+    }
 
     if (signal?.aborted) {
       throw new DOMException('Aborted', 'AbortError');
     }
 
-    if (data.success && data.reply) {
+    if (data?.success && data.reply) {
       const sanitizedReply = cleanAiResponse(data.reply);
       const actions = data.actions || extractActionsFromPrompt(cleanPrompt, saasContext, attachedDoc);
       

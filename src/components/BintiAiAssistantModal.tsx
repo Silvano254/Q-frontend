@@ -316,12 +316,15 @@ export default function BintiAiAssistantModal({
       role="dialog"
       aria-modal="true"
       aria-label="Binti AI Operations Assistant"
-      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in font-sans"
+      className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs font-sans transition-opacity animate-fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) handleClose();
+      }}
     >
-      <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 w-full max-w-4xl h-[90vh] max-h-[860px] flex flex-col overflow-hidden relative">
+      <div className="bg-white w-full sm:w-[520px] md:w-[600px] lg:w-[660px] xl:w-[720px] h-full shadow-2xl border-l border-gray-100 flex flex-col overflow-hidden relative animate-slide-in-right sm:rounded-l-3xl">
         
         {/* MODAL HEADER */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#1F2937] to-[#80237E] p-0.5 shadow-md flex items-center justify-center border border-[#D4AF37]/30">
               <div className="w-full h-full bg-white rounded-[14px] flex items-center justify-center p-1.5">
@@ -395,7 +398,7 @@ export default function BintiAiAssistantModal({
         )}
 
         {/* CHAT CONTAINER */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 [scrollbar-width:thin] bg-gray-50/40">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5 sm:space-y-4 [scrollbar-width:thin] bg-gray-50/40">
           
           {/* FRESH CHAT STATE: Welcome & Quick Prompts */}
           {isFreshChat && (

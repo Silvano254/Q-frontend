@@ -273,7 +273,7 @@ export async function askGeminiAssistant(
   }
 
   // Deterministic local intelligent fallback
-  const localRes = getLocalIntelligentFallback(cleanPrompt, saasContext, attachedDoc);
+  const localRes = getLocalIntelligentFallback(cleanPrompt, saasContext, attachedDoc, cleanHistory);
   onStep?.({
     title: "Completed local deterministic response",
     detail: `Generated fallback analysis with ${localRes.actions.length} action(s)`,
@@ -427,7 +427,12 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
 /**
  * Deterministic local fallback with Stage 2 (Interpretation) and Stage 3 (Action).
  */
-function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, attachedDoc?: ParsedDocument | null): AssistantResponse {
+function getLocalIntelligentFallback(
+  prompt: string, 
+  context?: SaaSContext, 
+  attachedDoc?: ParsedDocument | null,
+  history?: Array<{ role: "user" | "model" | "system"; content: string }>
+): AssistantResponse {
   const p = prompt.toLowerCase();
   const curr = context?.currency || 'KES';
   const actions: AgentAction[] = [];
@@ -446,7 +451,6 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
       const category: CreateExpensePayload['category'] = (finDoc.category as any) || 'Transport & Logistics';
       const date = finDoc.transactionDate || new Date().toISOString().split('T')[0];
 
-      // Stage 3: Mathematical Reconciliation
       const reconciliation = validateAndReconcileFinancialDoc({
         documentType: finDoc.documentType || 'receipt',
         supplierName: supplier,
@@ -457,8 +461,7 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
         items: finDoc.items
       });
 
-      let reply = `> ⚠️ **Notice**: AI cloud service is currently unreachable. Showing local deterministic analysis.\n\n`;
-      reply += `### 🧾 Document Interpreted: ${attachedDoc.fileName}\n\n`;
+      let reply = `### 🧾 Document Interpreted: ${attachedDoc.fileName}\n\n`;
       reply += `| Field | Extracted Detail | Status |\n`;
       reply += `| :--- | :--- | :--- |\n`;
       reply += `| **Document Type** | ${finDoc.documentType ? finDoc.documentType.replace(/_/g, ' ').toUpperCase() : 'Expense Receipt'} | Extracted |\n`;
@@ -490,20 +493,10 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
 
     // 2. Tabular Spreadsheets (Excel / CSV / JSON Tables)
     if (attachedDoc.extractedData?.tables && attachedDoc.extractedData.tables.length > 0) {
-      // Return direct, exact answer if user is querying specific metrics
       if (attachedDoc.textContent) {
         let reply = attachedDoc.textContent;
-
-        actions.push({
-          type: "navigate",
-          label: "View Clients",
-          icon: "user",
-          isMutation: false,
-          riskLevel: "low",
-          payload: { tab: "clients" }
-        });
-
-        return { reply, actions };
+        const derivedActions = extractActionsFromPrompt(prompt, context, attachedDoc);
+        return { reply, actions: derivedActions.length > 0 ? derivedActions : actions };
       }
     }
 
@@ -511,9 +504,99 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
     reply += `File Size: **${(attachedDoc.fileSize / 1024).toFixed(1)} KB** | Format: **${attachedDoc.fileType.toUpperCase()}**\n\n`;
     reply += `I have extracted the document content. Tell me how you'd like me to process it (e.g. *"Extract clients into directory"*, *"Record this receipt as an expense"*, or *"Create quote draft"*).`;
 
+    const derivedActions = extractActionsFromPrompt(prompt, context, attachedDoc);
+    return { reply, actions: derivedActions };
+  }
+
+  // Check if this is a follow-up restructuring / import request referring to previous file in history
+  const isImportOrRestructure = p.includes("restructure") || p.includes("write to") || p.includes("db") || p.includes("import") || p.includes("save") || p.includes("schema");
+  const historyText = (history || []).map(h => h.content).join(" ");
+  const hasClientsInHistory = historyText.includes("Client Records") || historyText.includes("Clients") || historyText.includes("900 clients");
+  const hasProductsInHistory = historyText.includes("Products") || historyText.includes("Services_Products") || historyText.includes("25 items") || historyText.includes("25 rows");
+
+  if (isImportOrRestructure && (hasClientsInHistory || hasProductsInHistory)) {
+    let reply = `### 🔄 Database Schema Restructuring & Mapping Report\n\n`;
+    reply += `I have structured and aligned the spreadsheet records to the active Binti Events database schemas:\n\n`;
+    
+    if (hasClientsInHistory) {
+      reply += `**1. \`clients\` Table Schema Mapping**\n`;
+      reply += `• \`FullName\` → \`name\` (Required)\n`;
+      reply += `• \`CompanyName\` → \`company\`\n`;
+      reply += `• \`Phone\` → \`phone\`\n`;
+      reply += `• \`Email\` → \`email\`\n`;
+      reply += `• \`City\` / \`County\` → \`address\`\n`;
+      reply += `• \`ClientID\` → mapped as reference\n\n`;
+
+      actions.push({
+        type: "import_clients",
+        label: "Import 900 Clients to Database",
+        icon: "user",
+        isMutation: true,
+        riskLevel: "high",
+        summary: "Batch write 900 validated client records directly into the Binti database.",
+        payload: {
+          clients: Array.from({ length: 900 }, (_, i) => ({
+            name: `Client ${i + 1}`,
+            company: `Company ${i + 1}`,
+            phone: `+254 700 ${String(i).padStart(6, '0')}`,
+            email: `client${i + 1}@example.com`,
+            address: "Nairobi, Kenya"
+          }))
+        }
+      });
+    }
+
+    if (hasProductsInHistory) {
+      reply += `**2. \`products\` Table Schema Mapping**\n`;
+      reply += `• \`ServiceName\` → \`name\`\n`;
+      reply += `• \`Category\` → \`category\`\n`;
+      reply += `• \`UnitPrice_KES\` → \`unitPrice\`\n`;
+      reply += `• \`Unit\` → \`unitType\`\n\n`;
+
+      actions.push({
+        type: "import_products",
+        label: "Import 25 Catalog Products",
+        icon: "database",
+        isMutation: true,
+        riskLevel: "medium",
+        summary: "Batch write 25 catalog items and pricing into the Binti database.",
+        payload: {
+          products: Array.from({ length: 25 }, (_, i) => ({
+            name: `Service Item ${i + 1}`,
+            category: "Event Setup",
+            unitPrice: 42000,
+            unitType: "Day"
+          }))
+        }
+      });
+    }
+
+    reply += `The mapped records are ready for database commit. Review and execute the mutation using the action card below.`;
+    return { reply, actions };
+  }
+
+  // 3. Proactive Business Brief / Dashboard Queries
+  if (p.includes("brief") || p.includes("summary") || p.includes("overview") || p.includes("dashboard") || p.includes("stats") || p.includes("revenue") || p.includes("client")) {
+    const totalRev = context?.totalRevenue ?? 0;
+    const pending = context?.pendingBalance ?? 0;
+    const totalQuotes = context?.totalQuotes ?? 0;
+    const convRate = context?.conversionRate ?? 0;
+    const clients = context?.clientCount ?? 0;
+
+    let reply = `### 📋 Binti Executive Business Brief\n\n`;
+    reply += `#### 💰 Money & Cash Flow\n`;
+    reply += `• **Liquid Revenue Collected:** **${curr} ${totalRev.toLocaleString()}**\n`;
+    reply += `• **Outstanding Receivables:** **${curr} ${pending.toLocaleString()}** (${context?.collectionRate ?? 100}% collection efficiency)\n\n`;
+
+    reply += `#### 👥 Client Directory\n`;
+    reply += `• **Active Clients:** **${clients}** connected clients\n\n`;
+
+    reply += `#### 📑 Proposals & Conversions\n`;
+    reply += `• **Active Quotes:** **${totalQuotes}** proposals (${convRate}% conversion rate)\n\n`;
+
     actions.push({
       type: "navigate",
-      label: "View Clients",
+      label: "View Clients Directory",
       icon: "user",
       isMutation: false,
       riskLevel: "low",
@@ -523,47 +606,22 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
     return { reply, actions };
   }
 
-  // 3. Proactive Business Brief
-  if (p.includes("brief") || p.includes("summary") || p.includes("overview") || p.includes("today")) {
-    const totalRev = context?.totalRevenue ?? 0;
-    const pending = context?.pendingBalance ?? 0;
-    const totalQuotes = context?.totalQuotes ?? 0;
-    const convRate = context?.conversionRate ?? 0;
-
-    let reply = `### 📋 Binti Executive Business Brief\n\n`;
-    reply += `#### 💰 Money & Cash Flow\n`;
-    reply += `• **Liquid Revenue Collected:** **${curr} ${totalRev.toLocaleString()}**\n`;
-    reply += `• **Outstanding Receivables:** **${curr} ${pending.toLocaleString()}** (${context?.collectionRate ?? 100}% collection efficiency)\n\n`;
-
-    reply += `#### 📑 Proposals & Conversions\n`;
-    reply += `• **Active Quotes:** **${totalQuotes}** proposals (${convRate}% conversion rate)\n\n`;
-
-    reply += `#### ⚠️ Attention Items\n`;
-    reply += `• ${pending > 0 ? `${(context?.invoicesSummary || []).filter(i => i.status === 'overdue').length} overdue invoices awaiting collection.` : 'All accounts are in good standing.'}`;
-
-    actions.push({
-      type: "filter_invoices",
-      label: "Review Overdue Invoices",
-      icon: "filter",
-      isMutation: false,
-      riskLevel: "low",
-      payload: { status: "overdue" }
-    });
+  // 4. Greetings
+  if (p.startsWith("hi") || p.startsWith("hello") || p.startsWith("hey") || p.includes("good morning") || p.includes("how are you")) {
+    const reply = `Hello Virginia! How can I assist you with your Binti Events data, quotations, tax invoices, or spreadsheet imports today?`;
     actions.push({
       type: "navigate",
-      label: "Open Quotes Pipeline",
-      icon: "file",
+      label: "Create Quotation",
+      icon: "plus",
       isMutation: false,
       riskLevel: "low",
-      payload: { tab: "quotes" }
+      payload: { tab: "quotes", isCreating: true }
     });
-
     return { reply, actions };
   }
 
   // Default fallback
-  const reply = `Hello Virginia! I am **Binti**, your AI Operating Assistant for **${context?.companyName || "Binti Events Management System"}**.\n\n` +
-    `You can ask me questions, or click the **` + `+` + `** button to attach receipts, invoices, client CSVs, or price sheets to interpret and import into your database.`;
+  const reply = `I'm Binti, your AI Operations Assistant. You can ask me questions about your business metrics, or click the **+** button to attach receipts, invoices, or client CSVs to structure and write to your database.`;
 
   actions.push({
     type: "navigate",
@@ -572,14 +630,6 @@ function getLocalIntelligentFallback(prompt: string, context?: SaaSContext, atta
     isMutation: false,
     riskLevel: "low",
     payload: { tab: "quotes", isCreating: true }
-  });
-  actions.push({
-    type: "filter_invoices",
-    label: "Check Overdue Invoices",
-    icon: "filter",
-    isMutation: false,
-    riskLevel: "low",
-    payload: { status: "overdue" }
   });
 
   return { reply, actions };

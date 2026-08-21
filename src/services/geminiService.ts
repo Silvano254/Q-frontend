@@ -293,12 +293,21 @@ export async function askGeminiAssistant(
     if (data?.success && data.reply) {
       const sanitizedReply = cleanAiResponse(data.reply);
       const actions = data.actions || extractActionsFromPrompt(cleanPrompt, saasContext, attachedDoc);
+      const meta = (data as any).meta;
       
-      onStep?.({
-        title: "Received & verified model response",
-        detail: `Sanitized executive output${actions.length > 0 ? ` with ${actions.length} action(s) prepared` : ''}`,
-        status: 'complete'
-      });
+      if (meta?.groundedMetrics) {
+        onStep?.({
+          title: `Grounded via ${meta.model || 'Gemini Cloud'}`,
+          detail: `Live database context verified: ${meta.groundedMetrics.clients} clients, ${meta.groundedMetrics.invoices} invoices (${meta.groundedMetrics.currency} ${meta.groundedMetrics.cashCollected.toLocaleString()} collected) in ${meta.latencyMs}ms`,
+          status: 'complete'
+        });
+      } else {
+        onStep?.({
+          title: "Received & verified cloud model response",
+          detail: `Sanitized executive output${actions.length > 0 ? ` with ${actions.length} action proposal(s)` : ''}`,
+          status: 'complete'
+        });
+      }
 
       return { reply: sanitizedReply, actions };
     }

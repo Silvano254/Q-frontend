@@ -41,7 +41,18 @@ export function getApiUrl(path: string): string {
 
   // When configured to point to Supabase Edge Functions
   if (API_BASE_URL.includes('functions/v1') || API_BASE_URL.includes('supabase.co')) {
+    const rawNoPrefix = cleanPath.replace(/^\/api\//, '').replace(/^\//, '');
+    const parts = rawNoPrefix.split('/');
+    const subResource = parts[1]; // e.g. the ID (e.g. /api/quotes/q_123)
+
     const edgeFunctionName = mapToEdgeFunction(cleanPath);
+    
+    const isSpecialAction = ['chat', 'draft-email', 'recommend-terms', 'login', 'verify', 'logout', 'request-reset', 'verify-reset-otp', 'biometric-login', 'send'].includes(subResource);
+    if (subResource && !isSpecialAction) {
+      const separator = edgeFunctionName.includes('?') ? '&' : '?';
+      return `${API_BASE_URL}/${edgeFunctionName}${separator}id=${encodeURIComponent(subResource)}`;
+    }
+
     return `${API_BASE_URL}/${edgeFunctionName}`;
   }
 

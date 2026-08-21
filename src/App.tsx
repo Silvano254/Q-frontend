@@ -483,7 +483,10 @@ export default function App() {
   };
 
   const handleUpdateQuote = async (id: string, quotePayload: Partial<Quote>) => {
-    const updated = await apiRequest<Quote>(`/api/quotes/${id}`, { method: 'PUT', body: JSON.stringify(quotePayload) });
+    const updated = await apiRequest<Quote>(`/api/quotes/${id}`, { 
+      method: 'PUT', 
+      body: JSON.stringify({ id, ...quotePayload }) 
+    });
     setQuotes(prev => prev.map(q => q.id === id ? { ...q, ...quotePayload, ...(updated && updated.id ? updated : {}) } : q));
     if (selectedQuote && selectedQuote.id === id) {
       setSelectedQuote(prev => prev ? { ...prev, ...quotePayload } : null);
@@ -492,7 +495,10 @@ export default function App() {
   };
 
   const handleDeleteQuote = async (id: string) => {
-    await apiRequest(`/api/quotes/${id}`, { method: 'DELETE' });
+    await apiRequest(`/api/quotes/${id}`, { 
+      method: 'DELETE', 
+      body: JSON.stringify({ id }) 
+    });
     setQuotes(prev => prev.filter(q => q.id !== id));
     if (selectedQuote?.id === id) setSelectedQuote(null);
     showToast("Quotation deleted.", "warning");
@@ -505,9 +511,15 @@ export default function App() {
       invoices.map(i => i.invoiceNumber),
       "INV"
     );
+    const payloadToSend = {
+      ...invoicePayload,
+      invoiceNumber: nextInvoiceNumber,
+      clientId: invoicePayload.clientId || 'client_gen',
+      clientName: invoicePayload.clientName || 'Client'
+    };
     const created = await apiRequest<Invoice>('/api/invoices', {
       method: 'POST',
-      body: JSON.stringify({ ...invoicePayload, invoiceNumber: nextInvoiceNumber })
+      body: JSON.stringify(payloadToSend)
     });
     const grandTotal = Number(invoicePayload.grandTotal || 0);
     const payments = invoicePayload.payments || [];
@@ -520,11 +532,11 @@ export default function App() {
       status = 'partially_paid';
     }
     const normalizedInvoice: Invoice = {
-      ...(created && created.id ? created : (invoicePayload as Invoice)),
-      id: created?.id || (invoicePayload.id as string) || Math.random().toString(),
+      ...(created && created.id ? created : (payloadToSend as Invoice)),
+      id: created?.id || (invoicePayload.id as string) || `inv_${Date.now()}`,
       invoiceNumber: nextInvoiceNumber,
-      clientId: invoicePayload.clientId || '',
-      clientName: invoicePayload.clientName || 'Client',
+      clientId: payloadToSend.clientId,
+      clientName: payloadToSend.clientName,
       grandTotal,
       balanceRemaining,
       status,
@@ -536,7 +548,10 @@ export default function App() {
   };
 
   const handleUpdateInvoice = async (id: string, invoicePayload: Partial<Invoice>) => {
-    const updated = await apiRequest<Invoice>(`/api/invoices/${id}`, { method: 'PUT', body: JSON.stringify(invoicePayload) });
+    const updated = await apiRequest<Invoice>(`/api/invoices/${id}`, { 
+      method: 'PUT', 
+      body: JSON.stringify({ id, ...invoicePayload }) 
+    });
     setInvoices(prev => prev.map(inv => {
       if (inv.id !== id) return inv;
       const merged = { ...inv, ...invoicePayload, ...(updated && updated.id ? updated : {}) };
@@ -559,7 +574,10 @@ export default function App() {
   };
 
   const handleDeleteInvoice = async (id: string) => {
-    await apiRequest(`/api/invoices/${id}`, { method: 'DELETE' });
+    await apiRequest(`/api/invoices/${id}`, { 
+      method: 'DELETE', 
+      body: JSON.stringify({ id }) 
+    });
     setInvoices(prev => prev.filter(i => i.id !== id));
     if (selectedInvoice?.id === id) setSelectedInvoice(null);
     showToast("Invoice deleted.", "warning");
@@ -576,19 +594,19 @@ export default function App() {
       invoiceNumber: nextInvoiceNumber,
       quoteId: quote.id,
       quoteNumber: quote.quoteNumber,
-      clientId: quote.clientId,
-      clientName: quote.clientName,
+      clientId: quote.clientId || 'client_gen',
+      clientName: quote.clientName || 'Client',
       issueDate: new Date().toISOString().split("T")[0],
       dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-      items: quote.items,
-      subtotal: quote.subtotal,
-      discountTotal: quote.discountTotal,
-      taxTotal: quote.taxTotal,
-      grandTotal: quote.grandTotal,
-      balanceRemaining: quote.grandTotal,
+      items: quote.items || [],
+      subtotal: quote.subtotal || 0,
+      discountTotal: quote.discountTotal || 0,
+      taxTotal: quote.taxTotal || 0,
+      grandTotal: quote.grandTotal || 0,
+      balanceRemaining: quote.grandTotal || 0,
       status: "pending",
       notes: `Converted automatically from ${quote.quoteNumber}. ` + (quote.notes || ""),
-      terms: quote.terms,
+      terms: quote.terms || "",
       payments: []
     };
 

@@ -528,23 +528,31 @@ function getLocalIntelligentFallback(
       reply += `| **Total Amount** | **${curr} ${amount.toLocaleString()}** | Extracted |\n`;
       reply += `| **Transaction Date** | **${date}** | Extracted |\n`;
       reply += `| **Reconciliation** | ${reconciliation.message} | Validated |\n\n`;
-      reply += `Found an expense of **${curr} ${amount.toLocaleString()}** from **${supplier}**. Would you like to record it?`;
 
-      actions.push({
-        type: "create_expense",
-        label: `Add ${curr} ${amount.toLocaleString()} ${category} Expense`,
-        icon: "receipt",
-        isMutation: true,
-        riskLevel: "medium",
-        summary: `Record ${category} expense of ${curr} ${amount.toLocaleString()} from ${supplier} on ${date}.`,
-        payload: {
-          category,
-          description: `${category} expense - ${supplier}`,
-          amount,
-          referenceNumber: finDoc.documentNumber || `EXP-${Date.now().toString().slice(-4)}`,
-          date
-        }
-      });
+      const hasNegative = /\b(don'?t|do not|never|no need to|without|just|only|read[\s-]only|don'?t save|do not save|without saving)\b/i.test(prompt);
+      const hasPositive = /\b(import|save|store|record|add|create|write|insert|commit|structure into db|restructure)\b/i.test(prompt);
+      const isWriteIntent = hasPositive && !hasNegative;
+
+      if (isWriteIntent) {
+        reply += `Found an expense of **${curr} ${amount.toLocaleString()}** from **${supplier}**. Ready to record on your confirmation:`;
+        actions.push({
+          type: "create_expense",
+          label: `Add ${curr} ${amount.toLocaleString()} ${category} Expense`,
+          icon: "receipt",
+          isMutation: true,
+          riskLevel: "medium",
+          summary: `Record ${category} expense of ${curr} ${amount.toLocaleString()} from ${supplier} on ${date}.`,
+          payload: {
+            category,
+            description: `${category} expense - ${supplier}`,
+            amount,
+            referenceNumber: finDoc.documentNumber || `EXP-${Date.now().toString().slice(-4)}`,
+            date
+          }
+        });
+      } else {
+        reply += `Found an expense of **${curr} ${amount.toLocaleString()}** from **${supplier}**. Let me know if you would like me to record it into your business expense ledger.`;
+      }
 
       return { reply, actions };
     }

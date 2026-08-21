@@ -337,10 +337,10 @@ export async function askGeminiAssistant(
 function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attachedDoc?: ParsedDocument | null): AgentAction[] {
   const p = prompt.toLowerCase();
   const actions: AgentAction[] = [];
-  const isWriteIntent = /import|save|load|insert|record|add to|create|write|draft|post/i.test(p);
+  const isWriteIntent = /import|save|load|insert|record|add to|create|write|draft|post|structure|restructure|commit/i.test(p);
 
-  // Stage 2 & 3: Document Ingestion & Action Proposal
-  if (attachedDoc) {
+  // Stage 2 & 3: Document Ingestion & Action Proposal (ONLY if user has write/import intent)
+  if (attachedDoc && isWriteIntent) {
     const docName = attachedDoc.fileName.toLowerCase();
     const docText = (attachedDoc.textContent || '').toLowerCase();
     const isImage = attachedDoc.mimeType.startsWith('image/');
@@ -402,7 +402,6 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
           taxNumber: hMap.taxNumber !== undefined ? r[hMap.taxNumber] : ''
         })).filter(c => c.name && c.name.trim() !== '');
 
-        // Extract total count from audit text if available
         const countMatch = (attachedDoc.textContent || '').match(/(\d[\d,]*)\s+clients/i);
         const displayCount = countMatch ? countMatch[1] : parsedClients.length.toLocaleString();
 
@@ -413,7 +412,7 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
             label: `Import ${displayCount} Clients into Database`,
             icon: "database",
             isMutation: true,
-            riskLevel: "medium",
+            riskLevel: "high",
             summary: `Add ${displayCount} validated client records from ${attachedDoc.fileName} directly to your client directory.`,
             payload: { clients: parsedClients }
           });

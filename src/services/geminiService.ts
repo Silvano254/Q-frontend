@@ -337,9 +337,13 @@ export async function askGeminiAssistant(
 function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attachedDoc?: ParsedDocument | null): AgentAction[] {
   const p = prompt.toLowerCase();
   const actions: AgentAction[] = [];
-  const isWriteIntent = /import|save|load|insert|record|add to|create|write|draft|post|structure|restructure|commit/i.test(p);
 
-  // Stage 2 & 3: Document Ingestion & Action Proposal (ONLY if user has write/import intent)
+  // Negative intent check: phrases like "don't save", "do not import", "just analyze", "read only" force write intent off
+  const hasNegativeIntent = /\b(don'?t|do not|never|no need to|without|just|only)\s+(import|save|store|record|add|create|write|insert|commit|modifying|changing)\b|\b(read[\s-]only|just analyze|only analyze|don'?t save|do not save|without saving|without importing|no action)\b/i.test(p);
+  const hasPositiveWriteIntent = /\b(import|save|load|insert|record|add to|create|write|draft|post|structure|restructure|commit)\b/i.test(p);
+  const isWriteIntent = hasPositiveWriteIntent && !hasNegativeIntent;
+
+  // Stage 2 & 3: Document Ingestion & Action Proposal (ONLY if user has positive write/import intent)
   if (attachedDoc && isWriteIntent) {
     const docName = attachedDoc.fileName.toLowerCase();
     const docText = (attachedDoc.textContent || '').toLowerCase();

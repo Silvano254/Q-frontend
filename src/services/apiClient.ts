@@ -98,6 +98,18 @@ export async function apiRequest<T>(
         }
 
         if (!response.ok) {
+          // A rejected authenticated request means our stored JWT is dead
+          // (server-side expiry is independent of the UI inactivity timer).
+          // Clear it immediately so the app prompts for a fresh sign-in
+          // instead of silently failing on every subsequent request.
+          if (requireAuth && response.status === 401) {
+            clearAuthToken();
+            const sessionError = new Error(
+              'Your session has expired. Please sign in again.'
+            ) as Error & { status?: number };
+            sessionError.status = 401;
+            throw sessionError;
+          }
           const errorMessage =
             payload?.message ||
             payload?.error ||

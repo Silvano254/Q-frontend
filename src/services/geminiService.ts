@@ -264,11 +264,18 @@ export async function askGeminiAssistant(
       throw error;
     }
     console.warn('AI API unavailable:', error);
+    const detail = typeof error?.message === 'string' ? error.message.trim() : '';
     onStep?.({
       title: "AI service unavailable",
-      detail: "The backend AI service could not be reached. Please try again.",
+      detail: detail || "The backend AI service could not be reached.",
       status: 'failed'
     });
+    // Preserve the actionable underlying cause (expired session, HTTP status,
+    // configuration problem…) instead of masking every failure with one
+    // generic line — masked errors made outages impossible to diagnose.
+    if (detail) {
+      throw new Error(detail);
+    }
     throw new Error('The AI service is temporarily unavailable. Please try again in a moment.');
   }
 
@@ -277,12 +284,17 @@ export async function askGeminiAssistant(
   }
 
   if (!data?.success || !data.reply) {
+    const backendHint = (data as any)?.error || (data as any)?.message;
     onStep?.({
       title: "AI service unavailable",
-      detail: "The backend did not return a valid response. Please try again.",
+      detail: backendHint || "The backend did not return a valid response.",
       status: 'failed'
     });
-    throw new Error('The AI service is temporarily unavailable. Please try again in a moment.');
+    throw new Error(
+      backendHint
+        ? `Binti's AI backend reported a problem: ${backendHint}`
+        : 'The AI service is temporarily unavailable. Please try again in a moment.'
+    );
   }
 
   const sanitizedReply = cleanAiResponse(data.reply);

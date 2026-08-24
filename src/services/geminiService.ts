@@ -5,15 +5,9 @@
  * featuring multi-stage document extraction, OCR financial interpretation, and controlled mutation execution.
  */
 
-import { apiRequest } from './apiClient';
-import { BillingItem, Client, ProductService, Invoice, Expense } from '../types';
-import { 
-  parseCsvRows, 
-  parseRFC4180CSV, 
-  ParsedDocument, 
-  ExtractedFinancialDocument,
-  validateAndReconcileFinancialDoc 
-} from '../utils/fileParser';
+import { apiRequest, getAuthToken } from './apiClient';
+import { BillingItem } from '../types';
+import { ParsedDocument } from '../utils/fileParser';
 
 export interface SaaSContext {
   clientCount?: number;
@@ -22,6 +16,9 @@ export interface SaaSContext {
   totalInvoices?: number;
   totalRevenue?: number;
   pendingBalance?: number;
+  // NOTE: The expense fields below are LOCAL / document-derived estimates only.
+  // The canonical database schema has NO expenses table yet — never treat these
+  // values as live database metrics (the backend grounding rules enforce this).
   totalExpenses?: number;
   netEstimatedProfit?: number;
   collectionRate?: number;
@@ -37,7 +34,12 @@ export interface SaaSContext {
   expensesSummary?: Array<{ id: string; category: string; description: string; amount: number; date?: string; eventName?: string }>;
 }
 
-export interface AgentThoughtStep {
+/**
+ * Operational processing/status step emitted by the backend pipeline.
+ * These are execution-status events (auth, metrics fetch, model call),
+ * NEVER the model's private chain-of-thought reasoning.
+ */
+export interface ProcessingStep {
   id: string;
   title: string;
   detail?: string;
@@ -55,7 +57,7 @@ export interface ChatMessage {
     size: number;
     type: string;
   };
-  thoughtSteps?: AgentThoughtStep[];
+  processingSteps?: ProcessingStep[];
   thinkingDurationMs?: number;
 }
 
@@ -209,135 +211,113 @@ export async function askGeminiAssistant(
     content: cleanAiResponse(h.content)
   }));
 
-  try {
-    const documentPayload = attachedDoc ? {
-      name: attachedDoc.fileName,
-      type: attachedDoc.fileType,
-      size: attachedDoc.fileSize,
-      mimeType: attachedDoc.mimeType,
-      content: attachedDoc.textContent ? attachedDoc.textContent.slice(0, 10000) : undefined,
-      imageBase64: attachedDoc.extractedData?.images?.[0]?.data,
-      binaryData: attachedDoc.extractedData?.binaryData,
-      financialDoc: attachedDoc.extractedData?.financialDoc,
-      tables: attachedDoc.extractedData?.tables
-    } : undefined;
-
+  // AUTHENTICATION GATE: AI access requires a signed-in user session.
+  // Guests must never reach the AI gateway (matches backend JWT enforcement).
+  const userToken = getAuthToken();
+  if (!userToken) {
     onStep?.({
-      title: "Querying Gemini 3.x Flash Intelligence Engine",
-      detail: documentPayload 
-        ? `Transmitting prompt with verified audit payload for "${documentPayload.name}"`
-        : `Evaluating prompt with live database connection`,
-      status: 'in_progress'
+      title: "Authentication required",
+      detail: "Please sign in to use Binti AI.",
+      status: 'failed'
     });
+    throw new Error('Authentication required. Please sign in to use Binti AI.');
+  }
 
-    let data: { success: boolean; reply?: string; actions?: AgentAction[] } | null = null;
+  const documentPayload = attachedDoc ? {
+    name: attachedDoc.fileName,
+    type: attachedDoc.fileType,
+    size: attachedDoc.fileSize,
+    mimeType: attachedDoc.mimeType,
+    content: attachedDoc.textContent ? attachedDoc.textContent.slice(0, 10000) : undefined,
+    imageBase64: attachedDoc.extractedData?.images?.[0]?.data,
+    binaryData: attachedDoc.extractedData?.binaryData,
+    financialDoc: attachedDoc.extractedData?.financialDoc,
+    tables: attachedDoc.extractedData?.tables
+  } : undefined;
 
-    // Tier 1: Try Primary Configured API / Express Backend
-    try {
-      data = await apiRequest<{ success: boolean; reply?: string; actions?: AgentAction[] }>(
-        '/api/ai/chat', 
-        {
-          method: "POST",
-          signal,
-          body: JSON.stringify({
-            prompt: cleanPrompt,
-            history: cleanHistory,
-            document: documentPayload
-          })
-        },
-        false // Do not block unauthenticated/guest sessions
-      );
-    } catch (primaryErr: any) {
-      if (primaryErr?.name === 'AbortError' || signal?.aborted) throw primaryErr;
-      console.warn('[Binti AI] Primary backend route unavailable, trying Edge Function:', primaryErr?.message);
-    }
+  // SINGLE unified backend path: VITE_API_URL points at the Supabase Edge Functions
+  // gateway. No dual-path fallback — one architecture, one auth model, one contract.
+  type AiChatResponse = {
+    success: boolean;
+    reply?: string;
+    actions?: AgentAction[];
+    thoughtSteps?: Array<{ title: string; detail?: string; status: 'in_progress' | 'complete' | 'failed' }>;
+  };
 
-    // Tier 2: Try Direct Supabase Edge Function if Tier 1 failed
-    if (!data?.success && !signal?.aborted) {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-      
-      if (supabaseUrl) {
-        try {
-          const edgeUrl = `${supabaseUrl.replace(/\/$/, '')}/functions/v1/ai-chat`;
-          const edgeRes = await fetch(edgeUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(supabaseAnonKey ? { "apikey": supabaseAnonKey, "Authorization": `Bearer ${supabaseAnonKey}` } : {})
-            },
-            signal,
-            body: JSON.stringify({
-              prompt: cleanPrompt,
-              history: cleanHistory,
-              document: documentPayload
-            })
-          });
-
-          if (edgeRes.ok) {
-            data = await edgeRes.json();
-          } else {
-            console.warn(`[Binti AI] Supabase Edge Function returned HTTP ${edgeRes.status}`);
-          }
-        } catch (edgeErr: any) {
-          if (edgeErr?.name === 'AbortError' || signal?.aborted) throw edgeErr;
-          console.warn('[Binti AI] Supabase Edge Function unreachable:', edgeErr?.message);
-        }
-      }
-    }
-
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
-
-    if (data?.success && data.reply) {
-      const sanitizedReply = cleanAiResponse(data.reply);
-      const actions = data.actions || extractActionsFromPrompt(cleanPrompt, saasContext, attachedDoc);
-      const meta = (data as any).meta;
-      
-      if (meta?.groundedMetrics) {
-        onStep?.({
-          title: `Grounded via ${meta.model || 'Gemini Cloud'}`,
-          detail: `Live database context verified: ${meta.groundedMetrics.clients} clients, ${meta.groundedMetrics.invoices} invoices (${meta.groundedMetrics.currency} ${meta.groundedMetrics.cashCollected.toLocaleString()} collected) in ${meta.latencyMs}ms`,
-          status: 'complete'
-        });
-      } else {
-        onStep?.({
-          title: "Received & verified cloud model response",
-          detail: `Sanitized executive output${actions.length > 0 ? ` with ${actions.length} action proposal(s)` : ''}`,
-          status: 'complete'
-        });
-      }
-
-      return { reply: sanitizedReply, actions };
-    }
+  let data: AiChatResponse | null = null;
+  try {
+    data = await apiRequest<AiChatResponse>(
+      '/api/ai/chat',
+      {
+        method: "POST",
+        signal,
+        body: JSON.stringify({
+          prompt: cleanPrompt,
+          history: cleanHistory,
+          document: documentPayload
+        })
+      },
+      true // Authenticated users only — the backend verifies the user's signed JWT
+    );
   } catch (error: any) {
     if (error?.name === 'AbortError' || signal?.aborted) {
       throw error;
     }
-    console.warn('AI API unavailable, using local fallback:', error);
+    console.warn('AI API unavailable:', error);
     onStep?.({
-      title: "Switched to local intelligent fallback engine",
-      detail: "Executing deterministic business logic rules",
-      status: 'in_progress'
+      title: "AI service unavailable",
+      detail: "The backend AI service could not be reached. Please try again.",
+      status: 'failed'
     });
+    throw new Error('The AI service is temporarily unavailable. Please try again in a moment.');
   }
 
   if (signal?.aborted) {
     throw new DOMException('Aborted', 'AbortError');
   }
 
-  // Deterministic local intelligent fallback
-  const localRes = getLocalIntelligentFallback(cleanPrompt, saasContext, attachedDoc, cleanHistory);
-  onStep?.({
-    title: "Completed local deterministic response",
-    detail: `Generated fallback analysis with ${localRes.actions.length} action(s)`,
-    status: 'complete'
-  });
-  return {
-    reply: cleanAiResponse(localRes.reply),
-    actions: localRes.actions
-  };
+  if (!data?.success || !data.reply) {
+    onStep?.({
+      title: "AI service unavailable",
+      detail: "The backend did not return a valid response. Please try again.",
+      status: 'failed'
+    });
+    throw new Error('The AI service is temporarily unavailable. Please try again in a moment.');
+  }
+
+  const sanitizedReply = cleanAiResponse(data.reply);
+  // Server-proposed actions take precedence. Client-side extraction is UI
+  // convenience ONLY — every mutation is independently authorized and
+  // validated by the backend endpoints before any database write occurs.
+  const actions = (data.actions && data.actions.length > 0)
+    ? data.actions
+    : extractActionsFromPrompt(cleanPrompt, saasContext, attachedDoc);
+  const meta = (data as any).meta;
+
+  // Emit the real processing steps returned by the backend (not hardcoded).
+  if (data.thoughtSteps && data.thoughtSteps.length > 0) {
+    for (const step of data.thoughtSteps) {
+      onStep?.({
+        title: step.title,
+        detail: step.detail,
+        status: step.status
+      });
+    }
+  } else if (meta?.groundedMetrics) {
+    onStep?.({
+      title: `Grounded via ${meta.model || 'Gemini Cloud'}`,
+      detail: `Live database context verified: ${meta.groundedMetrics.clients} clients, ${meta.groundedMetrics.invoices} invoices (${meta.groundedMetrics.currency} ${meta.groundedMetrics.cashCollected.toLocaleString()} collected) in ${meta.latencyMs}ms`,
+      status: 'complete'
+    });
+  } else {
+    onStep?.({
+      title: "Received & verified cloud model response",
+      detail: `Sanitized executive output${actions.length > 0 ? ` with ${actions.length} action proposal(s)` : ''}`,
+      status: 'complete'
+    });
+  }
+
+  return { reply: sanitizedReply, actions };
 }
 
 /**
@@ -432,273 +412,97 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
         }
       }
 
-      // Extract products / inventory
+      // Extract products / inventory — send REAL normalized records, not a count
       const productTable = allTables.find(t => 
         (t.name && /product|service|catalog|item|inventory|equipment/i.test(t.name)) ||
         (t.headers && t.headers.some(h => /service|item|product|price|unit/i.test(h)))
       );
       if (productTable && productTable.rows.length > 0) {
-        const prodCountMatch = (attachedDoc.textContent || '').match(/(\d[\d,]*)\s+(?:products|items|services)/i);
-        const displayProdCount = prodCountMatch ? prodCountMatch[1] : productTable.rows.length.toLocaleString();
-
-        actions.push({
-          id: `act-imp-prods-${Date.now()}`,
-          type: "import_products",
-          label: `Import ${displayProdCount} Catalog Items into Products`,
-          icon: "database",
-          isMutation: true,
-          riskLevel: "medium",
-          summary: `Add ${displayProdCount} product & service items from ${attachedDoc.fileName} into your active product catalog.`,
-          payload: { productsCount: productTable.rows.length }
+        const pMap: Record<string, number> = {};
+        productTable.headers.forEach((h, idx) => {
+          const low = h.toLowerCase();
+          if (low.includes('name') || low.includes('service') || low.includes('item')) pMap.name = idx;
+          if (low.includes('description')) pMap.description = idx;
+          if (low.includes('category')) pMap.category = idx;
+          if (low.includes('price') || low.includes('rate') || low.includes('cost')) pMap.unitPrice = idx;
+          if (low.includes('unit')) pMap.unitType = idx;
         });
+
+        const parsedProducts = productTable.rows.map(r => {
+          const priceRaw = pMap.unitPrice !== undefined ? r[pMap.unitPrice] : r[r.length - 1];
+          const unitPrice = Number(String(priceRaw ?? '').replace(/[^0-9.]/g, '')) || 0;
+          return {
+            name: ((pMap.name !== undefined ? r[pMap.name] : r[0]) || 'Product / Service').toString().trim(),
+            description: pMap.description !== undefined ? String(r[pMap.description] ?? '').trim() : '',
+            category: pMap.category !== undefined ? String(r[pMap.category] ?? '').trim() : 'General',
+            unitType: pMap.unitType !== undefined ? String(r[pMap.unitType] ?? '').trim() : 'Day',
+            unitPrice,
+            taxRate: 16
+          };
+        }).filter(p => p.name && p.unitPrice > 0);
+
+        if (parsedProducts.length > 0) {
+          actions.push({
+            id: `act-imp-prods-${Date.now()}`,
+            type: "import_products",
+            label: `Import ${parsedProducts.length} Catalog Items into Products`,
+            icon: "database",
+            isMutation: true,
+            riskLevel: "medium",
+            summary: `Add ${parsedProducts.length} product & service items from ${attachedDoc.fileName} into your active product catalog.`,
+            payload: { products: parsedProducts }
+          });
+        }
       }
     }
   }
 
-  // Overdue / Unpaid invoices
-  if (p.includes("overdue") || p.includes("unpaid") || p.includes("debt") || p.includes("owing")) {
-    actions.push({
-      type: "filter_invoices",
-      label: "Filter Overdue Invoices",
-      icon: "filter",
-      isMutation: false,
-      riskLevel: "low",
-      payload: { status: "overdue" }
-    });
-  }
+  // ── Navigation action cards ──────────────────────────────────────────────
+  // Cards must ONLY appear for EXPLICIT imperative commands from the user.
+  // Passive mentions ("what does overdue mean?") and questions ("how do I
+  // create a quote?") must NEVER spawn action cards — the AI's text answer
+  // alone is the appropriate response in those cases.
 
-  // Create Quote
-  if (p.includes("create quote") || p.includes("draft quote") || p.includes("new quote")) {
-    actions.push({
-      type: "create_quote",
-      label: "Open Quote Builder",
-      icon: "plus",
-      isMutation: false,
-      riskLevel: "low",
-      payload: { tab: "quotes", isCreating: true }
-    });
+  const trimmed = prompt.trim();
+  const isQuestion =
+    /\?\s*$/.test(trimmed) ||
+    /^(how|what|why|when|where|who|which|can|could|would|should|is|are|do|does|did|explain|tell me about|give me an overview)\b/i.test(trimmed);
+
+  if (!isQuestion) {
+    // Filter/show overdue invoices — requires an explicit navigation verb
+    const wantsOverdueView =
+      /^(filter|show|open|view|list|display|go to|take me to)\b/i.test(trimmed) &&
+      /\b(overdue|unpaid)\b/i.test(p);
+
+    if (wantsOverdueView) {
+      actions.push({
+        type: "filter_invoices",
+        label: "Filter Overdue Invoices",
+        icon: "filter",
+        isMutation: false,
+        riskLevel: "low",
+        payload: { status: "overdue" }
+      });
+    }
+
+    // Open the Quote Builder — requires an explicit creation/opening command
+    const wantsQuoteBuilder =
+      /^(please\s+)?(create|draft|start|new|open)\b[^.?!]*\b(quotation|quotes?)\b/i.test(trimmed) ||
+      /^open\s+(the\s+)?quote\s+builder\b/i.test(trimmed);
+
+    if (wantsQuoteBuilder) {
+      actions.push({
+        type: "create_quote",
+        label: "Open Quote Builder",
+        icon: "plus",
+        isMutation: false,
+        riskLevel: "low",
+        payload: { tab: "quotes", isCreating: true }
+      });
+    }
   }
 
   return actions;
-}
-
-/**
- * Deterministic local fallback with Stage 2 (Interpretation) and Stage 3 (Action).
- */
-function getLocalIntelligentFallback(
-  prompt: string, 
-  context?: SaaSContext, 
-  attachedDoc?: ParsedDocument | null,
-  history?: Array<{ role: "user" | "model" | "system"; content: string }>
-): AssistantResponse {
-  const p = prompt.toLowerCase();
-  const curr = context?.currency || 'KES';
-  const actions: AgentAction[] = [];
-
-  // Stage 2 & 3: File Interpretation & Action Proposal
-  if (attachedDoc) {
-    const docName = attachedDoc.fileName.toLowerCase();
-    const docText = (attachedDoc.textContent || '').toLowerCase();
-    const isImage = attachedDoc.mimeType.startsWith('image/');
-
-    // 1. Structured Financial Document / Receipt / Expense Image
-    const finDoc = attachedDoc.extractedData?.financialDoc;
-    if (finDoc?.totalAmount && finDoc.totalAmount > 0) {
-      const supplier = finDoc.supplierName || attachedDoc.fileName.split('.')[0].replace(/[-_]/g, ' ') || 'Supplier';
-      const amount = finDoc.totalAmount;
-      const category: CreateExpensePayload['category'] = (finDoc.category as any) || 'Transport & Logistics';
-      const date = finDoc.transactionDate || new Date().toISOString().split('T')[0];
-
-      const reconciliation = validateAndReconcileFinancialDoc({
-        documentType: finDoc.documentType || 'receipt',
-        supplierName: supplier,
-        totalAmount: amount,
-        subtotal: finDoc.subtotal,
-        taxAmount: finDoc.taxAmount,
-        currency: finDoc.currency || curr,
-        items: finDoc.items
-      });
-
-      let reply = `### 🧾 Document Interpreted: ${attachedDoc.fileName}\n\n`;
-      reply += `| Field | Extracted Detail | Status |\n`;
-      reply += `| :--- | :--- | :--- |\n`;
-      reply += `| **Document Type** | ${finDoc.documentType ? finDoc.documentType.replace(/_/g, ' ').toUpperCase() : 'Expense Receipt'} | Extracted |\n`;
-      reply += `| **Supplier / Entity** | **${supplier}** | Extracted |\n`;
-      reply += `| **Category** | **${category}** | Assigned |\n`;
-      reply += `| **Total Amount** | **${curr} ${amount.toLocaleString()}** | Extracted |\n`;
-      reply += `| **Transaction Date** | **${date}** | Extracted |\n`;
-      reply += `| **Reconciliation** | ${reconciliation.message} | Validated |\n\n`;
-
-      const hasNegative = /\b(don'?t|do not|never|no need to|without|just|only|read[\s-]only|don'?t save|do not save|without saving)\b/i.test(prompt);
-      const hasPositive = /\b(import|save|store|record|add|create|write|insert|commit|structure into db|restructure)\b/i.test(prompt);
-      const isWriteIntent = hasPositive && !hasNegative;
-
-      if (isWriteIntent) {
-        reply += `Found an expense of **${curr} ${amount.toLocaleString()}** from **${supplier}**. Ready to record on your confirmation:`;
-        actions.push({
-          type: "create_expense",
-          label: `Add ${curr} ${amount.toLocaleString()} ${category} Expense`,
-          icon: "receipt",
-          isMutation: true,
-          riskLevel: "medium",
-          summary: `Record ${category} expense of ${curr} ${amount.toLocaleString()} from ${supplier} on ${date}.`,
-          payload: {
-            category,
-            description: `${category} expense - ${supplier}`,
-            amount,
-            referenceNumber: finDoc.documentNumber || `EXP-${Date.now().toString().slice(-4)}`,
-            date
-          }
-        });
-      } else {
-        reply += `Found an expense of **${curr} ${amount.toLocaleString()}** from **${supplier}**. Let me know if you would like me to record it into your business expense ledger.`;
-      }
-
-      return { reply, actions };
-    }
-
-    // 2. Tabular Spreadsheets (Excel / CSV / JSON Tables)
-    if (attachedDoc.extractedData?.tables && attachedDoc.extractedData.tables.length > 0) {
-      if (attachedDoc.textContent) {
-        let reply = attachedDoc.textContent;
-        const derivedActions = extractActionsFromPrompt(prompt, context, attachedDoc);
-        return { reply, actions: derivedActions.length > 0 ? derivedActions : actions };
-      }
-    }
-
-    let reply = `### 📄 Document Received: ${attachedDoc.fileName}\n\n`;
-    reply += `File Size: **${(attachedDoc.fileSize / 1024).toFixed(1)} KB** | Format: **${attachedDoc.fileType.toUpperCase()}**\n\n`;
-    reply += `I have extracted the document content. Tell me how you'd like me to process it (e.g. *"Extract clients into directory"*, *"Record this receipt as an expense"*, or *"Create quote draft"*).`;
-
-    const derivedActions = extractActionsFromPrompt(prompt, context, attachedDoc);
-    return { reply, actions: derivedActions };
-  }
-
-  // Check if this is a follow-up restructuring / import request referring to previous file in history
-  const isImportOrRestructure = p.includes("restructure") || p.includes("write to") || p.includes("db") || p.includes("import") || p.includes("save") || p.includes("schema");
-  const historyText = (history || []).map(h => h.content).join(" ");
-  const hasClientsInHistory = historyText.includes("Client Records") || historyText.includes("Clients") || historyText.includes("900 clients");
-  const hasProductsInHistory = historyText.includes("Products") || historyText.includes("Services_Products") || historyText.includes("25 items") || historyText.includes("25 rows");
-
-  if (isImportOrRestructure && (hasClientsInHistory || hasProductsInHistory)) {
-    let reply = `### 🔄 Database Schema Restructuring & Mapping Report\n\n`;
-    reply += `I have structured and aligned the spreadsheet records to the active Binti Events database schemas:\n\n`;
-    
-    if (hasClientsInHistory) {
-      reply += `**1. \`clients\` Table Schema Mapping**\n`;
-      reply += `• \`FullName\` → \`name\` (Required)\n`;
-      reply += `• \`CompanyName\` → \`company\`\n`;
-      reply += `• \`Phone\` → \`phone\`\n`;
-      reply += `• \`Email\` → \`email\`\n`;
-      reply += `• \`City\` / \`County\` → \`address\`\n`;
-      reply += `• \`ClientID\` → mapped as reference\n\n`;
-
-      actions.push({
-        type: "import_clients",
-        label: "Import 900 Clients to Database",
-        icon: "user",
-        isMutation: true,
-        riskLevel: "high",
-        summary: "Batch write 900 validated client records directly into the Binti database.",
-        payload: {
-          clients: Array.from({ length: 900 }, (_, i) => ({
-            name: `Client ${i + 1}`,
-            company: `Company ${i + 1}`,
-            phone: `+254 700 ${String(i).padStart(6, '0')}`,
-            email: `client${i + 1}@example.com`,
-            address: "Nairobi, Kenya"
-          }))
-        }
-      });
-    }
-
-    if (hasProductsInHistory) {
-      reply += `**2. \`products\` Table Schema Mapping**\n`;
-      reply += `• \`ServiceName\` → \`name\`\n`;
-      reply += `• \`Category\` → \`category\`\n`;
-      reply += `• \`UnitPrice_KES\` → \`unitPrice\`\n`;
-      reply += `• \`Unit\` → \`unitType\`\n\n`;
-
-      actions.push({
-        type: "import_products",
-        label: "Import 25 Catalog Products",
-        icon: "database",
-        isMutation: true,
-        riskLevel: "medium",
-        summary: "Batch write 25 catalog items and pricing into the Binti database.",
-        payload: {
-          products: Array.from({ length: 25 }, (_, i) => ({
-            name: `Service Item ${i + 1}`,
-            category: "Event Setup",
-            unitPrice: 42000,
-            unitType: "Day"
-          }))
-        }
-      });
-    }
-
-    reply += `The mapped records are ready for database commit. Review and execute the mutation using the action card below.`;
-    return { reply, actions };
-  }
-
-  // 3. Proactive Business Brief / Dashboard Queries
-  if (p.includes("brief") || p.includes("summary") || p.includes("overview") || p.includes("dashboard") || p.includes("stats") || p.includes("revenue") || p.includes("client")) {
-    const totalRev = context?.totalRevenue ?? 0;
-    const pending = context?.pendingBalance ?? 0;
-    const totalQuotes = context?.totalQuotes ?? 0;
-    const convRate = context?.conversionRate ?? 0;
-    const clients = context?.clientCount ?? 0;
-
-    let reply = `### 📋 Binti Executive Business Brief\n\n`;
-    reply += `#### 💰 Money & Cash Flow\n`;
-    reply += `• **Liquid Revenue Collected:** **${curr} ${totalRev.toLocaleString()}**\n`;
-    reply += `• **Outstanding Receivables:** **${curr} ${pending.toLocaleString()}** (${context?.collectionRate ?? 100}% collection efficiency)\n\n`;
-
-    reply += `#### 👥 Client Directory\n`;
-    reply += `• **Active Clients:** **${clients}** connected clients\n\n`;
-
-    reply += `#### 📑 Proposals & Conversions\n`;
-    reply += `• **Active Quotes:** **${totalQuotes}** proposals (${convRate}% conversion rate)\n\n`;
-
-    actions.push({
-      type: "navigate",
-      label: "View Clients Directory",
-      icon: "user",
-      isMutation: false,
-      riskLevel: "low",
-      payload: { tab: "clients" }
-    });
-
-    return { reply, actions };
-  }
-
-  // 4. Greetings
-  if (p.startsWith("hi") || p.startsWith("hello") || p.startsWith("hey") || p.includes("good morning") || p.includes("how are you")) {
-    const reply = `Hello Virginia! How can I assist you with your Binti Events data, quotations, tax invoices, or spreadsheet imports today?`;
-    actions.push({
-      type: "navigate",
-      label: "Create Quotation",
-      icon: "plus",
-      isMutation: false,
-      riskLevel: "low",
-      payload: { tab: "quotes", isCreating: true }
-    });
-    return { reply, actions };
-  }
-
-  // Default fallback
-  const reply = `I'm Binti, your AI Operations Assistant. You can ask me questions about your business metrics, or click the **+** button to attach receipts, invoices, or client CSVs to structure and write to your database.`;
-
-  actions.push({
-    type: "navigate",
-    label: "Create Quotation",
-    icon: "plus",
-    isMutation: false,
-    riskLevel: "low",
-    payload: { tab: "quotes", isCreating: true }
-  });
-
-  return { reply, actions };
 }
 
 /**
@@ -714,25 +518,16 @@ export async function generateEmailDraft(params: {
   companyName?: string;
   currency?: string;
 }): Promise<string> {
-  try {
-    const data = await apiRequest<{ success: boolean; email?: string }>('/api/ai/draft-email', {
-      method: 'POST',
-      body: JSON.stringify(params)
-    });
-    if (data.success && data.email) {
-      return cleanAiResponse(data.email);
-    }
-  } catch (err) {}
-
-  const { type, number, clientName, amount, dueDate, notes, currency = 'KES' } = params;
-  const isInvoice = type?.toLowerCase().includes('invoice');
-  const firstName = clientName.split(' ')[0] || 'Valued Client';
-  const fmt = `${currency} ${amount.toLocaleString()}`;
-
-  if (isInvoice) {
-    return `Dear ${firstName},\n\nPlease find attached ${type} ${number} for ${fmt}, due on ${dueDate}.\n\n${notes ? `Note: ${notes}\n\n` : ''}Best regards,\nBinti Events Team`;
+  // No silent template fallback: if the AI service fails, surface the error so
+  // callers can inform the user instead of pretending Gemini generated content.
+  const data = await apiRequest<{ success: boolean; email?: string }>('/api/ai/draft-email', {
+    method: 'POST',
+    body: JSON.stringify(params)
+  });
+  if (!data.success || !data.email) {
+    throw new Error('AI email drafting is unavailable right now. Please try again later.');
   }
-  return `Dear ${firstName},\n\nThank you for considering Binti Events. Please find attached quotation ${number} for ${fmt}, valid until ${dueDate}.\n\n${notes ? `Note: ${notes}\n\n` : ''}Best regards,\nBinti Events Team`;
+  return cleanAiResponse(data.email);
 }
 
 /**
@@ -745,15 +540,14 @@ export async function recommendTerms(
   const clientName = typeof clientNameOrParams === 'string' ? clientNameOrParams : clientNameOrParams.clientName;
   const items = typeof clientNameOrParams === 'object' && 'items' in clientNameOrParams ? clientNameOrParams.items : (itemsParam || []);
 
-  try {
-    const data = await apiRequest<{ success: boolean; terms?: string }>('/api/ai/recommend-terms', {
-      method: 'POST',
-      body: JSON.stringify({ clientName, items })
-    });
-    if (data.success && data.terms) {
-      return cleanAiResponse(data.terms);
-    }
-  } catch (err) {}
-
-  return `1. 50% commitment fee to book, with the balance paid before setup.\n2. Broken or damaged equipment will be billed at replacement cost.\n3. Setup and breakdown are included within Nairobi County.\n4. Cancellation within 7 days of event date forfeits the deposit.`;
+  // No silent template fallback: if the AI service fails, surface the error so
+  // callers can inform the user instead of pretending Gemini generated terms.
+  const data = await apiRequest<{ success: boolean; terms?: string }>('/api/ai/recommend-terms', {
+    method: 'POST',
+    body: JSON.stringify({ clientName, items })
+  });
+  if (!data.success || !data.terms) {
+    throw new Error('AI terms recommendation is unavailable right now. Please try again later.');
+  }
+  return cleanAiResponse(data.terms);
 }

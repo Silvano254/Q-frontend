@@ -20,7 +20,10 @@ export const ContextTransparencyModal = memo(function ContextTransparencyModal({
       role="dialog"
       aria-modal="true"
       aria-label="Connected Business Data Details"
-      className="fixed inset-0 z-60 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in font-sans"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in font-sans"
     >
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-gray-100 space-y-4 relative">
         <div className="flex items-center justify-between pb-3 border-b border-gray-100">

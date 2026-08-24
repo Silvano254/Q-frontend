@@ -1,9 +1,9 @@
 import React, { useState, useEffect, memo } from "react";
 import { Sparkles, Check, ChevronDown, ChevronRight, AlertCircle } from "lucide-react";
-import { AgentThoughtStep } from "../../services/geminiService";
+import { ProcessingStep } from "../../services/geminiService";
 
 export interface ThoughtProcessAccordionProps {
-  steps: AgentThoughtStep[];
+  steps: ProcessingStep[];
   durationMs?: number;
   isLoading?: boolean;
   isDefaultExpanded?: boolean;

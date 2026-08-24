@@ -8,10 +8,15 @@ export const API_BASE_URL = RAW_API_URL.replace(/\/$/, '');
 function mapToEdgeFunction(path: string): string {
   const normalized = path.replace(/^\/api\//, '').replace(/^\//, '');
 
-  if (normalized.startsWith('auth/login') || normalized === 'auth/biometric-login') return 'auth-login';
+  if (normalized.startsWith('auth/login')) return 'auth-login';
+  if (normalized.startsWith('auth/biometric-login')) return 'auth-biometric-login';
+  if (normalized.startsWith('auth/register-biometric')) return 'auth-register-biometric';
   if (normalized.startsWith('auth/verify')) return 'auth-verify';
   if (normalized.startsWith('auth/logout')) return 'auth-logout';
   if (normalized.startsWith('auth/request-reset') || normalized.startsWith('auth/verify-reset-otp')) return 'auth-reset';
+  if (normalized.startsWith('auth/request-profile-update-otp') || normalized.startsWith('auth/verify-profile-update')) return 'auth-profile-update';
+  if (normalized.startsWith('auth/seed-admin')) return 'auth-seed-admin';
+  if (normalized.startsWith('import-products')) return 'import-products';
   if (normalized.startsWith('clients')) return 'clients';
   if (normalized.startsWith('invoices') && normalized.includes('payments')) return 'payments';
   if (normalized.startsWith('invoices')) return 'invoices';
@@ -47,7 +52,7 @@ export function getApiUrl(path: string): string {
 
     const edgeFunctionName = mapToEdgeFunction(cleanPath);
     
-    const isSpecialAction = ['chat', 'draft-email', 'recommend-terms', 'login', 'verify', 'logout', 'request-reset', 'verify-reset-otp', 'biometric-login', 'send'].includes(subResource);
+    const isSpecialAction = ['chat', 'draft-email', 'recommend-terms', 'login', 'verify', 'logout', 'request-reset', 'verify-reset-otp', 'biometric-login', 'register-biometric', 'request-profile-update-otp', 'verify-profile-update', 'seed-admin', 'send'].includes(subResource);
     if (subResource && !isSpecialAction) {
       const separator = edgeFunctionName.includes('?') ? '&' : '?';
       return `${API_BASE_URL}/${edgeFunctionName}${separator}id=${encodeURIComponent(subResource)}`;

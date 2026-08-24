@@ -107,7 +107,7 @@ export const ResponseRenderer = memo(function ResponseRenderer({
 
     if (trimmed.startsWith("> ")) {
       elements.push(
-        <div key={index} className="my-2 px-3 py-2 bg-amber-50/80 border-l-3 border-amber-400 rounded-r-xl text-xs text-amber-900">
+        <div key={index} className="my-2 px-3 py-2 bg-amber-50/80 border-l-[3px] border-amber-400 rounded-r-xl text-xs text-amber-900">
           {processInlineFormatting(trimmed.slice(2))}
         </div>
       );

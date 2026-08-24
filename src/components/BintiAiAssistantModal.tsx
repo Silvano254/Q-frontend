@@ -16,7 +16,7 @@ import {
   ChatMessage, 
   SaaSContext, 
   AgentAction, 
-  AgentThoughtStep 
+  ProcessingStep 
 } from "../services/geminiService";
 import { parseUploadedDocument, ParsedDocument } from "../utils/fileParser";
 import { ChatInputBar } from "./binti-ai/ChatInputBar";
@@ -44,7 +44,7 @@ export default function BintiAiAssistantModal({
   const [inputMessage, setInputMessage] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [activeThoughtSteps, setActiveThoughtSteps] = useState<AgentThoughtStep[]>([]);
+  const [activeThoughtSteps, setActiveThoughtSteps] = useState<ProcessingStep[]>([]);
   const [elapsedTimeMs, setElapsedTimeMs] = useState<number>(0);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -62,7 +62,7 @@ export default function BintiAiAssistantModal({
 
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
-  const activeThoughtStepsRef = useRef<AgentThoughtStep[]>([]);
+  const activeThoughtStepsRef = useRef<ProcessingStep[]>([]);
 
   const handleClose = useCallback(() => {
     abortControllerRef.current?.abort();
@@ -129,7 +129,7 @@ export default function BintiAiAssistantModal({
         ? crypto.randomUUID() 
         : `step-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-      const newStep: AgentThoughtStep = {
+      const newStep: ProcessingStep = {
         id: stepId,
         title: step.title,
         detail: step.detail,
@@ -153,12 +153,6 @@ export default function BintiAiAssistantModal({
       } catch (err: any) {
         console.error("Failed to parse file:", err);
       }
-    } else {
-      handleDynamicStep({
-        title: "Evaluating query against verified business metrics",
-        detail: "Connected to operational database",
-        status: 'in_progress'
-      });
     }
 
     const userTimestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -216,6 +210,22 @@ export default function BintiAiAssistantModal({
           return;
         } catch (err: any) {
           console.error("Auto-execution failed:", err);
+          // Surface the failure clearly instead of falling through to an AI
+          // reply for the literal confirmation word ("yes").
+          handleDynamicStep({
+            title: `Execution failed: ${pendingAction.label}`,
+            detail: err?.message || "The operation could not be completed.",
+            status: 'failed'
+          });
+          if (stopwatchRef.current) clearInterval(stopwatchRef.current);
+          const failMsg: ChatMessage = {
+            role: "model",
+            content: `**Database Operation Failed**: ${pendingAction.label}.\n\n${err?.message || "The operation could not be completed."}\n\nNo records were changed. You can retry using the action card above or try again later.`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          };
+          setMessages(prev => [...prev, failMsg]);
+          setLoading(false);
+          return;
         }
       }
     }
@@ -248,7 +258,7 @@ export default function BintiAiAssistantModal({
           id: act.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `action-${Date.now()}-${i}`)
         })),
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        thoughtSteps: finalizedSteps,
+        processingSteps: finalizedSteps,
         thinkingDurationMs: duration
       };
 
@@ -346,9 +356,13 @@ export default function BintiAiAssistantModal({
             <button
               onClick={() => setShowContextModal(true)}
               aria-label="View connected business data transparency details"
-              className="px-2 sm:px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border border-emerald-200/60 rounded-xl transition-all flex items-center space-x-1.5"
+              className={`px-2 sm:px-2.5 py-1 text-xs font-semibold rounded-xl transition-all flex items-center space-x-1.5 border ${
+                (saasContext?.clientCount ?? 0) > 0
+                  ? "text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 border-emerald-200/60"
+                  : "text-gray-500 bg-gray-50 hover:bg-gray-100 border-gray-200"
+              }`}
             >
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <div className={`w-2 h-2 rounded-full shrink-0 ${(saasContext?.clientCount ?? 0) > 0 ? "bg-emerald-500 animate-pulse" : "bg-gray-400"}`} />
               <span className="font-mono text-[10px] sm:text-[11px]">
                 <span className="hidden sm:inline">{saasContext?.clientCount ?? 0} clients connected</span>
                 <span className="sm:hidden">{saasContext?.clientCount ?? 0} clients</span>
@@ -360,6 +374,9 @@ export default function BintiAiAssistantModal({
                 onClick={() => {
                   setMessages([]);
                   setErrorMsg(null);
+                  setLastFailedPrompt(null);
+                  // Reset execution ledger so re-proposed actions can run again
+                  setExecutedActionIds(new Set());
                 }}
                 aria-label="Start new conversation"
                 title="New Chat"
@@ -499,9 +516,9 @@ export default function BintiAiAssistantModal({
                           : "bg-white border border-gray-100 text-gray-800 rounded-tl-none shadow-gray-100/50"
                       }`}
                     >
-                      {msg.role === "model" && msg.thoughtSteps && msg.thoughtSteps.length > 0 && (
+                      {msg.role === "model" && msg.processingSteps && msg.processingSteps.length > 0 && (
                         <ThoughtProcessAccordion
-                          steps={msg.thoughtSteps}
+                          steps={msg.processingSteps}
                           durationMs={msg.thinkingDurationMs}
                           isLoading={false}
                           isDefaultExpanded={false}

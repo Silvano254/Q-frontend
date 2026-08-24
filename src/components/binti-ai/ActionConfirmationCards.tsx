@@ -1,5 +1,5 @@
 import React, { useState, memo } from "react";
-import { Zap, CheckCircle2, RefreshCw, Check, ArrowRight } from "lucide-react";
+import { Zap, CheckCircle2, RefreshCw, Check, ArrowRight, AlertTriangle } from "lucide-react";
 import { AgentAction } from "../../services/geminiService";
 
 export interface ActionConfirmationCardsProps {
@@ -20,6 +20,8 @@ export const ActionConfirmationCards = memo(function ActionConfirmationCards({
   const [executingActionId, setExecutingActionId] = useState<string | null>(null);
   const [progressMsg, setProgressMsg] = useState<string>("");
   const [announcement, setAnnouncement] = useState<string>("");
+  const [failedActionId, setFailedActionId] = useState<string | null>(null);
+  const [failureMsg, setFailureMsg] = useState<string>("");
 
   if (!actions || actions.length === 0) return null;
 
@@ -28,6 +30,8 @@ export const ActionConfirmationCards = memo(function ActionConfirmationCards({
     if (!onExecuteAction) return;
 
     setExecutingActionId(actionId);
+    setFailedActionId(null);
+    setFailureMsg("");
     setProgressMsg("Writing records to live database...");
     setAnnouncement(`Executing ${action.label}...`);
 
@@ -37,6 +41,9 @@ export const ActionConfirmationCards = memo(function ActionConfirmationCards({
       setAnnouncement(`Successfully executed ${action.label}.`);
     } catch (err: any) {
       console.error("Action execution failed:", err);
+      const msg = err?.message || "The operation could not be completed. Please try again.";
+      setFailedActionId(actionId);
+      setFailureMsg(msg);
       setAnnouncement(`Execution failed for ${action.label}.`);
     } finally {
       setExecutingActionId(null);
@@ -91,6 +98,20 @@ export const ActionConfirmationCards = memo(function ActionConfirmationCards({
                   </div>
                   <div className="w-full bg-purple-100 h-1.5 rounded-full overflow-hidden">
                     <div className="bg-[#80237E] h-full rounded-full animate-pulse w-3/4" />
+                  </div>
+                </div>
+              )}
+
+              {/* Visible Failure State */}
+              {!isBusy && failedActionId === actionId && (
+                <div
+                  role="alert"
+                  className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-2 animate-fade-in"
+                >
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-rose-800">Execution failed</p>
+                    <p className="text-[11px] text-rose-700 leading-snug mt-0.5 break-words">{failureMsg}</p>
                   </div>
                 </div>
               )}

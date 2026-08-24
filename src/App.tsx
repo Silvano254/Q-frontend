@@ -927,31 +927,39 @@ export default function App() {
         break;
       }
       case "import_products": {
+        // SERVER-AUTHORITATIVE: bulk import goes through the validated
+        // import-products endpoint (JWT auth + role check + schema validation).
+        // The frontend NEVER writes catalog data directly.
         const prodList = action.payload?.products || action.payload?.Products || (Array.isArray(action.payload) ? action.payload : []);
         if (Array.isArray(prodList) && prodList.length > 0) {
-          const total = prodList.length;
-          const chunkSize = 20;
-          let committed = 0;
+          onProgress?.(`Writing ${prodList.length} catalog items to database...`);
 
-          for (let i = 0; i < total; i += chunkSize) {
-            const chunk = prodList.slice(i, i + chunkSize);
-            onProgress?.(`Writing catalog items to database (${Math.min(i + chunkSize, total)}/${total})...`);
-            
-            await Promise.all(chunk.map(p => 
-              handleCreateProduct({
-                name: p.name || p.Name || 'Product / Service',
-                description: p.description || p.Description || '',
-                category: p.category || p.Category || 'General',
-                unitType: p.unitType || p.unit_type || 'Day',
-                unitPrice: Number(p.unitPrice || p.price || 0),
-                taxRate: Number(p.taxRate || 16)
+          const result = await apiRequest<{ imported?: number; rejected?: Array<{ index: number; reason: string }> }>(
+            '/api/import-products',
+            {
+              method: 'POST',
+              body: JSON.stringify({
+                products: prodList.map((p: any) => ({
+                  name: p.name || p.Name || 'Product / Service',
+                  description: p.description || p.Description || '',
+                  category: p.category || p.Category || 'General',
+                  unitType: p.unitType || p.unit_type || p.unit || 'Day',
+                  unitPrice: Number(p.unitPrice ?? p.unit_price ?? p.price ?? 0),
+                  taxRate: Number(p.taxRate ?? p.tax_rate ?? 16)
+                }))
               })
-            ));
-            committed += chunk.length;
-          }
+            }
+          );
+
+          const committed = result?.imported ?? prodList.length;
+          const rejectedCount = result?.rejected?.length ?? 0;
 
           logAuditEvent("import_products", `Imported ${committed} catalog items from document.`, { count: committed });
-          showToast(`Successfully imported ${committed} catalog items.`);
+          if (rejectedCount > 0) {
+            showToast(`Imported ${committed} catalog items (${rejectedCount} skipped as invalid).`, "warning");
+          } else {
+            showToast(`Successfully imported ${committed} catalog items.`);
+          }
           await fetchAllData();
           setActiveTab("products");
         } else {

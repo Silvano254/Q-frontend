@@ -236,7 +236,6 @@ export const ChatInputBar = memo(function ChatInputBar({
             onChange={handleInput}
             onKeyDown={handleKeyDown}
             placeholder={variant === "centered" ? "Ask Binti anything..." : "Ask follow-up or command..."}
-            disabled={loading}
             aria-label="Message prompt for Binti AI Assistant"
             className="flex-1 py-2 px-2 bg-transparent text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none disabled:opacity-60 font-medium resize-none leading-relaxed overflow-y-auto max-h-[120px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden min-w-0"
           />

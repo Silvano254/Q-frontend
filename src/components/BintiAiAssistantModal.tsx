@@ -269,7 +269,24 @@ export default function BintiAiAssistantModal({
         return;
       }
       console.error("Binti AI error:", err);
-      setErrorMsg("Binti couldn't complete your request right now. Please check your connection and try again.");
+
+      // Surface the REAL failure instead of a blanket connection message.
+      // Masked errors made the assistant impossible to diagnose (expired
+      // sessions, backend outages and config mistakes all looked identical).
+      const rawMessage = typeof err?.message === "string" ? err.message.trim() : "";
+      const isAuthError =
+        /session has expired|authentication required|unauthorized|sign in/i.test(rawMessage);
+      const isNetworkError = !rawMessage || /failed to fetch|networkerror|load failed/i.test(rawMessage);
+
+      let friendly: string;
+      if (isAuthError) {
+        friendly = `${rawMessage || "Your session has expired."} Please sign in again to continue using Binti.`;
+      } else if (isNetworkError) {
+        friendly = "Binti couldn't reach the AI service right now. Please check your connection and try again.";
+      } else {
+        friendly = rawMessage;
+      }
+      setErrorMsg(friendly);
       setLastFailedPrompt(query.trim());
     } finally {
       if (stopwatchRef.current) clearInterval(stopwatchRef.current);

@@ -2,6 +2,19 @@ const RAW_API_URL = (import.meta.env.VITE_API_URL as string) || '';
 
 export const API_BASE_URL = RAW_API_URL.replace(/\/$/, '');
 
+// Fail loudly at startup when the API base URL is missing. With a blank value
+// every request targets this app's own origin, where the SPA fallback (e.g. the
+// vercel.json rewrite) silently answers with index.html — the classic root
+// cause of a completely unresponsive Binti AI chat after a rebuild.
+if (!RAW_API_URL && typeof console !== 'undefined') {
+  console.error(
+    '[Binti] VITE_API_URL is not configured. AI chat and all data endpoints will fail. ' +
+      'Set it to your Supabase Edge Functions URL ' +
+      '(https://<your-project-ref>.supabase.co/functions/v1) in .env or your hosting ' +
+      'provider environment settings, then rebuild.'
+  );
+}
+
 /**
  * Maps Express-style REST routes to Supabase Edge Function names
  */

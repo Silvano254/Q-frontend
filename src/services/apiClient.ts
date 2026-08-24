@@ -78,14 +78,33 @@ export async function apiRequest<T>(
 
         clearTimeout(timeoutId);
 
-        const payload = await response.json().catch((): null => null);
+        // Guard against SPA-fallback / proxy responses that answer with HTML
+        // (often with HTTP 200) instead of JSON. Without this guard a
+        // misconfigured VITE_API_URL silently resolves to null and the UI only
+        // reports a vague "service unavailable" while every feature breaks.
+        const contentType = response.headers.get('content-type') || '';
+        const isJsonResponse = contentType.includes('application/json');
+        const payload = isJsonResponse
+          ? await response.json().catch((): null => null)
+          : null;
+
+        if (!isJsonResponse && contentType) {
+          const configError = new Error(
+            'The API endpoint returned a non-JSON response. Check that VITE_API_URL points to your Supabase Edge Functions URL.'
+          ) as Error & { status?: number };
+          configError.name = 'ConfigError';
+          configError.status = response.status;
+          throw configError;
+        }
 
         if (!response.ok) {
           const errorMessage =
             payload?.message ||
             payload?.error ||
             `Request failed (${response.status}).`;
-          throw new Error(errorMessage);
+          const httpError = new Error(errorMessage) as Error & { status?: number };
+          httpError.status = response.status;
+          throw httpError;
         }
 
         // Handle both raw payloads (Express) and wrapped { success: true, data: [...] } payloads (Edge Functions)
@@ -112,9 +131,29 @@ export async function apiRequest<T>(
         throw lastError;
       }
 
-      // Don't retry on non-retryable errors
+      // Configuration/routing problems are never transient — retrying only
+      // stalls the UI (e.g. a spinner hanging on every AI chat message).
+      if (lastError.name === 'ConfigError') {
+        throw lastError;
+      }
+
+      // Timeouts & caller cancellations: fail fast instead of stacking
+      // 30s timeouts × retries (~2 minutes of dead air in the worst case).
       if (lastError.name === 'AbortError') {
-        lastError = new Error('Request timeout. Please try again.');
+        throw new Error('Request timeout. Please try again.');
+      }
+
+      // 4xx client errors (except 408 Request Timeout / 429 Too Many Requests)
+      // will not succeed on retry.
+      const httpStatus = (lastError as Error & { status?: number }).status;
+      const isClientError =
+        typeof httpStatus === 'number' &&
+        httpStatus >= 400 &&
+        httpStatus < 500 &&
+        httpStatus !== 408 &&
+        httpStatus !== 429;
+      if (isClientError) {
+        throw lastError;
       }
 
       if (attempt < MAX_RETRIES) {

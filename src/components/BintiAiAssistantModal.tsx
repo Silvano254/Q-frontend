@@ -173,6 +173,15 @@ export default function BintiAiAssistantModal({
     setErrorMsg(null);
     setLastFailedPrompt(null);
 
+    // Seed an immediate visible state so the thought panel shows "Thinking"
+    // from the first millisecond instead of rendering blank while we wait
+    // for the backend's processing telemetry.
+    handleDynamicStep({
+      title: "Thinking",
+      detail: "Analyzing your request with live business context…",
+      status: "in_progress"
+    });
+
     // Conversational auto-execution on confirmation
     const trimmedQuery = query.trim().toLowerCase();
     const isAffirmative = /^(yes|confirm|proceed|do it|import|write|execute|ok|okay|approve|please do)$/i.test(trimmedQuery);

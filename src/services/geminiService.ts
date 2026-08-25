@@ -214,14 +214,19 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
     throw new Error('Your session has expired. Please sign in again.');
   }
 
+  // One abort controller + budget covers the whole session, including any
+  // transparent continuation passes for prematurely-truncated generations.
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000);
   const onExternalAbort = () => controller.abort();
-  opts.signal?.addEventListener('abort', onExternalAbort);
 
-  try {
-    opts.onStep?.({ title: "Connecting to Binti AI", status: 'in_progress' });
-
+  /** Runs ONE streaming pass. Returns raw text + metadata for the wrapper. */
+  const streamOnce = async (pass: {
+    prompt: string;
+    history: Array<{ role: string; content: string }>;
+    document?: unknown;
+    initialText: string;
+  }): Promise<{ rawText: string; actions: any[]; truncated: boolean }> => {
     const res = await fetch(getApiUrl('/api/ai/chat'), {
       method: "POST",
       headers: {
@@ -233,9 +238,9 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
         Authorization: `Bearer ${userToken}`
       },
       body: JSON.stringify({
-        prompt: opts.prompt,
-        history: opts.history,
-        document: opts.document,
+        prompt: pass.prompt,
+        history: pass.history,
+        document: pass.document,
         stream: true
       }),
       signal: controller.signal
@@ -261,7 +266,7 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    let accumulated = "";
+    let accumulated = pass.initialText;
     let completePayload: any = null;
     let streamError: string | null = null;
 
@@ -294,8 +299,6 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      // Normalize CRLF so frame delimiters always match, regardless of how
-      // the upstream (or any intermediary proxy) frames the SSE body.
       buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
       let sep: number;
       while ((sep = buffer.indexOf("\n\n")) !== -1) {
@@ -304,27 +307,69 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
       }
       if (completePayload || streamError) break;
     }
-    // A trailing frame may exist without its closing blank line — parse it
-    // rather than discarding whatever the stream ended with.
+    // A trailing frame may exist without its closing blank line — parse it.
     if (!completePayload && !streamError && buffer.trim()) {
       handleSseBlock(buffer);
     }
     try { await reader.cancel(); } catch { /* already closed */ }
 
     if (streamError) throw new Error(streamError);
-    const finalText = accumulated || String(completePayload?.reply ?? "");
-    if (!finalText.trim()) {
+
+    // Premature termination: tokens flowed but the terminal `complete` event
+    // never arrived → Gemini's generation was cut off mid-answer.
+    const passTruncated = !completePayload && accumulated.length > pass.initialText.length;
+
+    return {
+      rawText: accumulated,
+      actions: Array.isArray(completePayload?.actions) ? completePayload.actions : [],
+      truncated: passTruncated || completePayload?.truncated === true
+    };
+  };
+
+  try {
+    opts.onStep?.({ title: "Connecting to Binti AI", status: 'in_progress' });
+
+    let combinedRaw = "";
+    let firstActions: any[] | null = null;
+    let workingHistory = opts.history.map((h) => ({ ...h }));
+    let turnPrompt = opts.prompt;
+    let includeDocument = true;
+
+    // Up to 3 passes: if a generation was cut off mid-answer, a silent
+    // continuation pass resumes EXACTLY where it stopped — the user sees one
+    // seamless reply flowing into the same bubble.
+    for (let passIndex = 0; passIndex < 3; passIndex++) {
+      const result = await streamOnce({
+        prompt: turnPrompt,
+        history: workingHistory,
+        document: includeDocument ? opts.document : undefined,
+        initialText: combinedRaw
+      });
+
+      combinedRaw = result.rawText;
+      if (firstActions === null && result.actions.length > 0) firstActions = result.actions;
+
+      if (!result.truncated) break;
+
+      opts.onStep?.({ title: "Continuing response…", status: 'in_progress' });
+      workingHistory.push({ role: "user", content: turnPrompt });
+      workingHistory.push({ role: "model", content: result.rawText });
+      turnPrompt = "Your previous message was cut off mid-sentence. Continue EXACTLY where it stopped, without repeating any text that came before.";
+      includeDocument = false;
+    }
+
+    if (!combinedRaw.trim()) {
       throw new Error(
-        completePayload
-          ? `The AI service completed without text (${completePayload.model || "unknown model"}).`
+        firstActions && firstActions.length > 0
+          ? "I've structured the quotation and staged it below for your approval."
           : "The AI stream ended without delivering any content."
       );
     }
 
     opts.onStep?.({ title: "Response complete", status: 'complete' });
     return {
-      reply: cleanAiResponse(finalText),
-      actions: Array.isArray(completePayload?.actions) ? completePayload.actions : []
+      reply: cleanAiResponse(combinedRaw),
+      actions: firstActions ?? []
     };
   } finally {
     clearTimeout(timeoutId);

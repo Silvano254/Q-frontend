@@ -49,6 +49,7 @@ export default function BintiAiAssistantModal({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
+  const [streamingReply, setStreamingReply] = useState<string | null>(null);
   const [executedActionIds, setExecutedActionIds] = useState<Set<string>>(new Set());
   const [showContextModal, setShowContextModal] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -172,6 +173,7 @@ export default function BintiAiAssistantModal({
     setLoading(true);
     setErrorMsg(null);
     setLastFailedPrompt(null);
+    setStreamingReply(null);
 
     // Seed an immediate visible state so the thought panel shows "Thinking"
     // from the first millisecond instead of rendering blank while we wait
@@ -246,11 +248,15 @@ export default function BintiAiAssistantModal({
         saasContext,
         currentController.signal,
         parsedDoc,
-        handleDynamicStep
+        handleDynamicStep,
+        // Progressive rendering: every token Gemini emits flows straight
+        // into the modal's live streaming bubble.
+        (full: string) => setStreamingReply(full)
       );
 
       if (currentController.signal.aborted) return;
 
+      setStreamingReply(null);
       const duration = Date.now() - startTime;
       if (stopwatchRef.current) clearInterval(stopwatchRef.current);
 
@@ -277,6 +283,7 @@ export default function BintiAiAssistantModal({
       if (err?.name === "AbortError" || currentController.signal.aborted) {
         return;
       }
+      setStreamingReply(null);
       console.error("Binti AI error:", err);
 
       // Surface the REAL failure instead of a blanket connection message.
@@ -316,6 +323,13 @@ export default function BintiAiAssistantModal({
       handleSendMessage(initialPrompt);
     }
   }, [isOpen, initialPrompt, handleSendMessage]);
+
+  // Keep the newest streamed token pinned to the bottom of the transcript
+  useEffect(() => {
+    if (loading && streamingReply) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [streamingReply, loading]);
 
   useEffect(() => {
     if (isOpen) {
@@ -587,6 +601,20 @@ export default function BintiAiAssistantModal({
                       durationMs={elapsedTimeMs}
                       isLoading={true}
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* LIVE STREAMING BUBBLE — tokens render as Gemini emits them.
+                  Plain pre-wrap text during the stream avoids partial-markdown
+                  flicker; the finalized message re-renders as full markdown. */}
+              {loading && streamingReply && (
+                <div className="flex justify-start animate-fade-in">
+                  <div className="max-w-[85%] sm:max-w-[80%] bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm">
+                    <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+                      {streamingReply}
+                      <span className="inline-block w-1.5 h-4 ml-0.5 bg-[#80237E] animate-pulse align-middle rounded-sm" />
+                    </p>
                   </div>
                 </div>
               )}

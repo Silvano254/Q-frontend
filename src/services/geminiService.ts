@@ -5,7 +5,8 @@
  * featuring multi-stage document extraction, OCR financial interpretation, and controlled mutation execution.
  */
 
-import { apiRequest, getAuthToken } from './apiClient';
+import { apiRequest, getAuthToken, clearAuthToken } from './apiClient';
+import { getApiUrl } from '../config/api';
 import { BillingItem } from '../types';
 import { ParsedDocument } from '../utils/fileParser';
 
@@ -190,6 +191,136 @@ export function cleanAiResponse(text: string): string {
 
 export type StepEmitter = (step: { title: string; detail?: string; status: 'in_progress' | 'complete' | 'failed' }) => void;
 
+interface StreamChatOptions {
+  prompt: string;
+  history: Array<{ role: string; content: string }>;
+  document?: unknown;
+  signal?: AbortSignal;
+  onToken: (fullText: string, delta: string) => void;
+  onStep?: StepEmitter;
+}
+
+/**
+ * REAL-TIME PATH: consumes Binti's SSE protocol
+ *   event: token     {"text":"…"}                     (many)
+ *   event: complete  {"actions":[…],"model":"…"}       (terminal)
+ *   event: error     {"error":"reason"}                (terminal)
+ * and pushes every token into the caller's renderer as it arrives, instead
+ * of waiting for one monolithic JSON response.
+ */
+async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantResponse> {
+  const userToken = getAuthToken();
+  if (!userToken) {
+    throw new Error('Your session has expired. Please sign in again.');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+  const onExternalAbort = () => controller.abort();
+  opts.signal?.addEventListener('abort', onExternalAbort);
+
+  try {
+    opts.onStep?.({ title: "Connecting to Binti AI", status: 'in_progress' });
+
+    const res = await fetch(getApiUrl('/api/ai/chat'), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...(import.meta.env.VITE_SUPABASE_ANON_KEY
+          ? { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string }
+          : {}),
+        Authorization: `Bearer ${userToken}`
+      },
+      body: JSON.stringify({
+        prompt: opts.prompt,
+        history: opts.history,
+        document: opts.document,
+        stream: true
+      }),
+      signal: controller.signal
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!res.ok || contentType.includes('application/json')) {
+      const payload = contentType.includes('application/json')
+        ? await res.json().catch((): null => null)
+        : null;
+      if (res.status === 401) {
+        clearAuthToken();
+        throw new Error('Your session has expired. Please sign in again.');
+      }
+      throw new Error(payload?.error || payload?.message || `Request failed (${res.status}).`);
+    }
+    if (!res.body) {
+      throw new Error('Streaming is not supported by this connection.');
+    }
+
+    opts.onStep?.({ title: "Receiving live response", status: 'in_progress' });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let accumulated = "";
+    let completePayload: any = null;
+    let streamError: string | null = null;
+
+    const handleSseBlock = (block: string) => {
+      let eventName = "";
+      let dataLine = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) eventName = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+      }
+      if (!dataLine) return;
+      let parsed: any = null;
+      try { parsed = JSON.parse(dataLine); } catch { return; }
+      switch (eventName) {
+        case 'token':
+          if (typeof parsed?.text === 'string' && parsed.text.length > 0) {
+            accumulated += parsed.text;
+            opts.onToken(accumulated, parsed.text);
+          }
+          break;
+        case 'error':
+          streamError = String(parsed?.error || 'AI service error');
+          break;
+        case 'complete':
+          completePayload = parsed;
+          break;
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let sep: number;
+      while ((sep = buffer.indexOf("\n\n")) !== -1) {
+        handleSseBlock(buffer.slice(0, sep));
+        buffer = buffer.slice(sep + 2);
+      }
+      if (completePayload || streamError) break;
+    }
+    try { await reader.cancel(); } catch { /* already closed */ }
+
+    if (streamError) throw new Error(streamError);
+    const finalText = accumulated || String(completePayload?.reply ?? "");
+    if (!finalText.trim()) {
+      throw new Error('The AI service returned an empty response.');
+    }
+
+    opts.onStep?.({ title: "Response complete", status: 'complete' });
+    return {
+      reply: cleanAiResponse(finalText),
+      actions: Array.isArray(completePayload?.actions) ? completePayload.actions : []
+    };
+  } finally {
+    clearTimeout(timeoutId);
+    opts.signal?.removeEventListener('abort', onExternalAbort);
+  }
+}
+
 /**
  * Send a chat prompt with optional document attachment to Binti.
  */
@@ -199,7 +330,8 @@ export async function askGeminiAssistant(
   saasContext?: SaaSContext,
   signal?: AbortSignal,
   attachedDoc?: ParsedDocument | null,
-  onStep?: StepEmitter
+  onStep?: StepEmitter,
+  onToken?: (fullText: string, delta: string) => void
 ): Promise<AssistantResponse> {
   if (signal?.aborted) {
     throw new DOMException('Aborted', 'AbortError');
@@ -234,6 +366,19 @@ export async function askGeminiAssistant(
     financialDoc: attachedDoc.extractedData?.financialDoc,
     tables: attachedDoc.extractedData?.tables
   } : undefined;
+
+  // REAL-TIME PATH: when the caller wants progressive rendering, switch to
+  // the SSE pipeline instead of waiting for one monolithic JSON response.
+  if (onToken) {
+    return streamAssistantChat({
+      prompt: cleanPrompt,
+      history: cleanHistory,
+      document: documentPayload,
+      signal,
+      onToken,
+      onStep
+    });
+  }
 
   // SINGLE unified backend path: VITE_API_URL points at the Supabase Edge Functions
   // gateway. No dual-path fallback — one architecture, one auth model, one contract.

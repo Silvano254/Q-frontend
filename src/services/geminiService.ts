@@ -200,6 +200,22 @@ interface StreamChatOptions {
   onStep?: StepEmitter;
 }
 
+/** Browser-local timestamp payload sent with every AI request. */
+function getClientTimeInfo() {
+  const now = new Date();
+  let timeZone = "";
+  try {
+    timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    timeZone = "";
+  }
+  return {
+    iso: now.toISOString(),
+    offsetMinutes: -now.getTimezoneOffset(),
+    timeZone
+  };
+}
+
 /**
  * REAL-TIME PATH: consumes Binti's SSE protocol
  *   event: token     {"text":"…"}                     (many)
@@ -241,7 +257,8 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
         prompt: pass.prompt,
         history: pass.history,
         document: pass.document,
-        stream: true
+        stream: true,
+        clientTime: getClientTimeInfo()
       }),
       signal: controller.signal
     });
@@ -459,7 +476,8 @@ export async function askGeminiAssistant(
         body: JSON.stringify({
           prompt: cleanPrompt,
           history: cleanHistory,
-          document: documentPayload
+          document: documentPayload,
+          clientTime: getClientTimeInfo()
         })
       },
       true // Authenticated users only — the backend verifies the user's signed JWT

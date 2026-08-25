@@ -29,10 +29,16 @@ function getRetryDelay(retryCount: number): number {
  */
 export async function apiRequest<T>(
   path: string,
-  init: RequestInit = {},
+  init: RequestInit & { timeoutMs?: number } = {},
   requireAuth = true
 ): Promise<T> {
   let lastError: Error | null = null;
+
+  // Per-call timeout override — long-running operations like Binti's AI chat
+  // legitimately need far more than the default 30s (thinking-class Gemini
+  // models can reason for 30-60s before answering).
+  const { timeoutMs, ...restInit } = init;
+  const effectiveTimeout = timeoutMs ?? REQUEST_TIMEOUT;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -55,7 +61,7 @@ export async function apiRequest<T>(
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+      const timeoutId = setTimeout(() => controller.abort(), effectiveTimeout);
 
       try {
         let requestBody = init.body;
@@ -70,7 +76,7 @@ export async function apiRequest<T>(
         }
 
         const response = await fetch(getApiUrl(path), {
-          ...init,
+          ...restInit,
           body: requestBody,
           headers,
           signal: controller.signal,

@@ -251,10 +251,10 @@ export async function askGeminiAssistant(
       {
         method: "POST",
         signal,
-        // Thinking-capable Gemini models can take well over the default 30s
-        // to answer. Give the full pipeline (discovery + grounding + model)
-        // a generous 90s budget instead of timing out mid-reasoning.
-        timeoutMs: 90000,
+        // Thinking-capable Gemini models need far more than the default 30s.
+        // Document analysis adds parsing + larger prompts on top of model
+        // reasoning, so give the full pipeline a 120s ceiling.
+        timeoutMs: 120000,
         body: JSON.stringify({
           prompt: cleanPrompt,
           history: cleanHistory,

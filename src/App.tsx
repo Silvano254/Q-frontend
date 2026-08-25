@@ -1190,7 +1190,7 @@ export default function App() {
             quotes={quotes}
             invoices={invoices}
             currency={companySettings.currency}
-            onCreateClient={handleCreateClient}
+            onCreateClient={async (client: Partial<Client>) => { await handleCreateClient(client); }}
             onUpdateClient={handleUpdateClient}
             onDeleteClient={handleDeleteClient}
             showToast={showToast}

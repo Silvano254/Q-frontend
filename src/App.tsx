@@ -382,7 +382,7 @@ export default function App() {
   // ==========================================
 
   // Clients CRUD
-  const handleCreateClient = async (clientPayload: Partial<Client>) => {
+  const handleCreateClient = async (clientPayload: Partial<Client>): Promise<Client> => {
     const created = await apiRequest<Client>('/api/clients', { method: 'POST', body: JSON.stringify(clientPayload) });
     const normalized: Client = {
       id: created?.id || Math.random().toString(),
@@ -398,6 +398,9 @@ export default function App() {
     };
     setClients(prev => [...prev.filter(c => c.id !== normalized.id), normalized]);
     showToast(`Client ${normalized.name} registered successfully.`);
+    // Return the persisted record so callers (e.g. agentic quote execution)
+    // can immediately satisfy NOT NULL foreign keys like quotes.client_id.
+    return normalized;
   };
 
   const handleUpdateClient = async (id: string, clientPayload: Partial<Client>) => {
@@ -817,9 +820,58 @@ export default function App() {
       case "create_quote": {
         const payload = action.payload || {};
         if (payload.items && Array.isArray(payload.items) && payload.items.length > 0) {
-          await handleCreateQuote(payload as Partial<Quote>);
-          logAuditEvent("create_quote", `Created quotation for ${payload.clientName || 'Client'}`, payload);
-          showToast(`Quotation created for ${payload.clientName || 'Client'}.`);
+          // FK SAFETY: quotes.client_id is NOT NULL, and the AI proposal only
+          // carries identity fields (contact person / organization / phone).
+          // Resolve a matching existing client first; otherwise provision one
+          // server-authoritatively via the validated clients endpoint.
+          const aiName = String(payload.clientName || '').trim();
+          const aiCompany = String(payload.company || '').trim();
+          const match = clients.find(c =>
+            (aiCompany && c.company && c.company.toLowerCase() === aiCompany.toLowerCase()) ||
+            (!!aiName && c.name.toLowerCase() === aiName.toLowerCase())
+          );
+
+          let clientId = match?.id || '';
+          let resolvedName = match?.name || aiName || 'Client';
+          if (!clientId) {
+            const createdClient = await handleCreateClient({
+              name: resolvedName,
+              company: aiCompany || '',
+              phone: String(payload.phone || ''),
+              notes: [payload.eventName, payload.eventDate].filter(Boolean).join(' • ')
+            });
+            clientId = createdClient.id;
+            resolvedName = createdClient.name || resolvedName;
+          }
+
+          // Normalize line items into BillingItem-compatible records.
+          const items = payload.items.map((it: any, i: number) => {
+            const quantity = Number(it?.quantity) || 1;
+            const unitPrice = Number(it?.unitPrice) || 0;
+            return {
+              id: it?.id || `ai-quote-item-${Date.now()}-${i}`,
+              description: String(it?.description || `Item ${i + 1}`),
+              quantity,
+              unitPrice,
+              discount: 0,
+              tax: 0,
+              amount: Number(it?.amount) || Math.round(quantity * unitPrice * 100) / 100
+            };
+          });
+          const grandTotal = Number(payload.grandTotal) ||
+            Math.round(items.reduce((s: number, it: any) => s + it.amount, 0) * 100) / 100;
+
+          await handleCreateQuote({
+            clientId,
+            clientName: resolvedName,
+            items,
+            grandTotal,
+            status: 'draft',
+            quoteDate: new Date().toISOString().slice(0, 10),
+            notes: payload.notes || undefined
+          } as Partial<Quote>);
+          logAuditEvent("create_quote", `Created quotation for ${resolvedName} (${grandTotal}) via Binti AI`, payload);
+          showToast(`Quotation created for ${resolvedName}.`);
           setActiveTab("quotes");
         } else {
           setActiveTab("quotes");

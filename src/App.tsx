@@ -1424,7 +1424,7 @@ export default function App() {
                   <Sparkles className="w-3.5 h-3.5 text-[#D4AF37]" />
                   <span>Meet Binti</span>
                 </h4>
-                <p className="text-[11px] text-gray-500 font-medium">Your smart event assistant</p>
+                <p className="text-[11px] text-gray-500 font-medium">Quotes, invoices & cash — just ask</p>
               </div>
             </div>
             <p className="text-xs text-gray-600 leading-relaxed">

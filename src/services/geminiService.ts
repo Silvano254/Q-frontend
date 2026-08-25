@@ -294,7 +294,9 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+      // Normalize CRLF so frame delimiters always match, regardless of how
+      // the upstream (or any intermediary proxy) frames the SSE body.
+      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
       let sep: number;
       while ((sep = buffer.indexOf("\n\n")) !== -1) {
         handleSseBlock(buffer.slice(0, sep));
@@ -302,12 +304,21 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
       }
       if (completePayload || streamError) break;
     }
+    // A trailing frame may exist without its closing blank line — parse it
+    // rather than discarding whatever the stream ended with.
+    if (!completePayload && !streamError && buffer.trim()) {
+      handleSseBlock(buffer);
+    }
     try { await reader.cancel(); } catch { /* already closed */ }
 
     if (streamError) throw new Error(streamError);
     const finalText = accumulated || String(completePayload?.reply ?? "");
     if (!finalText.trim()) {
-      throw new Error('The AI service returned an empty response.');
+      throw new Error(
+        completePayload
+          ? `The AI service completed without text (${completePayload.model || "unknown model"}).`
+          : "The AI stream ended without delivering any content."
+      );
     }
 
     opts.onStep?.({ title: "Response complete", status: 'complete' });

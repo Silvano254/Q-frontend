@@ -245,6 +245,7 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000);
   const onExternalAbort = () => controller.abort();
+  opts.signal?.addEventListener('abort', onExternalAbort, { once: true });
 
   /** Runs ONE streaming pass. Returns raw text + metadata for the wrapper. */
   const streamOnce = async (pass: {

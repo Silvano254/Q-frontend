@@ -50,6 +50,7 @@ export default function BintiAiAssistantModal({
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
+  const [streamingReply, setStreamingReply] = useState<string | null>(null);
   const [executedActionIds, setExecutedActionIds] = useState<Set<string>>(new Set());
   const [showContextModal, setShowContextModal] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -173,6 +174,7 @@ export default function BintiAiAssistantModal({
     setLoading(true);
     setErrorMsg(null);
     setLastFailedPrompt(null);
+    setStreamingReply(null);
 
     // Conversational auto-execution on confirmation
     const trimmedQuery = query.trim().toLowerCase();
@@ -239,7 +241,7 @@ export default function BintiAiAssistantModal({
         currentController.signal,
         parsedDoc,
         handleDynamicStep,
-        () => undefined
+        (fullText: string) => setStreamingReply(fullText)
       );
 
       if (currentController.signal.aborted) return;
@@ -264,12 +266,15 @@ export default function BintiAiAssistantModal({
         thinkingDurationMs: duration
       };
 
+      setStreamingReply(null);
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
       if (stopwatchRef.current) clearInterval(stopwatchRef.current);
       if (err?.name === "AbortError" || currentController.signal.aborted) {
+        setStreamingReply(null);
         return;
       }
+      setStreamingReply(null);
       console.error("Binti AI error:", err);
 
       // Surface the REAL failure instead of a blanket connection message.
@@ -324,7 +329,7 @@ export default function BintiAiAssistantModal({
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, streamingReply]);
 
   const handleCopy = (text: string, index: number) => {
     navigator.clipboard.writeText(text);
@@ -580,6 +585,17 @@ export default function BintiAiAssistantModal({
                       durationMs={elapsedTimeMs}
                       isLoading={true}
                     />
+                  </div>
+                </div>
+              )}
+
+              {loading && streamingReply && (
+                <div className="flex justify-start animate-fade-in">
+                  <div className="max-w-[90%] sm:max-w-[85%] bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none px-3 sm:px-4 py-3 shadow-sm">
+                    <p className="text-xs leading-relaxed whitespace-pre-wrap break-words">
+                      {streamingReply}
+                      <span className="inline-block w-1.5 h-3.5 ml-0.5 bg-[#80237E] animate-pulse align-middle rounded-sm" />
+                    </p>
                   </div>
                 </div>
               )}

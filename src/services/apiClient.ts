@@ -39,6 +39,8 @@ export async function apiRequest<T>(
   // models can reason for 30-60s before answering).
   const { timeoutMs, ...restInit } = init;
   const effectiveTimeout = timeoutMs ?? REQUEST_TIMEOUT;
+  const method = (init.method || 'GET').toUpperCase();
+  const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
@@ -65,8 +67,6 @@ export async function apiRequest<T>(
 
       try {
         let requestBody = init.body;
-        const method = (init.method || 'GET').toUpperCase();
-
         if (!requestBody && (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')) {
           if (path.includes('reset')) {
             requestBody = JSON.stringify({ action: 'reset', confirm: true, reset: true });
@@ -174,7 +174,7 @@ export async function apiRequest<T>(
         throw lastError;
       }
 
-      if (attempt < MAX_RETRIES) {
+      if (attempt < MAX_RETRIES && !isMutation) {
         const delayMs = getRetryDelay(attempt);
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }

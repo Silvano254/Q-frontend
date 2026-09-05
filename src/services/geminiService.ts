@@ -75,6 +75,16 @@ export type MutationActionType =
   | "import_invoices"
   | "import_expenses";
 
+export const MUTATION_ACTION_TYPES: ReadonlySet<MutationActionType> = new Set([
+  "create_quote", "create_invoice", "record_payment", "create_expense",
+  "update_client", "update_invoice", "import_clients", "import_products",
+  "import_invoices", "import_expenses"
+]);
+
+export function isMutationAction(action: AgentAction): boolean {
+  return MUTATION_ACTION_TYPES.has(action.type as MutationActionType);
+}
+
 export type AgentActionType = UIActionType | MutationActionType;
 
 export interface RecordPaymentPayload {

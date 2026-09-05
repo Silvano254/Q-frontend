@@ -30,6 +30,7 @@ function mapToEdgeFunction(path: string): string {
   if (normalized.startsWith('auth/request-profile-update-otp') || normalized.startsWith('auth/verify-profile-update')) return 'auth-profile-update';
   if (normalized.startsWith('auth/seed-admin')) return 'auth-seed-admin';
   if (normalized.startsWith('import-products')) return 'import-products';
+  if (normalized.startsWith('expenses')) return 'expenses';
   if (normalized.startsWith('clients')) return 'clients';
   if (normalized.startsWith('invoices') && normalized.includes('payments')) return 'payments';
   if (normalized.startsWith('invoices')) return 'invoices';

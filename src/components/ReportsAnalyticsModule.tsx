@@ -31,13 +31,14 @@ import {
   AreaChart, 
   Area 
 } from "recharts";
-import { Invoice, Quote, Client, ProductService } from "../types";
+import { Invoice, Quote, Client, ProductService, Expense } from "../types";
 
 interface ReportsAnalyticsModuleProps {
   invoices: Invoice[];
   quotes: Quote[];
   clients: Client[];
   products: ProductService[];
+  expenses: Expense[];
   currency: string;
 }
 
@@ -46,6 +47,7 @@ export default function ReportsAnalyticsModule({
   quotes,
   clients,
   products,
+  expenses,
   currency
 }: ReportsAnalyticsModuleProps) {
   const [activeTab, setActiveTab] = useState<'analytics' | 'reports'>('analytics');
@@ -117,6 +119,8 @@ export default function ReportsAnalyticsModule({
   const totalInvoicedSum = (invoices || []).reduce((sum, i) => sum + (Number(i.grandTotal) || 0), 0);
   const totalPaidSum = (invoices || []).reduce((sum, i) => sum + ((Number(i.grandTotal) || 0) - (Number(i.balanceRemaining) || 0)), 0);
   const totalOutstandingSum = (invoices || []).reduce((sum, i) => sum + (Number(i.balanceRemaining) || 0), 0);
+  const totalExpenses = (expenses || []).reduce((sum, expense) => sum + (Number(expense.amount) || 0), 0);
+  const recentExpenses = [...(expenses || [])].sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 8);
 
   // ==========================================
   // CSV SPREADSHEET GENERATORS
@@ -269,6 +273,42 @@ export default function ReportsAnalyticsModule({
                 <span className="text-[10px] text-gray-400 mt-0.5 block font-semibold">Pending follow-ups</span>
               </div>
             </div>
+          </div>
+
+          <div className="glass-card p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Expense Ledger</span>
+                <p className="text-sm text-gray-500 mt-1">AI-recorded and manually imported operating expenses.</p>
+              </div>
+              <span className="text-lg font-bold text-gray-800">{currency} {totalExpenses.toLocaleString()}</span>
+            </div>
+            {recentExpenses.length === 0 ? (
+              <p className="text-sm text-gray-500 py-4">No expenses recorded yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-[10px] uppercase tracking-wider text-gray-400">
+                      <th className="py-2 pr-4">Date</th>
+                      <th className="py-2 pr-4">Description</th>
+                      <th className="py-2 pr-4">Category</th>
+                      <th className="py-2 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentExpenses.map((expense) => (
+                      <tr key={expense.id} className="border-b border-gray-50 last:border-0">
+                        <td className="py-3 pr-4 text-gray-500">{expense.date}</td>
+                        <td className="py-3 pr-4 font-medium text-gray-800">{expense.description}</td>
+                        <td className="py-3 pr-4 text-gray-500">{expense.category}</td>
+                        <td className="py-3 text-right font-semibold text-gray-800">{currency} {expense.amount.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Recharts Row 1 */}

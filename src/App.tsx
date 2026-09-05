@@ -13,8 +13,8 @@ import SettingsModule from "./components/SettingsModule";
 import LoginScreen from "./components/LoginScreen";
 import BintiAiAssistantModal from "./components/BintiAiAssistantModal";
 import { apiRequest, clearAuthToken, setAuthToken } from "./services/apiClient";
-import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord, AuditLogEntry } from "./types";
-import { AgentAction } from "./services/geminiService";
+import { Client, ProductService, Quote, Invoice, Expense, CompanySettings, PaymentRecord, AuditLogEntry } from "./types";
+import { AgentAction, isMutationAction } from "./services/geminiService";
 import { normalizeMultilineText, generateNextDocumentNumber } from "./utils/text";
 
 export default function App() {
@@ -80,6 +80,7 @@ export default function App() {
   const [products, setProducts] = useState<ProductService[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
     const saved = localStorage.getItem("binti_company_settings");
     if (saved) {
@@ -129,11 +130,12 @@ export default function App() {
   // Load all persisted data on initial login or explicit reload
   const fetchAllData = useCallback(async () => {
     try {
-      const [apiClients, apiProducts, apiQuotes, apiInvoices, apiSettings] = await Promise.all([
+      const [apiClients, apiProducts, apiQuotes, apiInvoices, apiExpenses, apiSettings] = await Promise.all([
         apiRequest<Client[]>('/api/clients'),
         apiRequest<ProductService[]>('/api/products'),
         apiRequest<Quote[]>('/api/quotes'),
         apiRequest<Invoice[]>('/api/invoices'),
+        apiRequest<Expense[]>('/api/expenses'),
         apiRequest<CompanySettings>('/api/settings')
       ]);
 
@@ -172,6 +174,16 @@ export default function App() {
       setProducts(normalizedProducts);
       setQuotes(apiQuotes || []);
       setInvoices(normalizedInvoices);
+      setExpenses((apiExpenses || []).map((expense: any) => ({
+        id: expense.id,
+        date: expense.date || new Date().toISOString().slice(0, 10),
+        category: expense.category || 'Other',
+        description: expense.description || '',
+        amount: Number(expense.amount || 0),
+        eventName: expense.eventName,
+        referenceNumber: expense.referenceNumber,
+        notes: expense.notes
+      })));
 
       // Restore selected quote or invoice from saved session timeout state
       const restoreQuoteId = sessionStorage.getItem("binti_restore_quote_id");
@@ -902,13 +914,16 @@ export default function App() {
       }
       case "record_payment": {
         const payload = action.payload || {};
-        const matchedInv = invoices.find(inv => 
+        const invoiceMatches = invoices.filter(inv =>
           (payload.invoiceId && inv.id === payload.invoiceId) ||
-          (payload.invoiceNumber && inv.invoiceNumber.toLowerCase() === payload.invoiceNumber.toLowerCase()) ||
-          (payload.clientName && inv.clientName.toLowerCase().includes(payload.clientName.toLowerCase()))
+          (payload.invoiceNumber && inv.invoiceNumber.toLowerCase() === String(payload.invoiceNumber).toLowerCase())
         );
-        const invId = matchedInv?.id || payload.invoiceId;
-        const amt = Number(payload.amountPaid || matchedInv?.balanceRemaining || matchedInv?.grandTotal || 0);
+        if (invoiceMatches.length !== 1 || !Number.isFinite(Number(payload.amountPaid)) || Number(payload.amountPaid) <= 0) {
+          throw new Error("Payment requires one exact invoice ID or invoice number and a positive amount.");
+        }
+        const matchedInv = invoiceMatches[0];
+        const invId = matchedInv.id;
+        const amt = Number(payload.amountPaid);
 
         if (invId && amt > 0) {
           await handleRecordPayment(invId, {
@@ -936,6 +951,24 @@ export default function App() {
         const amount = Number(payload.amount || 0);
         const category = payload.category || 'Other';
         const desc = payload.description || 'Expense Entry';
+
+        if (!Number.isFinite(amount) || amount <= 0 || !String(desc).trim()) {
+          throw new Error("Expense requires a description and a positive amount.");
+        }
+        onProgress?.("Writing expense to database...");
+        await apiRequest('/api/expenses', {
+          method: 'POST',
+          body: JSON.stringify({
+            category,
+            description: desc,
+            amount,
+            eventName: payload.eventName,
+            referenceNumber: payload.referenceNumber,
+            date: payload.date,
+            notes: payload.notes
+          })
+        });
+        await fetchAllData();
 
         logAuditEvent(
           "create_expense",
@@ -1019,6 +1052,9 @@ export default function App() {
         }
         break;
       }
+      case "import_invoices":
+      case "import_expenses":
+        throw new Error(`AI action ${action.type} is not implemented yet.`);
       case "open_client":
         setActiveTab("clients");
         showToast("Opening Client directory");
@@ -1027,6 +1063,9 @@ export default function App() {
         setActiveTab("settings");
         break;
       default:
+        if (isMutationAction(action)) {
+          throw new Error(`Unsupported database action: ${action.type}`);
+        }
         if (action.payload?.tab) {
           setActiveTab(action.payload.tab);
         }
@@ -1224,6 +1263,7 @@ export default function App() {
             quotes={quotes}
             clients={clients}
             products={products}
+            expenses={expenses}
             currency={companySettings.currency}
           />
         );

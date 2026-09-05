@@ -1,6 +1,6 @@
 import React, { useState, memo } from "react";
 import { Zap, CheckCircle2, RefreshCw, Check, ArrowRight, AlertTriangle } from "lucide-react";
-import { AgentAction } from "../../services/geminiService";
+import { AgentAction, isMutationAction } from "../../services/geminiService";
 
 export interface ActionConfirmationCardsProps {
   actions: AgentAction[];
@@ -63,7 +63,7 @@ export const ActionConfirmationCards = memo(function ActionConfirmationCards({
         const isExecuted = executedActionIds.has(actionId);
         const isBusy = executingActionId === actionId;
 
-        if (act.isMutation) {
+        if (isMutationAction(act)) {
           return (
             <div 
               key={actIdx}

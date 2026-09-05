@@ -32,7 +32,7 @@ export const ActionConfirmationCards = memo(function ActionConfirmationCards({
     setExecutingActionId(actionId);
     setFailedActionId(null);
     setFailureMsg("");
-    setProgressMsg("Writing records to live database...");
+    setProgressMsg("");
     setAnnouncement(`Executing ${action.label}...`);
 
     try {
@@ -94,10 +94,10 @@ export const ActionConfirmationCards = memo(function ActionConfirmationCards({
                 <div className="p-2.5 bg-white/80 border border-purple-200/70 rounded-xl space-y-1.5 animate-fade-in">
                   <div className="flex items-center space-x-2 text-xs font-bold text-[#80237E]">
                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#80237E]" />
-                    <span>{progressMsg || "Writing records to live database..."}</span>
+                    {progressMsg && <span>{progressMsg}</span>}
                   </div>
                   <div className="w-full bg-purple-100 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-[#80237E] h-full rounded-full animate-pulse w-3/4" />
+                    <div className="bg-[#80237E] h-full rounded-full binti-progress-indeterminate" />
                   </div>
                 </div>
               )}

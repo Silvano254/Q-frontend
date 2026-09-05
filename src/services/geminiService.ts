@@ -288,8 +288,6 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
       throw new Error('Streaming is not supported by this connection.');
     }
 
-    opts.onStep?.({ title: "Receiving live response", status: 'in_progress' });
-
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -308,6 +306,15 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
       let parsed: any = null;
       try { parsed = JSON.parse(dataLine); } catch { return; }
       switch (eventName) {
+        case 'step':
+          if (parsed?.status === 'in_progress' || parsed?.status === 'complete' || parsed?.status === 'failed') {
+            opts.onStep?.({
+              title: String(parsed.title || 'Backend processing'),
+              detail: parsed.detail ? String(parsed.detail) : undefined,
+              status: parsed.status
+            });
+          }
+          break;
         case 'token':
           if (typeof parsed?.text === 'string' && parsed.text.length > 0) {
             accumulated += parsed.text;
@@ -354,8 +361,6 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
   };
 
   try {
-    opts.onStep?.({ title: "Connecting to Binti AI", status: 'in_progress' });
-
     let combinedRaw = "";
     let firstActions: any[] | null = null;
     let workingHistory = opts.history.map((h) => ({ ...h }));
@@ -378,7 +383,6 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
 
       if (!result.truncated) break;
 
-      opts.onStep?.({ title: "Continuing response…", status: 'in_progress' });
       workingHistory.push({ role: "user", content: turnPrompt });
       workingHistory.push({ role: "model", content: result.rawText });
       turnPrompt = "Your previous message was cut off mid-sentence. Continue EXACTLY where it stopped, without repeating any text that came before.";
@@ -393,7 +397,6 @@ async function streamAssistantChat(opts: StreamChatOptions): Promise<AssistantRe
       );
     }
 
-    opts.onStep?.({ title: "Response complete", status: 'complete' });
     return {
       reply: cleanAiResponse(combinedRaw),
       actions: firstActions ?? []

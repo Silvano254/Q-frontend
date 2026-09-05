@@ -818,7 +818,7 @@ export default function App() {
   };
 
   // AI Agent Action Execution Dispatcher (Level 1 UI + Level 3 Mutations)
-  const handleExecuteAiAction = async (action: AgentAction, onProgress?: (msg: string) => void) => {
+  const handleExecuteAiAction = async (action: AgentAction) => {
     switch (action.type) {
       case "navigate":
         if (action.payload?.tab) {
@@ -955,7 +955,6 @@ export default function App() {
         if (!Number.isFinite(amount) || amount <= 0 || !String(desc).trim()) {
           throw new Error("Expense requires a description and a positive amount.");
         }
-        onProgress?.("Writing expense to database...");
         await apiRequest('/api/expenses', {
           method: 'POST',
           body: JSON.stringify({
@@ -987,8 +986,6 @@ export default function App() {
 
           for (let i = 0; i < total; i += chunkSize) {
             const chunk = clientList.slice(i, i + chunkSize);
-            onProgress?.(`Writing clients to database (${Math.min(i + chunkSize, total)}/${total})...`);
-            
             await Promise.all(chunk.map(c => 
               handleCreateClient({
                 name: c.name || c.Name || c.clientName || 'Client',
@@ -1017,8 +1014,6 @@ export default function App() {
         // The frontend NEVER writes catalog data directly.
         const prodList = action.payload?.products || action.payload?.Products || (Array.isArray(action.payload) ? action.payload : []);
         if (Array.isArray(prodList) && prodList.length > 0) {
-          onProgress?.(`Writing ${prodList.length} catalog items to database...`);
-
           const result = await apiRequest<{ imported?: number; rejected?: Array<{ index: number; reason: string }> }>(
             '/api/import-products',
             {

@@ -238,7 +238,8 @@ export default function BintiAiAssistantModal({
         saasContext,
         currentController.signal,
         parsedDoc,
-        handleDynamicStep
+        handleDynamicStep,
+        () => undefined
       );
 
       if (currentController.signal.aborted) return;

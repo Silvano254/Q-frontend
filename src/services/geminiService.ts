@@ -538,9 +538,12 @@ export async function askGeminiAssistant(
   // Server-proposed actions take precedence. Client-side extraction is UI
   // convenience ONLY — every mutation is independently authorized and
   // validated by the backend endpoints before any database write occurs.
-  const actions = (data.actions && data.actions.length > 0)
-    ? data.actions
-    : extractActionsFromPrompt(cleanPrompt, saasContext, attachedDoc);
+  const fallbackActions = extractActionsFromPrompt(cleanPrompt, saasContext, attachedDoc);
+  const serverActions = Array.isArray(data.actions) ? data.actions : [];
+  const actions = [
+    ...serverActions,
+    ...fallbackActions.filter(fallback => !serverActions.some(server => server.type === fallback.type))
+  ];
   const meta = (data as any).meta;
 
   // Emit the real processing steps returned by the backend (not hardcoded).

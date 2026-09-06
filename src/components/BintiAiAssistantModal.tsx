@@ -54,6 +54,7 @@ export default function BintiAiAssistantModal({
   const [executedActionIds, setExecutedActionIds] = useState<Set<string>>(new Set());
   const [showContextModal, setShowContextModal] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pendingDocument, setPendingDocument] = useState<ParsedDocument | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const centerInputRef = useRef<HTMLTextAreaElement>(null);
@@ -152,6 +153,7 @@ export default function BintiAiAssistantModal({
           setErrorMsg(parsedDoc.parseError || "Failed to process the uploaded file.");
           return;
         }
+        setPendingDocument(parsedDoc);
       } catch (err: any) {
         console.error("Failed to parse file:", err);
       }
@@ -239,7 +241,7 @@ export default function BintiAiAssistantModal({
         currentMessages,
         saasContext,
         currentController.signal,
-        parsedDoc,
+        parsedDoc || pendingDocument,
         handleDynamicStep,
         (fullText: string) => setStreamingReply(fullText)
       );
@@ -301,7 +303,7 @@ export default function BintiAiAssistantModal({
         setLoading(false);
       }
     }
-  }, [executedActionIds, inputMessage, loading, onExecuteAction, saasContext, selectedFile]);
+  }, [executedActionIds, inputMessage, loading, onExecuteAction, pendingDocument, saasContext, selectedFile]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -397,6 +399,7 @@ export default function BintiAiAssistantModal({
               <button
                 onClick={() => {
                   setMessages([]);
+                  setPendingDocument(null);
                   setErrorMsg(null);
                   setLastFailedPrompt(null);
                   // Reset execution ledger so re-proposed actions can run again

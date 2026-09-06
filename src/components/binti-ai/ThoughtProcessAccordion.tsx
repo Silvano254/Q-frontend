@@ -32,11 +32,11 @@ export const ThoughtProcessAccordion = memo(function ThoughtProcessAccordion({
     }
   }, [isLoading, steps]);
 
-  if (!steps || steps.length === 0) return null;
+  if ((!steps || steps.length === 0) && !isLoading) return null;
 
   const seconds = ((durationMs || 0) / 1000).toFixed(1);
-  const hasFailedStep = steps.some(s => s.status === 'failed');
-  const currentStep = steps[activeStepIndex] || steps[steps.length - 1];
+  const hasFailedStep = steps?.some(s => s.status === 'failed') ?? false;
+  const currentStep = steps?.[activeStepIndex] || steps?.[steps.length - 1];
 
   // LIVE LOADING STATE: Transient Appearing & Disappearing Faded Grey Indicator
   if (isLoading) {

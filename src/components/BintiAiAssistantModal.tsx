@@ -62,16 +62,63 @@ export default function BintiAiAssistantModal({
   const abortControllerRef = useRef<AbortController | null>(null);
   const initialPromptHandledRef = useRef<boolean>(false);
   const stopwatchRef = useRef<any>(null);
+  const streamTargetRef = useRef("");
+  const streamVisibleRef = useRef("");
+  const streamTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const streamFlushResolverRef = useRef<(() => void) | null>(null);
 
   const messagesRef = useRef<ChatMessage[]>(messages);
   messagesRef.current = messages;
   const activeThoughtStepsRef = useRef<ProcessingStep[]>([]);
 
+  const stopVisibleStream = useCallback(() => {
+    if (streamTimerRef.current) {
+      clearInterval(streamTimerRef.current);
+      streamTimerRef.current = null;
+    }
+    streamFlushResolverRef.current?.();
+    streamFlushResolverRef.current = null;
+  }, []);
+
+  const revealVisibleStream = useCallback(() => {
+    if (streamVisibleRef.current.length >= streamTargetRef.current.length) {
+      stopVisibleStream();
+      return;
+    }
+
+    // Reveal a small group at a time. The server stream stays fast; only the
+    // presentation is paced so short replies remain readable.
+    const nextLength = Math.min(streamVisibleRef.current.length + 3, streamTargetRef.current.length);
+    streamVisibleRef.current = streamTargetRef.current.slice(0, nextLength);
+    setStreamingReply(streamVisibleRef.current);
+  }, [stopVisibleStream]);
+
+  const queueVisibleStream = useCallback((fullText: string) => {
+    streamTargetRef.current = fullText;
+    if (!streamTimerRef.current) {
+      streamTimerRef.current = setInterval(revealVisibleStream, 38);
+      revealVisibleStream();
+    }
+  }, [revealVisibleStream]);
+
+  const flushVisibleStream = useCallback(async (fullText: string) => {
+    streamTargetRef.current = fullText;
+    if (streamVisibleRef.current.length >= fullText.length) return;
+    await new Promise<void>((resolve) => {
+      streamFlushResolverRef.current = resolve;
+      if (!streamTimerRef.current) {
+        streamTimerRef.current = setInterval(revealVisibleStream, 38);
+        revealVisibleStream();
+      }
+    });
+  }, [revealVisibleStream]);
+
   const handleClose = useCallback(() => {
+    stopVisibleStream();
     abortControllerRef.current?.abort();
     if (stopwatchRef.current) clearInterval(stopwatchRef.current);
     onClose();
-  }, [onClose]);
+  }, [onClose, stopVisibleStream]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -93,6 +140,7 @@ export default function BintiAiAssistantModal({
 
   useEffect(() => {
     return () => {
+      stopVisibleStream();
       abortControllerRef.current?.abort();
       if (stopwatchRef.current) clearInterval(stopwatchRef.current);
     };
@@ -176,6 +224,9 @@ export default function BintiAiAssistantModal({
     setLoading(true);
     setErrorMsg(null);
     setLastFailedPrompt(null);
+    stopVisibleStream();
+    streamTargetRef.current = "";
+    streamVisibleRef.current = "";
     setStreamingReply(null);
 
     // Conversational auto-execution on confirmation
@@ -243,7 +294,7 @@ export default function BintiAiAssistantModal({
         currentController.signal,
         parsedDoc || pendingDocument,
         handleDynamicStep,
-        (fullText: string) => setStreamingReply(fullText)
+        (fullText: string) => queueVisibleStream(fullText)
       );
 
       if (currentController.signal.aborted) return;
@@ -268,14 +319,22 @@ export default function BintiAiAssistantModal({
         thinkingDurationMs: duration
       };
 
+      await flushVisibleStream(result.reply);
+      if (currentController.signal.aborted) {
+        setStreamingReply(null);
+        return;
+      }
+      stopVisibleStream();
       setStreamingReply(null);
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err: any) {
       if (stopwatchRef.current) clearInterval(stopwatchRef.current);
       if (err?.name === "AbortError" || currentController.signal.aborted) {
+        stopVisibleStream();
         setStreamingReply(null);
         return;
       }
+      stopVisibleStream();
       setStreamingReply(null);
       console.error("Binti AI error:", err);
 
@@ -303,7 +362,7 @@ export default function BintiAiAssistantModal({
         setLoading(false);
       }
     }
-  }, [executedActionIds, inputMessage, loading, onExecuteAction, pendingDocument, saasContext, selectedFile]);
+  }, [executedActionIds, flushVisibleStream, inputMessage, loading, onExecuteAction, pendingDocument, queueVisibleStream, saasContext, selectedFile, stopVisibleStream]);
 
   useEffect(() => {
     if (!isOpen) {

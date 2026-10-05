@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ShoppingBag, Plus, Search, Trash2, Edit, ChevronLeft, Layers, Percent, DollarSign, Loader2 } from "lucide-react";
 import { ProductService } from "../types";
+import ConfirmDialog from "./ConfirmDialog";
 
 interface ProductsModuleProps {
   products: ProductService[];
@@ -25,6 +26,7 @@ export default function ProductsModule({
   const [searchQuery, setSearchQuery] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [productToDelete, setProductToDelete] = useState<ProductService | null>(null);
 
   // Form states
   const [name, setName] = useState("");
@@ -354,16 +356,7 @@ export default function ProductsModule({
                           
                           <button
                             disabled={isDeletingId === p.id}
-                            onClick={async () => {
-                              if (confirm(`Delete catalog item "${p.name}"?`)) {
-                                setIsDeletingId(p.id);
-                                try {
-                                  await onDeleteProduct(p.id);
-                                } finally {
-                                  setIsDeletingId(null);
-                                }
-                              }
-                            }}
+                            onClick={() => setProductToDelete(p)}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
                             title="Remove catalog item"
                           >
@@ -383,6 +376,22 @@ export default function ProductsModule({
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!productToDelete}
+        title="Delete catalog item?"
+        description={productToDelete ? `“${productToDelete.name}” will be removed from your products and services catalog.` : "This catalog item will be removed."}
+        confirmLabel="Delete item"
+        onClose={() => setProductToDelete(null)}
+        onConfirm={async () => {
+          if (!productToDelete) return;
+          setIsDeletingId(productToDelete.id);
+          try {
+            await onDeleteProduct(productToDelete.id);
+          } finally {
+            setIsDeletingId(null);
+          }
+        }}
+      />
     </div>
   );
 }

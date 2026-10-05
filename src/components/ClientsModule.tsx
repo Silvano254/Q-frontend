@@ -20,6 +20,7 @@ import {
   Loader2 
 } from "lucide-react";
 import { Client, Quote, Invoice } from "../types";
+import ConfirmDialog from "./ConfirmDialog";
 
 interface ClientsModuleProps {
   clients: Client[];
@@ -48,6 +49,7 @@ export default function ClientsModule({
   const [searchQuery, setSearchQuery] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
 
   // Form Fields
   const [name, setName] = useState("");
@@ -582,16 +584,7 @@ export default function ClientsModule({
 
                           <button
                             disabled={isDeletingId === client.id}
-                            onClick={async () => {
-                              if (confirm("Warning: Deleting this client does not delete their invoices, but removes their record from directory. Proceed?")) {
-                                setIsDeletingId(client.id);
-                                try {
-                                  await onDeleteClient(client.id);
-                                } finally {
-                                  setIsDeletingId(null);
-                                }
-                              }
-                            }}
+                            onClick={() => setClientToDelete(client)}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
                             title="Delete Client File"
                           >
@@ -611,6 +604,22 @@ export default function ClientsModule({
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!clientToDelete}
+        title="Remove client from directory?"
+        description={clientToDelete ? `“${clientToDelete.name}” will be removed from your client directory. Their existing invoices and quotes will remain.` : "The client will be removed from your directory."}
+        confirmLabel="Remove client"
+        onClose={() => setClientToDelete(null)}
+        onConfirm={async () => {
+          if (!clientToDelete) return;
+          setIsDeletingId(clientToDelete.id);
+          try {
+            await onDeleteClient(clientToDelete.id);
+          } finally {
+            setIsDeletingId(null);
+          }
+        }}
+      />
     </div>
   );
 }

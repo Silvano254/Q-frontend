@@ -27,6 +27,7 @@ import { generateEmailDraft, recommendTerms } from "../services/geminiService";
 import { apiRequest } from "../services/apiClient";
 import { buildQuoteWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildQuoteEmailContent, openMailClient } from "../utils/email";
+import ConfirmDialog from "./ConfirmDialog";
 
 const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -124,6 +125,7 @@ export default function QuotesModule({
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedAiDraft, setCopiedAiDraft] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [quoteToDelete, setQuoteToDelete] = useState<Quote | null>(null);
 
   // AI Email
   const [aiEmailDraft, setAiEmailDraft] = useState<string | null>(null);
@@ -1855,16 +1857,7 @@ export default function QuotesModule({
                           
                           <button
                             disabled={deletingId === quote.id}
-                            onClick={async () => {
-                              if (confirm("Are you sure you want to delete this quote?")) {
-                                setDeletingId(quote.id);
-                                try {
-                                  await onDeleteQuote(quote.id);
-                                } finally {
-                                  setDeletingId(null);
-                                }
-                              }
-                            }}
+                            onClick={() => setQuoteToDelete(quote)}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
                             title="Delete Quote Permanently"
                           >
@@ -2152,6 +2145,22 @@ export default function QuotesModule({
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!quoteToDelete}
+        title="Delete quotation?"
+        description={quoteToDelete ? `Quotation ${quoteToDelete.quoteNumber || "without a number"} for ${quoteToDelete.clientName || "this client"} will be permanently removed.` : "This quotation will be permanently removed."}
+        confirmLabel="Delete quotation"
+        onClose={() => setQuoteToDelete(null)}
+        onConfirm={async () => {
+          if (!quoteToDelete) return;
+          setDeletingId(quoteToDelete.id);
+          try {
+            await onDeleteQuote(quoteToDelete.id);
+          } finally {
+            setDeletingId(null);
+          }
+        }}
+      />
     </div>
   );
 }

@@ -30,6 +30,7 @@ import { generateEmailDraft } from "../services/geminiService";
 import { apiRequest } from "../services/apiClient";
 import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildInvoiceEmailContent, openMailClient } from "../utils/email";
+import ConfirmDialog from "./ConfirmDialog";
 
 const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -141,6 +142,8 @@ export default function InvoicesModule({
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedAiDraft, setCopiedAiDraft] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
+  const [overpaymentConfirmation, setOverpaymentConfirmation] = useState<{ invoiceId: string; amount: number; balance: number } | null>(null);
 
   // AI Email
   const [aiEmailDraft, setAiEmailDraft] = useState<string | null>(null);
@@ -410,6 +413,34 @@ export default function InvoicesModule({
     setAiEmailDraft(null);
   };
 
+  const submitManualPayment = async (invoiceId: string, amount: number) => {
+    setIsSubmittingPayment(true);
+    try {
+      const paymentPayload: Partial<PaymentRecord> = {
+        paymentDate: pDate,
+        paymentMethod: pMethod,
+        referenceNumber: pRef,
+        amountPaid: amount,
+        notes: pNotes
+      };
+
+      await onRecordPayment(invoiceId, paymentPayload);
+      setIsLoggingPayment(false);
+      
+      // Reset payment fields
+      setPRef("");
+      setPAmount("");
+      setPNotes("");
+      showToast("Payment recorded successfully!");
+    } catch (err) {
+      console.error("Payment logging error:", err);
+      showToast("Failed to record payment.", "warning");
+      throw err;
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
+
   // Record a Manual Payment
   const handleLogManualPayment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -421,35 +452,16 @@ export default function InvoicesModule({
       return;
     }
 
-    if (amount > selectedInvoice.balanceRemaining) {
-      if (!confirm(`Warning: The amount KES ${amount} is greater than the remaining balance of KES ${selectedInvoice.balanceRemaining}. Save anyway?`)) {
-        return;
-      }
+    const balance = Number(selectedInvoice.balanceRemaining ?? selectedInvoice.grandTotal) || 0;
+    if (amount > balance) {
+      setOverpaymentConfirmation({ invoiceId: selectedInvoice.id, amount, balance });
+      return;
     }
 
-    setIsSubmittingPayment(true);
     try {
-      const paymentPayload: Partial<PaymentRecord> = {
-        paymentDate: pDate,
-        paymentMethod: pMethod,
-        referenceNumber: pRef,
-        amountPaid: amount,
-        notes: pNotes
-      };
-
-      await onRecordPayment(selectedInvoice.id, paymentPayload);
-      setIsLoggingPayment(false);
-      
-      // Reset payment fields
-      setPRef("");
-      setPAmount("");
-      setPNotes("");
-      showToast("Payment recorded successfully!");
-    } catch (err) {
-      console.error("Payment logging error:", err);
-      showToast("Failed to record payment.", "warning");
-    } finally {
-      setIsSubmittingPayment(false);
+      await submitManualPayment(selectedInvoice.id, amount);
+    } catch {
+      // The shared confirmation dialog displays a retryable error for failures.
     }
   };
 
@@ -2024,16 +2036,7 @@ export default function InvoicesModule({
                           
                           <button
                             disabled={deletingId === inv.id}
-                            onClick={async () => {
-                              if (confirm("Are you sure you want to delete this invoice?")) {
-                                setDeletingId(inv.id);
-                                try {
-                                  await onDeleteInvoice(inv.id);
-                                } finally {
-                                  setDeletingId(null);
-                                }
-                              }
-                            }}
+                            onClick={() => setInvoiceToDelete(inv)}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all disabled:opacity-50"
                             title="Delete Invoice"
                           >
@@ -2534,6 +2537,35 @@ export default function InvoicesModule({
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={!!invoiceToDelete}
+        title="Delete invoice?"
+        description={invoiceToDelete ? `Invoice ${invoiceToDelete.invoiceNumber || "without a number"} for ${invoiceToDelete.clientName || "this client"} and its linked payment records will be permanently removed.` : "This invoice will be permanently removed."}
+        confirmLabel="Delete invoice"
+        onClose={() => setInvoiceToDelete(null)}
+        onConfirm={async () => {
+          if (!invoiceToDelete) return;
+          setDeletingId(invoiceToDelete.id);
+          try {
+            await onDeleteInvoice(invoiceToDelete.id);
+          } finally {
+            setDeletingId(null);
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={!!overpaymentConfirmation}
+        title="Payment exceeds balance"
+        description={overpaymentConfirmation ? `You entered ${currency} ${overpaymentConfirmation.amount.toLocaleString()}, which is ${currency} ${(overpaymentConfirmation.amount - overpaymentConfirmation.balance).toLocaleString()} above the remaining balance of ${currency} ${overpaymentConfirmation.balance.toLocaleString()}. Record the full amount anyway?` : "The payment is greater than the remaining balance."}
+        confirmLabel="Record full payment"
+        tone="warning"
+        onClose={() => setOverpaymentConfirmation(null)}
+        onConfirm={async () => {
+          if (!overpaymentConfirmation) return;
+          await submitManualPayment(overpaymentConfirmation.invoiceId, overpaymentConfirmation.amount);
+          setOverpaymentConfirmation(null);
+        }}
+      />
     </div>
   );
 }

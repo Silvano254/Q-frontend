@@ -43,6 +43,11 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "warning" } | null>(null);
   const toastTimeoutId = useRef<any>(null);
 
+  // Sticky banner shown when the last data-load pass had failures, so empty
+  // lists always come with a visible reason + a one-click retry instead of a
+  // toast that disappears and leaves the user stuck.
+  const [loadFailure, setLoadFailure] = useState<string | null>(null);
+
   // Theme State (Light / Dark mode)
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     return (localStorage.getItem("binti_theme") as "light" | "dark") || "light";
@@ -198,11 +203,14 @@ export default function App() {
         })
         .join(" | ");
       console.error("Partial data load failure:", detail);
+      setLoadFailure(detail);
       showToast(
         `Some data failed to load — ${detail}`,
         "warning",
         10000
       );
+    } else {
+      setLoadFailure(null);
     }
 
     // Always log the post-load counts so an empty list can be told apart
@@ -1676,6 +1684,23 @@ export default function App() {
           }))
         }}
       />
+
+      {/* Sticky data-load failure banner with retry */}
+      {isAuthenticated && loadFailure && (
+        <div className="fixed top-20 right-4 z-50 w-[min(92vw,26rem)] bg-rose-50/95 backdrop-blur border border-rose-200 text-rose-800 rounded-2xl shadow-xl p-4 text-xs animate-fade-in">
+          <p className="font-extrabold text-sm mb-1">⚠ Data didn't finish loading</p>
+          <p className="mb-3 leading-relaxed break-words">{loadFailure}</p>
+          <button
+            onClick={() => {
+              setLoadFailure(null);
+              fetchAllData();
+            }}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold shadow transition-all"
+          >
+            Retry loading data
+          </button>
+        </div>
+      )}
 
       {/* Global Toast Alert */}
       {toast && (

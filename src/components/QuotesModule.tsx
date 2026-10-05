@@ -618,7 +618,7 @@ export default function QuotesModule({
 
       doc.text(splitDesc, colX[0] + 3, textY);
       doc.text(item.quantity.toString(), colX[1] + colWidths[1] / 2, valueY, { align: "center" });
-      doc.text(item.unitPrice.toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: "right" });
+      doc.text((Number(item.unitPrice) || 0).toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: "right" });
       
       const lineNet = Math.round((item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100)) * 100) / 100;
       if (quote.taxTotal > 0) {
@@ -644,18 +644,18 @@ export default function QuotesModule({
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
 
     doc.text("Subtotal (excl. VAT):", totalsLeftX + 3, y + 4);
-    doc.text(`${currency} ${quote.subtotal.toLocaleString()}`, totalsValX, y + 4, { align: "right" });
+    doc.text(`${currency} ${(Number(quote.subtotal) || 0).toLocaleString()}`, totalsValX, y + 4, { align: "right" });
     
     y += 6;
     if (quote.discountTotal > 0) {
       doc.text("Discount Deducted:", totalsLeftX + 3, y + 4);
-      doc.text(`-${currency} ${quote.discountTotal.toLocaleString()}`, totalsValX, y + 4, { align: "right" });
+      doc.text(`-${currency} ${(Number(quote.discountTotal) || 0).toLocaleString()}`, totalsValX, y + 4, { align: "right" });
       y += 6;
     }
     
     if (quote.taxTotal > 0) {
       doc.text("Tax Amount (VAT 16%):", totalsLeftX + 3, y + 4);
-      doc.text(`${currency} ${quote.taxTotal.toLocaleString()}`, totalsValX, y + 4, { align: "right" });
+      doc.text(`${currency} ${(Number(quote.taxTotal) || 0).toLocaleString()}`, totalsValX, y + 4, { align: "right" });
       y += 6;
     }
 
@@ -666,7 +666,7 @@ export default function QuotesModule({
     doc.setFontSize(9.5);
     doc.setTextColor(255, 255, 255);
     doc.text("GRAND TOTAL:", totalsLeftX + 4, y + 6);
-    doc.text(`${currency} ${quote.grandTotal.toLocaleString()}`, totalsValX, y + 6, { align: "right" });
+    doc.text(`${currency} ${(Number(quote.grandTotal) || 0).toLocaleString()}`, totalsValX, y + 6, { align: "right" });
 
     y += 15;
 
@@ -894,7 +894,7 @@ export default function QuotesModule({
 
       doc.text(descriptionLines, colX[0] + 3, textY);
       doc.text(String(item.quantity), colX[1] + colWidths[1] / 2, valueY, { align: 'center' });
-      doc.text(item.unitPrice.toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: 'right' });
+      doc.text((Number(item.unitPrice) || 0).toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: 'right' });
       const lineNet = Math.round((item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100)) * 100) / 100;
       if (quote.taxTotal > 0) {
         doc.text(`${item.tax}%`, colX[3] + colWidths[3] / 2, valueY, { align: 'center' });
@@ -918,7 +918,7 @@ export default function QuotesModule({
     doc.setFontSize(9.5);
     doc.setTextColor(black[0], black[1], black[2]);
     doc.text('TOTAL:', totalAlignX - 45, y + 2, { align: 'right' });
-    doc.text(`${currency} ${quote.grandTotal.toLocaleString()}`, totalAlignX, y + 2, { align: 'right' });
+    doc.text(`${currency} ${(Number(quote.grandTotal) || 0).toLocaleString()}`, totalAlignX, y + 2, { align: 'right' });
 
     y += 8;
 
@@ -1564,21 +1564,21 @@ export default function QuotesModule({
                 <div className="space-y-2 text-xs divide-y divide-gray-800">
                   <div className="flex justify-between py-1.5">
                     <span className="text-gray-400">Subtotal</span>
-                    <span className="font-semibold text-gray-200">{currency} {selectedQuote.subtotal.toLocaleString()}</span>
+                    <span className="font-semibold text-gray-200">{currency} {(Number(selectedQuote.subtotal) || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between py-1.5">
                     <span className="text-gray-400">Discount Amount</span>
-                    <span className="font-semibold text-emerald-400">({currency} {selectedQuote.discountTotal.toLocaleString()})</span>
+                    <span className="font-semibold text-emerald-400">({currency} {(Number(selectedQuote.discountTotal) || 0).toLocaleString()})</span>
                   </div>
                   {selectedQuote.taxTotal > 0 && (
                     <div className="flex justify-between py-1.5">
                       <span className="text-gray-400">Tax (VAT 16%)</span>
-                      <span className="font-semibold text-gray-200">{currency} {selectedQuote.taxTotal.toLocaleString()}</span>
+                      <span className="font-semibold text-gray-200">{currency} {(Number(selectedQuote.taxTotal) || 0).toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between py-3 text-sm font-bold border-t border-gray-800">
                     <span className="text-[#D4AF37]">GRAND TOTAL</span>
-                    <span className="text-base text-white">{currency} {selectedQuote.grandTotal.toLocaleString()}</span>
+                    <span className="text-base text-white">{currency} {(Number(selectedQuote.grandTotal) || 0).toLocaleString()}</span>
                   </div>
                 </div>
 

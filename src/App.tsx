@@ -243,6 +243,28 @@ export default function App() {
         status: (p.status === 'inactive' ? 'inactive' : 'active') as 'active' | 'inactive'
       }));
 
+      const normalizedQuotes: Quote[] = (apiQuotes || []).map((quote: any) => {
+        const items = Array.isArray(quote.items) ? quote.items.map((item: any) => ({
+          ...item,
+          quantity: Number(item.quantity ?? item.qty ?? 0) || 0,
+          unitPrice: Number(item.unitPrice ?? item.unit_price ?? 0) || 0,
+          discount: Number(item.discount ?? 0) || 0,
+          tax: Number(item.tax ?? 0) || 0,
+          amount: Number(item.amount ?? 0) || 0
+        })) : [];
+        const calculatedSubtotal = items.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice, 0);
+        const calculatedDiscount = items.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice * item.discount / 100, 0);
+        const calculatedTax = items.reduce((sum: number, item: any) => sum + (item.quantity * item.unitPrice - item.quantity * item.unitPrice * item.discount / 100) * item.tax / 100, 0);
+        return {
+          ...quote,
+          items,
+          subtotal: Number(quote.subtotal ?? quote.sub_total ?? calculatedSubtotal) || 0,
+          discountTotal: Number(quote.discountTotal ?? quote.discount_total ?? calculatedDiscount) || 0,
+          taxTotal: Number(quote.taxTotal ?? quote.tax_total ?? calculatedTax) || 0,
+          grandTotal: Number(quote.grandTotal ?? quote.grand_total ?? 0) || 0
+        };
+      });
+
       const normalizedInvoices: Invoice[] = (apiInvoices || []).map((inv: any) => {
         const grandTotal = Number(inv.grandTotal ?? inv.grandtotal ?? inv.grand_total ?? 0);
         const items = Array.isArray(inv.items) ? inv.items.map((item: any) => ({
@@ -285,7 +307,7 @@ export default function App() {
         setProducts(normalizedProducts);
       }
       if (apiQuotes) {
-        setQuotes(apiQuotes || []);
+        setQuotes(normalizedQuotes);
       }
       if (apiInvoices) {
         setInvoices(normalizedInvoices);
@@ -293,7 +315,7 @@ export default function App() {
       // Restore selected quote or invoice from saved session timeout state
       const restoreQuoteId = sessionStorage.getItem("binti_restore_quote_id");
       if (restoreQuoteId) {
-        const found = (apiQuotes || []).find((q: Quote) => q.id === restoreQuoteId);
+        const found = normalizedQuotes.find((q: Quote) => q.id === restoreQuoteId);
         if (found) setSelectedQuote(found);
         sessionStorage.removeItem("binti_restore_quote_id");
       }

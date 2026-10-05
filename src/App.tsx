@@ -245,7 +245,18 @@ export default function App() {
 
       const normalizedInvoices: Invoice[] = (apiInvoices || []).map((inv: any) => {
         const grandTotal = Number(inv.grandTotal ?? inv.grandtotal ?? inv.grand_total ?? 0);
-        const payments = inv.payments || [];
+        const items = Array.isArray(inv.items) ? inv.items.map((item: any) => ({
+          ...item,
+          quantity: Number(item.quantity ?? item.qty ?? 0) || 0,
+          unitPrice: Number(item.unitPrice ?? item.unit_price ?? 0) || 0,
+          discount: Number(item.discount ?? 0) || 0,
+          tax: Number(item.tax ?? 0) || 0,
+          amount: Number(item.amount ?? 0) || 0
+        })) : [];
+        const calculatedSubtotal = items.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice, 0);
+        const calculatedDiscount = items.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice * item.discount / 100, 0);
+        const calculatedTax = items.reduce((sum: number, item: any) => sum + (item.quantity * item.unitPrice - item.quantity * item.unitPrice * item.discount / 100) * item.tax / 100, 0);
+        const payments = Array.isArray(inv.payments) ? inv.payments : [];
         const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amountPaid) || 0), 0);
         const balanceRemaining = Math.max(0, grandTotal - totalPaid);
         let status = inv.status || 'draft';
@@ -256,6 +267,10 @@ export default function App() {
         }
         return {
           ...inv,
+          items,
+          subtotal: Number(inv.subtotal ?? inv.sub_total ?? calculatedSubtotal) || 0,
+          discountTotal: Number(inv.discountTotal ?? inv.discount_total ?? calculatedDiscount) || 0,
+          taxTotal: Number(inv.taxTotal ?? inv.tax_total ?? calculatedTax) || 0,
           grandTotal,
           balanceRemaining,
           status,

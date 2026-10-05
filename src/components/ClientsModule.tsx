@@ -74,9 +74,16 @@ export default function ClientsModule({
 
   const handleSaveClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email) {
-      showToast("Name and email are required.", "warning");
+    if (!name.trim()) {
+      showToast("Client name is required.", "warning");
       return;
+    }
+    if (email.trim()) {
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+      if (!emailOk) {
+        showToast("That email address doesn't look valid — fix it or leave it blank.", "warning");
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -206,10 +213,9 @@ export default function ClientsModule({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Primary Email Address *</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Primary Email Address <span className="normal-case font-normal text-gray-400">(optional)</span></label>
                 <input
                   type="email"
-                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="e.g. contact@safaricom.co.ke"

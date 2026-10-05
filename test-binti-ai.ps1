@@ -156,9 +156,10 @@ Run-Test `
         return ($json.success -eq $true -and $actionCount -eq 0)
     }
 
-# Test 2.3: Positive Write Intent ("Record this receipt as an expense")
+# Test 2.3: Receipt + write-intent prompt — expense capture removed, so NO
+# expense mutation action may be proposed (receipts are analysis-only now).
 Run-Test `
-    -TestName "2.3 Positive Mutation Intent ('Record this receipt as an expense') generates Action Proposal" `
+    -TestName "2.3 Positive Mutation Intent ('Record this receipt as an expense') proposes NO actions (expense feature removed)" `
     -Headers $AuthHeaders `
     -Body @{
         prompt = "Please record this receipt as an expense into our business ledger."
@@ -168,7 +169,7 @@ Run-Test `
     -ResponseValidator {
         param($json)
         $mutationActions = @($json.actions | Where-Object { $_.isMutation -eq $true })
-        return ($json.success -eq $true -and $mutationActions.Count -gt 0)
+        return ($json.success -eq $true -and $mutationActions.Count -eq 0)
     }
 
 # --------------------------------------------------------------------

@@ -13,7 +13,7 @@ import SettingsModule from "./components/SettingsModule";
 import LoginScreen from "./components/LoginScreen";
 import BintiAiAssistantModal from "./components/BintiAiAssistantModal";
 import { apiRequest, clearAuthToken, setAuthToken } from "./services/apiClient";
-import { Client, ProductService, Quote, Invoice, Expense, CompanySettings, PaymentRecord, AuditLogEntry } from "./types";
+import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord, AuditLogEntry } from "./types";
 import { AgentAction, isMutationAction } from "./services/geminiService";
 import { normalizeMultilineText, generateNextDocumentNumber } from "./utils/text";
 
@@ -87,7 +87,6 @@ export default function App() {
   const [products, setProducts] = useState<ProductService[]>([]);
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => {
     const saved = localStorage.getItem("binti_company_settings");
     if (saved) {
@@ -183,13 +182,12 @@ export default function App() {
       apiRequest<ProductService[]>('/api/products'),
       apiRequest<Quote[]>('/api/quotes'),
       apiRequest<Invoice[]>('/api/invoices'),
-      apiRequest<Expense[]>('/api/expenses'),
       apiRequest<CompanySettings>('/api/settings')
     ]);
-    const [clientsRes, productsRes, quotesRes, invoicesRes, expensesRes, settingsRes] = results;
+    const [clientsRes, productsRes, quotesRes, invoicesRes, settingsRes] = results;
 
     const failures = results
-      .map((r, i) => ({ r, name: ['clients', 'products', 'quotes', 'invoices', 'expenses', 'settings'][i] }))
+      .map((r, i) => ({ r, name: ['clients', 'products', 'quotes', 'invoices', 'settings'][i] }))
       .filter(({ r }) => r.status === 'rejected');
     if (failures.length > 0) {
       const detail = failures
@@ -211,7 +209,6 @@ export default function App() {
       const apiProducts = productsRes.status === 'fulfilled' ? productsRes.value : null;
       const apiQuotes = quotesRes.status === 'fulfilled' ? quotesRes.value : null;
       const apiInvoices = invoicesRes.status === 'fulfilled' ? invoicesRes.value : null;
-      const apiExpenses = expensesRes.status === 'fulfilled' ? expensesRes.value : null;
       const apiSettings = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
 
       // Only overwrite a list when its own request succeeded — a failed
@@ -260,19 +257,6 @@ export default function App() {
       if (apiInvoices) {
         setInvoices(normalizedInvoices);
       }
-      if (apiExpenses) {
-        setExpenses((apiExpenses || []).map((expense: any) => ({
-          id: expense.id,
-          date: expense.date || new Date().toISOString().slice(0, 10),
-          category: expense.category || 'Other',
-          description: expense.description || '',
-          amount: Number(expense.amount || 0),
-          eventName: expense.eventName,
-          referenceNumber: expense.referenceNumber,
-          notes: expense.notes
-        })));
-      }
-
       // Restore selected quote or invoice from saved session timeout state
       const restoreQuoteId = sessionStorage.getItem("binti_restore_quote_id");
       if (restoreQuoteId) {
@@ -1037,37 +1021,6 @@ export default function App() {
         }
         break;
       }
-      case "create_expense": {
-        const payload = action.payload || {};
-        const amount = Number(payload.amount || 0);
-        const category = payload.category || 'Other';
-        const desc = payload.description || 'Expense Entry';
-
-        if (!Number.isFinite(amount) || amount <= 0 || !String(desc).trim()) {
-          throw new Error("Expense requires a description and a positive amount.");
-        }
-        await apiRequest('/api/expenses', {
-          method: 'POST',
-          body: JSON.stringify({
-            category,
-            description: desc,
-            amount,
-            eventName: payload.eventName,
-            referenceNumber: payload.referenceNumber,
-            date: payload.date,
-            notes: payload.notes
-          })
-        });
-        await fetchAllData();
-
-        logAuditEvent(
-          "create_expense",
-          `Recorded expense of ${companySettings.currency || 'KES'} ${amount.toLocaleString()} (${category} - ${desc})`,
-          payload
-        );
-        showToast(`Expense of ${companySettings.currency || 'KES'} ${amount.toLocaleString()} recorded.`);
-        break;
-      }
       case "import_clients": {
         const clientList = action.payload?.clients || action.payload?.Clients || (Array.isArray(action.payload) ? action.payload : []);
         if (Array.isArray(clientList) && clientList.length > 0) {
@@ -1139,7 +1092,6 @@ export default function App() {
         break;
       }
       case "import_invoices":
-      case "import_expenses":
         throw new Error(`AI action ${action.type} is not implemented yet.`);
       case "open_client":
         navigateToModule("clients", { closeAssistant: true });
@@ -1352,7 +1304,6 @@ export default function App() {
             quotes={quotes}
             clients={clients}
             products={products}
-            expenses={expenses}
             currency={companySettings.currency}
             initialTab={activeTab === "reports" ? "reports" : "analytics"}
           />

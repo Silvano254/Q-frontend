@@ -17,11 +17,6 @@ export interface SaaSContext {
   totalInvoices?: number;
   totalRevenue?: number;
   pendingBalance?: number;
-  // NOTE: The expense fields below are LOCAL / document-derived estimates only.
-  // The canonical database schema has NO expenses table yet — never treat these
-  // values as live database metrics (the backend grounding rules enforce this).
-  totalExpenses?: number;
-  netEstimatedProfit?: number;
   collectionRate?: number;
   conversionRate?: number;
   currency?: string;
@@ -32,7 +27,6 @@ export interface SaaSContext {
   invoicesSummary?: Array<{ id: string; invoiceNumber: string; clientName: string; grandTotal: number; balanceRemaining: number; status: string; dueDate?: string }>;
   quotesSummary?: Array<{ id: string; quoteNumber: string; clientName: string; grandTotal: number; status: string }>;
   productsCatalog?: Array<{ id: string; name: string; category: string; price: number; unit: string }>;
-  expensesSummary?: Array<{ id: string; category: string; description: string; amount: number; date?: string; eventName?: string }>;
 }
 
 /**
@@ -67,18 +61,16 @@ export type MutationActionType =
   | "create_quote" 
   | "create_invoice" 
   | "record_payment" 
-  | "create_expense" 
   | "update_client" 
   | "update_invoice"
   | "import_clients"
   | "import_products"
   | "import_invoices"
-  | "import_expenses";
 
 export const MUTATION_ACTION_TYPES: ReadonlySet<MutationActionType> = new Set([
-  "create_quote", "create_invoice", "record_payment", "create_expense",
+  "create_quote", "create_invoice", "record_payment",
   "update_client", "update_invoice", "import_clients", "import_products",
-  "import_invoices", "import_expenses"
+  "import_invoices"
 ]);
 
 export function isMutationAction(action: AgentAction): boolean {
@@ -117,16 +109,6 @@ export interface CreateInvoicePayload {
   dueDate?: string;
   notes?: string;
   isCreating?: boolean;
-}
-
-export interface CreateExpensePayload {
-  category: 'Transport & Logistics' | 'Labor & Crew' | 'Equipment Maintenance' | 'Fuel' | 'Decor & Consumables' | 'Utilities & Rent' | 'Other';
-  description: string;
-  amount: number;
-  eventName?: string;
-  referenceNumber?: string;
-  date?: string;
-  notes?: string;
 }
 
 export interface UpdateClientPayload {
@@ -173,7 +155,6 @@ export interface AgentAction {
     | RecordPaymentPayload
     | CreateQuotePayload
     | CreateInvoicePayload
-    | CreateExpensePayload
     | UpdateClientPayload
     | ImportClientsPayload
     | ImportProductsPayload
@@ -586,37 +567,6 @@ function extractActionsFromPrompt(prompt: string, context?: SaaSContext, attache
 
   // Stage 2 & 3: Document Ingestion & Action Proposal (ONLY if user has positive write/import intent)
   if (attachedDoc && isWriteIntent) {
-    const docName = attachedDoc.fileName.toLowerCase();
-    const docText = (attachedDoc.textContent || '').toLowerCase();
-    const isImage = attachedDoc.mimeType.startsWith('image/');
-
-    // Receipt / Expense document
-    if (isImage || docName.includes('receipt') || docName.includes('expense') || docText.includes('total:') || docText.includes('amount:')) {
-      const finDoc = attachedDoc.extractedData?.financialDoc;
-      const amount = finDoc?.totalAmount;
-      const supplier = finDoc?.supplierName || (docName.split('.')[0].replace(/[-_]/g, ' ') || 'Supplier');
-      const category = finDoc?.category || 'Transport & Logistics';
-
-      if (amount && amount > 0) {
-        actions.push({
-          id: `act-exp-${Date.now()}`,
-          type: "create_expense",
-          label: `Record Expense: KES ${amount.toLocaleString()} (${supplier})`,
-          icon: "receipt",
-          isMutation: true,
-          riskLevel: "medium",
-          summary: `Record a ${category} expense of KES ${amount.toLocaleString()} from ${supplier} into your business expense ledger.`,
-          payload: {
-            category,
-            description: `${category} purchase - ${supplier}`,
-            amount,
-            referenceNumber: finDoc?.documentNumber || `EXP-${Date.now().toString().slice(-4)}`,
-            date: finDoc?.transactionDate || new Date().toISOString().split('T')[0]
-          }
-        });
-      }
-    }
-
     // Tabular Excel / CSV Tables
     if (attachedDoc.extractedData?.tables && attachedDoc.extractedData.tables.length > 0) {
       const allTables = attachedDoc.extractedData.tables;

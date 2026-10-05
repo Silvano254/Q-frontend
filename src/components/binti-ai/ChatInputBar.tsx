@@ -155,7 +155,7 @@ export const ChatInputBar = memo(function ChatInputBar({
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={(e) => handleFileInputChange(e, "Please extract all expenses, vendor details, and amounts from this receipt image.")}
+          onChange={(e) => handleFileInputChange(e, "Please analyze this image and summarize the information it contains.")}
         />
 
         {/* Attachment Menu Button */}
@@ -166,7 +166,7 @@ export const ChatInputBar = memo(function ChatInputBar({
             disabled={loading}
             aria-expanded={showAttachMenu}
             aria-label="Add attachment or action"
-            title="Attach file, spreadsheet, or receipt"
+            title="Attach a file, spreadsheet, or image"
             className="p-1.5 sm:p-2 text-gray-500 hover:text-[#80237E] hover:bg-purple-50 rounded-xl transition-all disabled:opacity-50"
           >
             <Plus className={`w-4 h-4 transition-transform duration-200 ${showAttachMenu ? "rotate-45 text-[#80237E]" : ""}`} />
@@ -202,8 +202,8 @@ export const ChatInputBar = memo(function ChatInputBar({
                   <Camera className="w-3.5 h-3.5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="font-bold truncate">Receipt, Fuel Slip or Image</p>
-                  <p className="text-[10px] text-gray-400 truncate">Extract expense amounts & vendors via Vision</p>
+                  <p className="font-bold truncate">Image or Document Photo</p>
+                  <p className="text-[10px] text-gray-400 truncate">Extract text and details with Vision</p>
                 </div>
               </button>
 

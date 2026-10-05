@@ -12,7 +12,7 @@ import ReportsAnalyticsModule from "./components/ReportsAnalyticsModule";
 import SettingsModule from "./components/SettingsModule";
 import LoginScreen from "./components/LoginScreen";
 import BintiAiAssistantModal from "./components/BintiAiAssistantModal";
-import { apiRequest, clearAuthToken, setAuthToken } from "./services/apiClient";
+import { apiRequest, clearAuthToken, setAuthToken, getAuthToken } from "./services/apiClient";
 import { Client, ProductService, Quote, Invoice, CompanySettings, PaymentRecord, AuditLogEntry } from "./types";
 import { AgentAction, isMutationAction } from "./services/geminiService";
 import { normalizeMultilineText, generateNextDocumentNumber } from "./utils/text";
@@ -350,7 +350,31 @@ export default function App() {
           setIsAuthenticated(false);
         }
       } catch (err) {
-        setIsAuthenticated(false);
+        const msg = err instanceof Error ? err.message : String(err);
+        const status = (err as { status?: number })?.status;
+        console.error("Session verify failed:", msg, { status });
+        // Only a genuine auth rejection may force a sign-out. Network failures,
+        // config errors, or 5xx must NOT silently log the user out — keep the
+        // stored session and surface the actual reason instead.
+        const isAuthRejection =
+          status === 401 ||
+          status === 400 ||
+          status === 404 ||
+          /session has expired|invalid or expired token|no longer exists|authentication required/i.test(msg);
+        const storedUser = localStorage.getItem("binti_user");
+        if (isAuthRejection || !storedUser || !getAuthToken()) {
+          setIsAuthenticated(false);
+          // Only surface a reason when a stored session failed to restore —
+          // a plain signed-out state (logout) stays quiet.
+          if (storedUser) {
+            setAuthError(`Your session could not be restored: ${msg}`);
+          }
+        } else {
+          setIsAuthenticated(true);
+          setCurrentUser(JSON.parse(storedUser));
+          showToast(`Session check warning: ${msg}`, "warning");
+          await fetchAllData();
+        }
       } finally {
         setIsAuthChecking(false);
       }

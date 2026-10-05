@@ -57,12 +57,12 @@ export default function App() {
     }
   }, [theme]);
 
-  const showToast = useCallback((message: string, type: "success" | "warning" = "success") => {
+  const showToast = useCallback((message: string, type: "success" | "warning" = "success", durationMs = 2500) => {
     if (toastTimeoutId.current) clearTimeout(toastTimeoutId.current);
     setToast({ message, type });
     toastTimeoutId.current = setTimeout(() => {
       setToast(null);
-    }, 2500);
+    }, durationMs);
   }, []);
 
   // AI Assistant Drawer & Onboarding States
@@ -200,9 +200,19 @@ export default function App() {
       console.error("Partial data load failure:", detail);
       showToast(
         `Some data failed to load — ${detail}`,
-        "warning"
+        "warning",
+        10000
       );
     }
+
+    // Always log the post-load counts so an empty list can be told apart
+    // from a failed request when debugging "data disappeared" reports.
+    console.info("[Binti] data load statuses:", results.map((r, i) => {
+      const name = ['clients', 'products', 'quotes', 'invoices', 'settings'][i];
+      return r.status === 'fulfilled'
+        ? `${name}=ok(${Array.isArray(r.value) ? r.value.length : 'obj'})`
+        : `${name}=FAILED(${r.reason instanceof Error ? r.reason.message : String(r.reason)})`;
+    }).join(" | "));
 
     try {
       const apiClients = clientsRes.status === 'fulfilled' ? clientsRes.value : null;

@@ -17,6 +17,13 @@ import { Client, ProductService, Quote, Invoice, Expense, CompanySettings, Payme
 import { AgentAction, isMutationAction } from "./services/geminiService";
 import { normalizeMultilineText, generateNextDocumentNumber } from "./utils/text";
 
+const NAVIGATION_TABS = ["dashboard", "quotes", "invoices", "clients", "products", "payments", "reports", "analytics", "settings"] as const;
+
+function tabFromLocation(): string {
+  const tab = window.location.hash.replace(/^#/, "").toLowerCase();
+  return NAVIGATION_TABS.includes(tab as typeof NAVIGATION_TABS[number]) ? tab : "dashboard";
+}
+
 export default function App() {
   // Authentication State
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
@@ -74,7 +81,7 @@ export default function App() {
   };
 
   // Master Data States
-  const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [activeTab, setActiveTab] = useState<string>(() => tabFromLocation());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [products, setProducts] = useState<ProductService[]>([]);
@@ -107,6 +114,9 @@ export default function App() {
   // Cross-Module Selection States
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [quoteBuilderRequest, setQuoteBuilderRequest] = useState(0);
+  const [invoiceBuilderRequest, setInvoiceBuilderRequest] = useState(0);
+  const [invoiceStatusFilterRequest, setInvoiceStatusFilterRequest] = useState<{ id: number; status: string } | null>(null);
   const [globalSearch, setGlobalSearch] = useState("");
   const [notifications, setNotifications] = useState<Array<{
     id: string;
@@ -127,17 +137,78 @@ export default function App() {
   const globalSearchRef = useRef(globalSearch);
   globalSearchRef.current = globalSearch;
 
-  // Load all persisted data on initial login or explicit reload
+  /** One navigation boundary for the sidebar, AI, and cross-module links. */
+  const navigateToModule = useCallback((tab: string, options: {
+    openQuoteBuilder?: boolean;
+    openInvoiceBuilder?: boolean;
+    invoiceStatus?: string;
+    closeAssistant?: boolean;
+  } = {}) => {
+    const normalizedTab = NAVIGATION_TABS.includes(tab as typeof NAVIGATION_TABS[number]) ? tab : "dashboard";
+    setSelectedInvoice(null);
+    setSelectedQuote(null);
+    setIsMobileMenuOpen(false);
+    setActiveTab(normalizedTab);
+    const destination = `#${normalizedTab}`;
+    if (window.location.hash !== destination) {
+      window.history.pushState({ tab }, "", destination);
+    }
+    if (options.openQuoteBuilder) setQuoteBuilderRequest(id => id + 1);
+    if (options.openInvoiceBuilder) setInvoiceBuilderRequest(id => id + 1);
+    if (options.invoiceStatus) setInvoiceStatusFilterRequest({ id: Date.now(), status: options.invoiceStatus });
+    if (options.closeAssistant) setIsAiAssistantOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const syncFromBrowserHistory = () => {
+      setSelectedInvoice(null);
+      setSelectedQuote(null);
+      setIsMobileMenuOpen(false);
+      setActiveTab(tabFromLocation());
+    };
+    window.addEventListener("popstate", syncFromBrowserHistory);
+    window.addEventListener("hashchange", syncFromBrowserHistory);
+    return () => {
+      window.removeEventListener("popstate", syncFromBrowserHistory);
+      window.removeEventListener("hashchange", syncFromBrowserHistory);
+    };
+  }, []);
+
+  // Load all persisted data on initial login or explicit reload.
+  // Uses allSettled so ONE failing endpoint can never blank every module:
+  // successful lists still render, and the failure surfaces as a toast.
   const fetchAllData = useCallback(async () => {
+    const results = await Promise.allSettled([
+      apiRequest<Client[]>('/api/clients'),
+      apiRequest<ProductService[]>('/api/products'),
+      apiRequest<Quote[]>('/api/quotes'),
+      apiRequest<Invoice[]>('/api/invoices'),
+      apiRequest<Expense[]>('/api/expenses'),
+      apiRequest<CompanySettings>('/api/settings')
+    ]);
+    const [clientsRes, productsRes, quotesRes, invoicesRes, expensesRes, settingsRes] = results;
+
+    const failures = results
+      .map((r, i) => ({ r, name: ['clients', 'products', 'quotes', 'invoices', 'expenses', 'settings'][i] }))
+      .filter(({ r }) => r.status === 'rejected');
+    if (failures.length > 0) {
+      console.error("Partial data load failure:", failures.map(f => `${(f as { name: string }).name}: ${(f.r as PromiseRejectedResult).reason}`));
+      showToast(
+        `Some data failed to load (${failures.map(f => (f as { name: string }).name).join(", ")}). Showing what loaded — check connection and refresh.`,
+        "warning"
+      );
+    }
+
     try {
-      const [apiClients, apiProducts, apiQuotes, apiInvoices, apiExpenses, apiSettings] = await Promise.all([
-        apiRequest<Client[]>('/api/clients'),
-        apiRequest<ProductService[]>('/api/products'),
-        apiRequest<Quote[]>('/api/quotes'),
-        apiRequest<Invoice[]>('/api/invoices'),
-        apiRequest<Expense[]>('/api/expenses'),
-        apiRequest<CompanySettings>('/api/settings')
-      ]);
+      const apiClients = clientsRes.status === 'fulfilled' ? clientsRes.value : null;
+      const apiProducts = productsRes.status === 'fulfilled' ? productsRes.value : null;
+      const apiQuotes = quotesRes.status === 'fulfilled' ? quotesRes.value : null;
+      const apiInvoices = invoicesRes.status === 'fulfilled' ? invoicesRes.value : null;
+      const apiExpenses = expensesRes.status === 'fulfilled' ? expensesRes.value : null;
+      const apiSettings = settingsRes.status === 'fulfilled' ? settingsRes.value : null;
+
+      // Only overwrite a list when its own request succeeded — a failed
+      // endpoint keeps the previous state instead of blanking the module.
 
       const normalizedProducts: ProductService[] = (apiProducts || []).map((p: any) => ({
         id: p.id,
@@ -170,20 +241,30 @@ export default function App() {
         };
       });
 
-      setClients(apiClients || []);
-      setProducts(normalizedProducts);
-      setQuotes(apiQuotes || []);
-      setInvoices(normalizedInvoices);
-      setExpenses((apiExpenses || []).map((expense: any) => ({
-        id: expense.id,
-        date: expense.date || new Date().toISOString().slice(0, 10),
-        category: expense.category || 'Other',
-        description: expense.description || '',
-        amount: Number(expense.amount || 0),
-        eventName: expense.eventName,
-        referenceNumber: expense.referenceNumber,
-        notes: expense.notes
-      })));
+      if (apiClients) {
+        setClients(apiClients || []);
+      }
+      if (apiProducts) {
+        setProducts(normalizedProducts);
+      }
+      if (apiQuotes) {
+        setQuotes(apiQuotes || []);
+      }
+      if (apiInvoices) {
+        setInvoices(normalizedInvoices);
+      }
+      if (apiExpenses) {
+        setExpenses((apiExpenses || []).map((expense: any) => ({
+          id: expense.id,
+          date: expense.date || new Date().toISOString().slice(0, 10),
+          category: expense.category || 'Other',
+          description: expense.description || '',
+          amount: Number(expense.amount || 0),
+          eventName: expense.eventName,
+          referenceNumber: expense.referenceNumber,
+          notes: expense.notes
+        })));
+      }
 
       // Restore selected quote or invoice from saved session timeout state
       const restoreQuoteId = sessionStorage.getItem("binti_restore_quote_id");
@@ -822,12 +903,15 @@ export default function App() {
     switch (action.type) {
       case "navigate":
         if (action.payload?.tab) {
-          setActiveTab(action.payload.tab);
+          navigateToModule(action.payload.tab, { closeAssistant: true });
         }
         break;
       case "filter_invoices":
-        setActiveTab("invoices");
-        showToast("Filtering invoices ledger");
+        navigateToModule("invoices", {
+          invoiceStatus: action.payload?.status || "overdue",
+          closeAssistant: true
+        });
+        showToast(`Showing ${(action.payload?.status || "overdue").replace(/_/g, " ")} invoices`);
         break;
       case "create_quote": {
         const payload = action.payload || {};
@@ -884,9 +968,9 @@ export default function App() {
           } as Partial<Quote>);
           logAuditEvent("create_quote", `Created quotation for ${resolvedName} (${grandTotal}) via Binti AI`, payload);
           showToast(`Quotation created for ${resolvedName}.`);
-          setActiveTab("quotes");
+          navigateToModule("quotes", { closeAssistant: true });
         } else {
-          setActiveTab("quotes");
+          navigateToModule("quotes", { openQuoteBuilder: true, closeAssistant: true });
           if (payload.clientName) {
             showToast(`Opening Quote Builder for ${payload.clientName}`);
           } else {
@@ -901,9 +985,9 @@ export default function App() {
           await handleCreateInvoice(payload as Partial<Invoice>);
           logAuditEvent("create_invoice", `Issued tax invoice for ${payload.clientName || 'Client'}`, payload);
           showToast(`Tax invoice issued for ${payload.clientName || 'Client'}.`);
-          setActiveTab("invoices");
+          navigateToModule("invoices", { closeAssistant: true });
         } else {
-          setActiveTab("invoices");
+          navigateToModule("invoices", { openInvoiceBuilder: true, closeAssistant: true });
           if (payload.clientName) {
             showToast(`Opening Invoice Builder for ${payload.clientName}`);
           } else {
@@ -939,9 +1023,9 @@ export default function App() {
             payload
           );
           showToast(`Payment of ${companySettings.currency || 'KES'} ${amt.toLocaleString()} recorded.`);
-          setActiveTab("invoices");
+          navigateToModule("invoices", { closeAssistant: true });
         } else {
-          setActiveTab("invoices");
+          navigateToModule("invoices", { closeAssistant: true });
           showToast("Opened Invoices to record payment.");
         }
         break;
@@ -1051,18 +1135,18 @@ export default function App() {
       case "import_expenses":
         throw new Error(`AI action ${action.type} is not implemented yet.`);
       case "open_client":
-        setActiveTab("clients");
+        navigateToModule("clients", { closeAssistant: true });
         showToast("Opening Client directory");
         break;
       case "open_settings":
-        setActiveTab("settings");
+        navigateToModule("settings", { closeAssistant: true });
         break;
       default:
         if (isMutationAction(action)) {
           throw new Error(`Unsupported database action: ${action.type}`);
         }
         if (action.payload?.tab) {
-          setActiveTab(action.payload.tab);
+          navigateToModule(action.payload.tab, { closeAssistant: true });
         }
         break;
     }
@@ -1197,6 +1281,7 @@ export default function App() {
             onConvertToInvoice={handleConvertQuoteToInvoice}
             selectedQuote={selectedQuote}
             setSelectedQuote={setSelectedQuote}
+            openCreateRequest={quoteBuilderRequest}
             showToast={showToast}
           />
         );
@@ -1214,6 +1299,8 @@ export default function App() {
             onDeleteInvoice={handleDeleteInvoice}
             selectedInvoice={selectedInvoice}
             setSelectedInvoice={setSelectedInvoice}
+            openCreateRequest={invoiceBuilderRequest}
+            statusFilterRequest={invoiceStatusFilterRequest}
             showToast={showToast}
           />
         );
@@ -1247,7 +1334,7 @@ export default function App() {
             invoices={invoices}
             currency={companySettings.currency}
             onSelectInvoice={(inv) => setSelectedInvoice(inv)}
-            onNavigateToModule={(mod) => setActiveTab(mod.toLowerCase())}
+            onNavigateToModule={(mod) => navigateToModule(mod.toLowerCase())}
           />
         );
       case "reports":
@@ -1260,6 +1347,7 @@ export default function App() {
             products={products}
             expenses={expenses}
             currency={companySettings.currency}
+            initialTab={activeTab === "reports" ? "reports" : "analytics"}
           />
         );
       case "settings":
@@ -1324,12 +1412,7 @@ export default function App() {
       {/* Sidebar Navigation Panel */}
       <Sidebar 
         activeTab={activeTab} 
-        setActiveTab={(tab) => {
-          setActiveTab(tab);
-          setSelectedInvoice(null);
-          setSelectedQuote(null);
-          setIsMobileMenuOpen(false);
-        }} 
+        setActiveTab={(tab) => navigateToModule(tab)}
         onLogout={handleLogout}
         userName={currentUser?.name}
         userRole={currentUser?.role}

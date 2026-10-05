@@ -177,7 +177,10 @@ export async function apiRequest<T>(
       if (attempt < MAX_RETRIES && !isMutation) {
         const delayMs = getRetryDelay(attempt);
         await new Promise((resolve) => setTimeout(resolve, delayMs));
+        continue;
       }
+
+      throw lastError;
     }
   }
 

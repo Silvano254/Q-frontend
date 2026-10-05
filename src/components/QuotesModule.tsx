@@ -359,6 +359,7 @@ export default function QuotesModule({
       resetForm();
     } catch (err) {
       console.error("Save quote error:", err);
+      showToast(`Failed to save quote: ${err instanceof Error ? err.message : String(err)}`, "warning");
     } finally {
       setSavingStatus(null);
     }

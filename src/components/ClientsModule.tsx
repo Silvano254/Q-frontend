@@ -104,6 +104,7 @@ export default function ClientsModule({
       resetForm();
     } catch (err) {
       console.error("Save client error:", err);
+      showToast(`Failed to save client: ${err instanceof Error ? err.message : String(err)}`, "warning");
     } finally {
       setIsSaving(false);
     }

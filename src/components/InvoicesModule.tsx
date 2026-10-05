@@ -371,6 +371,7 @@ export default function InvoicesModule({
       resetForm();
     } catch (err) {
       console.error("Save invoice error:", err);
+      showToast(`Failed to save invoice: ${err instanceof Error ? err.message : String(err)}`, "warning");
     } finally {
       setSavingStatus(null);
     }

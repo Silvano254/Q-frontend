@@ -678,7 +678,7 @@ export default function InvoicesModule({
 
       doc.text(splitDesc, colX[0] + 3, textY);
       doc.text(item.quantity.toString(), colX[1] + colWidths[1] / 2, valueY, { align: "center" });
-      doc.text(item.unitPrice.toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: "right" });
+      doc.text((Number(item.unitPrice) || 0).toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: "right" });
       
       const lineNet = Math.round((item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100)) * 100) / 100;
       if (invoice.taxTotal > 0) {
@@ -704,18 +704,18 @@ export default function InvoicesModule({
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
 
     doc.text("Subtotal (excl. VAT):", totalsLeftX + 3, y + 4);
-    doc.text(`${currency} ${invoice.subtotal.toLocaleString()}`, totalsValX, y + 4, { align: "right" });
+    doc.text(`${currency} ${(Number(invoice.subtotal) || 0).toLocaleString()}`, totalsValX, y + 4, { align: "right" });
     
     y += 6;
     if (invoice.discountTotal > 0) {
       doc.text("Discount Deducted:", totalsLeftX + 3, y + 4);
-      doc.text(`-${currency} ${invoice.discountTotal.toLocaleString()}`, totalsValX, y + 4, { align: "right" });
+      doc.text(`-${currency} ${(Number(invoice.discountTotal) || 0).toLocaleString()}`, totalsValX, y + 4, { align: "right" });
       y += 6;
     }
     
     if (invoice.taxTotal > 0) {
       doc.text("Tax Amount (VAT 16%):", totalsLeftX + 3, y + 4);
-      doc.text(`${currency} ${invoice.taxTotal.toLocaleString()}`, totalsValX, y + 4, { align: "right" });
+      doc.text(`${currency} ${(Number(invoice.taxTotal) || 0).toLocaleString()}`, totalsValX, y + 4, { align: "right" });
       y += 6;
     }
 
@@ -1010,7 +1010,7 @@ export default function InvoicesModule({
 
       doc.text(descriptionLines, colX[0] + 3, textY);
       doc.text(String(item.quantity), colX[1] + colWidths[1] / 2, valueY, { align: 'center' });
-      doc.text(item.unitPrice.toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: 'right' });
+      doc.text((Number(item.unitPrice) || 0).toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: 'right' });
       const lineNet = Math.round((item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100)) * 100) / 100;
       if (invoice.taxTotal > 0) {
         doc.text(`${item.tax}%`, colX[3] + colWidths[3] / 2, valueY, { align: 'center' });
@@ -1034,7 +1034,7 @@ export default function InvoicesModule({
     doc.setFontSize(9.5);
     doc.setTextColor(black[0], black[1], black[2]);
     doc.text('TOTAL:', totalAlignX - 45, y + 2, { align: 'right' });
-    doc.text(`${currency} ${invoice.grandTotal.toLocaleString()}`, totalAlignX, y + 2, { align: 'right' });
+    doc.text(`${currency} ${(Number(invoice.grandTotal) || 0).toLocaleString()}`, totalAlignX, y + 2, { align: 'right' });
 
     y += 6;
 
@@ -1742,25 +1742,25 @@ export default function InvoicesModule({
                 <div className="space-y-2 text-xs divide-y divide-gray-800">
                   <div className="flex justify-between py-1.5">
                     <span className="text-gray-400">Invoiced Subtotal</span>
-                    <span className="font-semibold text-gray-200">{currency} {selectedInvoice.subtotal.toLocaleString()}</span>
+                    <span className="font-semibold text-gray-200">{currency} {(Number(selectedInvoice.subtotal) || 0).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between py-1.5">
                     <span className="text-gray-400">Total Discount</span>
-                    <span className="font-semibold text-emerald-400">({currency} {selectedInvoice.discountTotal.toLocaleString()})</span>
+                    <span className="font-semibold text-emerald-400">({currency} {(Number(selectedInvoice.discountTotal) || 0).toLocaleString()})</span>
                   </div>
                   {selectedInvoice.taxTotal > 0 && (
                     <div className="flex justify-between py-1.5">
                       <span className="text-gray-400">Tax Payable (VAT 16%)</span>
-                      <span className="font-semibold text-gray-200">{currency} {selectedInvoice.taxTotal.toLocaleString()}</span>
+                      <span className="font-semibold text-gray-200">{currency} {(Number(selectedInvoice.taxTotal) || 0).toLocaleString()}</span>
                     </div>
                   )}
                   <div className="flex justify-between py-2 border-t border-gray-800 text-emerald-400">
                     <span>Total Paid to Date</span>
-                    <span className="font-semibold">-{currency} {(selectedInvoice.grandTotal - selectedInvoice.balanceRemaining).toLocaleString()}</span>
+                    <span className="font-semibold">-{currency} {((Number(selectedInvoice.grandTotal) || 0) - (Number(selectedInvoice.balanceRemaining) || 0)).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between py-3 text-sm font-bold border-t border-gray-800">
                     <span className="text-[#D4AF37]">BALANCE DUE:</span>
-                    <span className="text-base text-white">{currency} {selectedInvoice.balanceRemaining.toLocaleString()}</span>
+                    <span className="text-base text-white">{currency} {(Number(selectedInvoice.balanceRemaining ?? selectedInvoice.grandTotal) || 0).toLocaleString()}</span>
                   </div>
                 </div>
 

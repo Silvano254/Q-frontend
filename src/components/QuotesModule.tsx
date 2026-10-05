@@ -69,6 +69,7 @@ export default function QuotesModule({
   
   // Form States
   const [clientId, setClientId] = useState("");
+  const [clientNameInput, setClientNameInput] = useState("");
   const [quoteDate, setQuoteDate] = useState(new Date().toISOString().split("T")[0]);
   const [expiryDate, setExpiryDate] = useState("");
   const [applyTax, setApplyTax] = useState(true);
@@ -306,16 +307,17 @@ export default function QuotesModule({
     };
   };
 
-  // Save Quote
+  // Save Quote — a saved client is optional: either pick one or type a walk-in name.
   const handleSaveQuote = async (status: 'draft' | 'sent') => {
-    if (!clientId) {
-      showToast("Please select a client before saving.", "warning");
+    const selectedCli = clients.find(c => c.id === clientId);
+    const resolvedName = (selectedCli ? selectedCli.name : clientNameInput.trim()) || "";
+    if (!resolvedName) {
+      showToast("Enter a client name or select a saved client before saving.", "warning");
       return;
     }
     setSavingStatus(status);
     try {
       const totals = getTotals();
-      const selectedCli = clients.find(c => c.id === clientId);
       
       const baseItems: BillingItem[] = items.map(i => ({
         id: i.id || "qi_" + Math.random().toString(),
@@ -343,8 +345,8 @@ export default function QuotesModule({
       }
 
       const quotePayload: Partial<Quote> = {
-        clientId,
-        clientName: selectedCli ? selectedCli.name : "Unknown",
+        clientId: selectedCli ? selectedCli.id : "",
+        clientName: resolvedName,
         quoteDate,
         expiryDate,
         items: finalItems,
@@ -367,6 +369,7 @@ export default function QuotesModule({
 
   const resetForm = () => {
     setClientId("");
+    setClientNameInput("");
     setQuoteDate(new Date().toISOString().split("T")[0]);
     setItems([{ id: "qi_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }]);
     setIncludeTransport(false);
@@ -1037,7 +1040,7 @@ export default function QuotesModule({
   const handleRecommendTerms = async () => {
     setRecommendingTerms(true);
     try {
-      const clientName = clients.find(c => c.id === clientId)?.name || "Valued Client";
+      const clientName = clients.find(c => c.id === clientId)?.name || clientNameInput.trim() || "Valued Client";
       const mappedItems = items
         .filter(item => item.description)
         .map(item => ({ description: item.description || "" }));
@@ -1102,17 +1105,24 @@ export default function QuotesModule({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Client Picker */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Select Binti Client</label>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Select Binti Client <span className="normal-case font-normal text-gray-400">(optional if name typed below)</span></label>
               <select
                 value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
+                onChange={(e) => { setClientId(e.target.value); if (e.target.value) setClientNameInput(""); }}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1] bg-white text-gray-700"
               >
-                <option value="">-- Click to choose client --</option>
+                <option value="">-- Walk-in / no saved client --</option>
                 {clients.map(c => (
                   <option key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ""}</option>
                 ))}
               </select>
+              <input
+                type="text"
+                value={clientNameInput}
+                onChange={(e) => { setClientNameInput(e.target.value); if (e.target.value.trim()) setClientId(""); }}
+                placeholder="Or type walk-in client name (e.g. John Kamau)"
+                className="mt-2 w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1] text-gray-700"
+              />
             </div>
 
             {/* Quote Date */}

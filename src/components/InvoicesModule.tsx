@@ -72,6 +72,7 @@ export default function InvoicesModule({
   
   // Form States
   const [clientId, setClientId] = useState("");
+  const [clientNameInput, setClientNameInput] = useState("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
   const [dueDate, setDueDate] = useState("");
   const [applyTax, setApplyTax] = useState(true);
@@ -317,16 +318,17 @@ export default function InvoicesModule({
     };
   };
 
-  // Save Invoice
+  // Save Invoice — a saved client is optional: either pick one or type a walk-in name.
   const handleSaveInvoice = async (status: 'draft' | 'pending') => {
-    if (!clientId) {
-      showToast("Please select a client before saving.", "warning");
+    const selectedCli = clients.find(c => c.id === clientId);
+    const resolvedName = (selectedCli ? selectedCli.name : clientNameInput.trim()) || "";
+    if (!resolvedName) {
+      showToast("Enter a client name or select a saved client before saving.", "warning");
       return;
     }
     setSavingStatus(status);
     try {
       const totals = getTotals();
-      const selectedCli = clients.find(c => c.id === clientId);
       
       const baseItems: BillingItem[] = items.map(i => ({
         id: i.id || "ii_" + Math.random().toString(),
@@ -354,8 +356,8 @@ export default function InvoicesModule({
       }
 
       const invoicePayload: Partial<Invoice> = {
-        clientId,
-        clientName: selectedCli ? selectedCli.name : "Unknown",
+        clientId: selectedCli ? selectedCli.id : "",
+        clientName: resolvedName,
         issueDate,
         dueDate,
         items: finalItems,
@@ -379,6 +381,7 @@ export default function InvoicesModule({
 
   const resetForm = () => {
     setClientId("");
+    setClientNameInput("");
     setIssueDate(new Date().toISOString().split("T")[0]);
     setItems([{ id: "ii_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }]);
     setIncludeTransport(false);
@@ -1240,17 +1243,24 @@ export default function InvoicesModule({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Client Picker */}
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Select Binti Client</label>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">Select Binti Client <span className="normal-case font-normal text-gray-400">(optional if name typed below)</span></label>
               <select
                 value={clientId}
-                onChange={(e) => setClientId(e.target.value)}
+                onChange={(e) => { setClientId(e.target.value); if (e.target.value) setClientNameInput(""); }}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1] bg-white text-gray-700"
               >
-                <option value="">-- Choose client representative --</option>
+                <option value="">-- Walk-in / no saved client --</option>
                 {clients.map(c => (
                   <option key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ""}</option>
                 ))}
               </select>
+              <input
+                type="text"
+                value={clientNameInput}
+                onChange={(e) => { setClientNameInput(e.target.value); if (e.target.value.trim()) setClientId(""); }}
+                placeholder="Or type walk-in client name (e.g. Jane Wanjiku)"
+                className="mt-2 w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1] text-gray-700"
+              />
             </div>
 
             {/* Issue Date */}

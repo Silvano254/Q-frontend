@@ -192,9 +192,16 @@ export default function App() {
       .map((r, i) => ({ r, name: ['clients', 'products', 'quotes', 'invoices', 'expenses', 'settings'][i] }))
       .filter(({ r }) => r.status === 'rejected');
     if (failures.length > 0) {
-      console.error("Partial data load failure:", failures.map(f => `${(f as { name: string }).name}: ${(f.r as PromiseRejectedResult).reason}`));
+      const detail = failures
+        .map(f => {
+          const reason = (f.r as PromiseRejectedResult).reason;
+          const msg = reason instanceof Error ? reason.message : String(reason);
+          return `${(f as { name: string }).name}: ${msg}`;
+        })
+        .join(" | ");
+      console.error("Partial data load failure:", detail);
       showToast(
-        `Some data failed to load (${failures.map(f => (f as { name: string }).name).join(", ")}). Showing what loaded — check connection and refresh.`,
+        `Some data failed to load — ${detail}`,
         "warning"
       );
     }

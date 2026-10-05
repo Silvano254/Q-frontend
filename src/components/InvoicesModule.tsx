@@ -49,6 +49,8 @@ interface InvoicesModuleProps {
   onDeleteInvoice: (id: string) => Promise<void>;
   selectedInvoice: Invoice | null;
   setSelectedInvoice: (invoice: Invoice | null) => void;
+  openCreateRequest?: number;
+  statusFilterRequest?: { id: number; status: string } | null;
   showToast: (message: string, type?: "success" | "warning") => void;
 }
 
@@ -64,6 +66,8 @@ export default function InvoicesModule({
   onDeleteInvoice,
   selectedInvoice,
   setSelectedInvoice,
+  openCreateRequest,
+  statusFilterRequest,
   showToast
 }: InvoicesModuleProps) {
   const [isCreating, setIsCreating] = useState(false);
@@ -84,6 +88,20 @@ export default function InvoicesModule({
   ]);
   const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState("");
+
+  React.useEffect(() => {
+    if (!openCreateRequest) return;
+    setSelectedInvoice(null);
+    resetForm();
+    setIsCreating(true);
+  }, [openCreateRequest]);
+
+  React.useEffect(() => {
+    if (!statusFilterRequest) return;
+    setSelectedInvoice(null);
+    setIsCreating(false);
+    setStatusFilter(statusFilterRequest.status);
+  }, [statusFilterRequest]);
 
   // Recalculate item amounts when tax settings toggle
   React.useEffect(() => {

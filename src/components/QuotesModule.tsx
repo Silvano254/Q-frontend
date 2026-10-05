@@ -46,6 +46,7 @@ interface QuotesModuleProps {
   onConvertToInvoice: (quote: Quote) => Promise<void>;
   selectedQuote: Quote | null;
   setSelectedQuote: (quote: Quote | null) => void;
+  openCreateRequest?: number;
   showToast: (message: string, type?: "success" | "warning") => void;
 }
 
@@ -61,6 +62,7 @@ export default function QuotesModule({
   onConvertToInvoice,
   selectedQuote,
   setSelectedQuote,
+  openCreateRequest,
   showToast
 }: QuotesModuleProps) {
   const [isCreating, setIsCreating] = useState(false);
@@ -81,6 +83,16 @@ export default function QuotesModule({
   ]);
   const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState("");
+
+  // Navigation requests originate outside this module (for example, Binti AI).
+  // A monotonically increasing token lets a user request the builder again
+  // even if it is already the active module.
+  React.useEffect(() => {
+    if (!openCreateRequest) return;
+    setSelectedQuote(null);
+    resetForm();
+    setIsCreating(true);
+  }, [openCreateRequest]);
 
   // Recalculate item amounts when tax settings toggle
   React.useEffect(() => {

@@ -40,6 +40,7 @@ interface ReportsAnalyticsModuleProps {
   products: ProductService[];
   expenses: Expense[];
   currency: string;
+  initialTab?: 'analytics' | 'reports';
 }
 
 export default function ReportsAnalyticsModule({
@@ -48,10 +49,15 @@ export default function ReportsAnalyticsModule({
   clients,
   products,
   expenses,
-  currency
+  currency,
+  initialTab = 'analytics'
 }: ReportsAnalyticsModuleProps) {
-  const [activeTab, setActiveTab] = useState<'analytics' | 'reports'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'reports'>(initialTab);
   const [downloadingReport, setDownloadingReport] = useState<'aging' | 'sales' | 'ledger' | null>(null);
+
+  React.useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   // ==========================================
   // DATA PREPARATION FOR VISUALS

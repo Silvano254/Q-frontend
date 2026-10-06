@@ -30,6 +30,24 @@ export function normalizeMultilineText(text?: string): string {
     .trim();
 }
 
+/** Default clauses used only when a quote has no custom terms. */
+export const DEFAULT_QUOTE_TERMS = [
+  "1. Client by making deposit payment authorizes Binti to supply the above facilities",
+  "2. Payment of at least 70% confirms your booking; balance to be paid upon set up",
+  "3. Cancellation policy: cancellation must be in writing. A month before the event: 50% refund, 2 weeks before 25% refund; less than a week: non refundable",
+  "4. Client agrees to safeguard the equipment and be solely responsible for any loss or damage of the same that may occur during the period of hire",
+  "5. Quote valid for 14 days",
+  "6. Payment to be made via mpesa Paybill 222111, Account 2760684 to Binti Investments",
+].join("\n");
+
+/** Default clauses used only when an invoice has no custom terms. */
+export const DEFAULT_INVOICE_TERMS = [
+  "1. All amounts are stated in Kshs",
+  "2. Payment terms: 70% deposit payable before delivery. Balance upon set up",
+  "3. Payments to be made via Mpesa Paybill 222111 Account 2760684",
+  "4. E & OE",
+].join("\n");
+
 /**
  * Repairs legacy terms that were stored with spaces between every character.
  * The boundary checks avoid joining ordinary prose that happens to contain
@@ -58,36 +76,51 @@ function normalizeLegacyTermsLine(line: string): string {
 }
 
 /**
- * Normalizes terms for display and PDF use, removing stray Markdown delimiters,
- * repairing squashed numbering, and excluding quote-only validity wording from
- * invoice content.
+ * Normalizes terms for display, removing stray Markdown delimiters and
+ * repairing legacy character spacing. Quote validity wording is omitted by
+ * default, but quote documents can opt to retain it.
  */
-export function normalizeDocumentTerms(text?: string, options: { invoice?: boolean } = {}): string[] {
-  const normalized = normalizeMultilineText(text)
-    .replace(/`+/g, "")
-    .replace(/\s*Quote valid for \d+ days\s*/gi, " ")
-    .trim();
+export function normalizeDocumentTerms(
+  text?: string,
+  options: { preserveQuoteValidity?: boolean } = {},
+): string[] {
+  let normalized = normalizeMultilineText(text).replace(/`+/g, "");
+  normalized = normalized.trim();
 
   if (!normalized) return [];
 
   return normalized
     .split(/\n+/)
-    .map(line => normalizeLegacyTermsLine(line.replace(/`+/g, "")))
+    .map(line => {
+      const withoutQuoteValidity = options.preserveQuoteValidity
+        ? line
+        : line.replace(/Quote valid for \d+ days\.?/gi, "");
+      return normalizeLegacyTermsLine(withoutQuoteValidity.replace(/`+/g, ""));
+    })
     .filter(Boolean)
-    .filter(line => !options.invoice || !/^\s*Quote valid for \d+ days\s*$/i.test(line));
+    .filter(line => options.preserveQuoteValidity || !/^\d+\.$/.test(line));
 }
 
 /**
  * Prepares terms for PDF output, repairing legacy clauses that were stored with
  * spaces between every character while leaving normally spaced text untouched.
  */
-export function normalizePdfTerms(text?: string): string[] {
-  return normalizeMultilineText(text)
-    .replace(/`+/g, "")
-    .replace(/\s*Quote valid for \d+ days\s*/gi, " ")
+export function normalizePdfTerms(
+  text?: string,
+  options: { preserveQuoteValidity?: boolean } = {},
+): string[] {
+  let normalized = normalizeMultilineText(text).replace(/`+/g, "");
+
+  return normalized
     .split("\n")
-    .map(normalizeLegacyTermsLine)
-    .filter(Boolean);
+    .map(line => {
+      const withoutQuoteValidity = options.preserveQuoteValidity
+        ? line
+        : line.replace(/Quote valid for \d+ days\.?/gi, "");
+      return normalizeLegacyTermsLine(withoutQuoteValidity);
+    })
+    .filter(Boolean)
+    .filter(line => options.preserveQuoteValidity || !/^\d+\.$/.test(line));
 }
 
 /**

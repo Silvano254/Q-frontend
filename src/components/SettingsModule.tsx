@@ -250,7 +250,7 @@ export default function SettingsModule({
               <div className="flex items-center justify-between mb-2">
                 <label className="text-[10px] font-bold text-gray-400 uppercase flex items-center space-x-1">
                   <AlignLeft className="w-3.5 h-3.5" />
-                  <span>Default Quotation & Tax Invoice fine-print Contract clauses</span>
+                  <span>Default Quotation Contract Terms</span>
                 </label>
                 <button
                   type="button"

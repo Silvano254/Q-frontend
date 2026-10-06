@@ -30,7 +30,7 @@ import { generateEmailDraft } from "../services/geminiService";
 import { apiRequest } from "../services/apiClient";
 import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildInvoiceEmailContent, openMailClient } from "../utils/email";
-import { normalizeDocumentTerms, normalizePdfTerms } from "../utils/text";
+import { DEFAULT_INVOICE_TERMS, normalizeDocumentTerms, normalizePdfTerms } from "../utils/text";
 import { renderPdfClauses } from "../utils/pdfTerms";
 import ConfirmDialog from "./ConfirmDialog";
 
@@ -765,7 +765,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     y += 15;
 
     // Terms & Conditions Block
-    const termsSource = invoice.terms || companySettings.termsTemplate || (companySettings as any).terms_template;
+    const termsSource = invoice.terms?.trim() || DEFAULT_INVOICE_TERMS;
     if (termsSource) {
       ensurePageSpace(30);
       doc.setFont("helvetica", "bold");
@@ -1079,19 +1079,9 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.setFontSize(7.5);
     doc.setTextColor(gray[0], gray[1], gray[2]);
 
-    const splitTermsIntoLines = (val?: string): string[] => {
-      return normalizePdfTerms(val);
-    };
-
-    const termsSourceBinti = invoice.terms || companySettings.termsTemplate || (companySettings as any).terms_template;
-    const rawTermsLines = splitTermsIntoLines(termsSourceBinti);
-    const termsLines = rawTermsLines.length > 0 ? rawTermsLines : [
-      '1. A 50% deposit secures the booking and confirms the agreed schedule.',
-      '2. Final balance is due before service commencement or within the agreed event window.',
-      '3. Any damage, loss, or delayed return of reserved items will be charged at replacement cost.',
-      '4. Cancellation and rescheduling requests must be confirmed in writing and may be subject to administrative fees.',
-      '5. All confirmations are subject to availability and final venue logistics approval.',
-    ];
+    const termsSourceBinti = invoice.terms?.trim() || DEFAULT_INVOICE_TERMS;
+    const rawTermsLines = normalizePdfTerms(termsSourceBinti);
+    const termsLines = rawTermsLines.length > 0 ? rawTermsLines : normalizePdfTerms(DEFAULT_INVOICE_TERMS);
     y = renderPdfClauses(doc, y, termsLines, {
       x: margin,
       width: contentWidth,
@@ -1744,11 +1734,11 @@ const generatePDFCorporate = async (invoice: Invoice) => {
                 </div>
               )}
 
-              {/* Contract Terms (custom per-invoice, else company template) */}
+              {/* Custom invoice terms override the invoice PDF defaults. */}
               <div className="bg-amber-50/20 p-4 border border-amber-50 rounded-2xl space-y-2">
                 <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider block">Contract Terms</span>
                 <ol className="space-y-1.5 pl-5 text-xs text-gray-600 leading-relaxed break-words">
-                  {normalizeDocumentTerms(selectedInvoice.terms || companySettings.termsTemplate, { invoice: true }).map((term, index) => (
+                  {normalizeDocumentTerms(selectedInvoice.terms?.trim() || DEFAULT_INVOICE_TERMS).map((term, index) => (
                     <li key={`${term}-${index}`} className="pl-1">{term}</li>
                   ))}
                 </ol>

@@ -1743,6 +1743,12 @@ export default function InvoicesModule({
                   <p className="text-xs text-gray-700 leading-relaxed font-mono whitespace-pre-wrap pl-5">{companySettings.bankDetails}</p>
                 </div>
               )}
+
+              {/* Contract Terms (custom per-invoice, else company template) */}
+              <div className="bg-amber-50/20 p-4 border border-amber-50 rounded-2xl space-y-1.5">
+                <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider block">Contract Terms</span>
+                <p className="text-xs text-gray-600 leading-relaxed font-mono whitespace-pre-wrap">{selectedInvoice.terms || companySettings.termsTemplate}</p>
+              </div>
             </div>
 
             {/* Right Col: Totals + Actions */}

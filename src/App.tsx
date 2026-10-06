@@ -258,6 +258,7 @@ export default function App() {
         return {
           ...quote,
           items,
+          terms: quote.terms ?? '',
           subtotal: Number(quote.subtotal ?? quote.sub_total ?? calculatedSubtotal) || 0,
           discountTotal: Number(quote.discountTotal ?? quote.discount_total ?? calculatedDiscount) || 0,
           taxTotal: Number(quote.taxTotal ?? quote.tax_total ?? calculatedTax) || 0,
@@ -705,6 +706,7 @@ export default function App() {
       clientName: payloadToSend.clientName,
       grandTotal,
       balanceRemaining,
+      terms: invoicePayload.terms || '',
       status,
       payments,
       items: invoicePayload.items || []
@@ -1034,7 +1036,8 @@ export default function App() {
             grandTotal,
             status: 'draft',
             quoteDate: new Date().toISOString().slice(0, 10),
-            notes: payload.notes || undefined
+            notes: payload.notes || undefined,
+            terms: payload.terms || undefined
           } as Partial<Quote>);
           logAuditEvent("create_quote", `Created quotation for ${resolvedName} (${grandTotal}) via Binti AI`, payload);
           showToast(`Quotation created for ${resolvedName}.`);

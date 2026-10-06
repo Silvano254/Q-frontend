@@ -9,7 +9,7 @@ export function buildInvoiceEmailContent(
   companySettings?: CompanySettings,
   pdfTemplateStyle: string = "corporate"
 ): { subject: string; body: string } {
-  const companyName = companySettings?.companyName || "Binti Events";
+  const companyName = companySettings?.companyName || "Habanos Lounge";
   const clientName = client?.name || invoice.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
   const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
@@ -59,7 +59,7 @@ export function buildQuoteEmailContent(
   companySettings?: CompanySettings,
   pdfTemplateStyle: string = "corporate"
 ): { subject: string; body: string } {
-  const companyName = companySettings?.companyName || "Binti Events";
+  const companyName = companySettings?.companyName || "Habanos Lounge";
   const clientName = client?.name || quote.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
   const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';

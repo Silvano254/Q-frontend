@@ -719,13 +719,13 @@ export default function QuotesModule({
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
-    doc.text("Prepared By: Binti Events", margin, y + 19);
+    doc.text("Prepared By: Habanos Lounge", margin, y + 19);
     doc.text("Client Confirmation Sign", sig2X, y + 19);
 
     // PDF footer
     doc.setFontSize(7.5);
     doc.setTextColor(150, 150, 150);
-    doc.text("Thank you for partnering with Binti Events to design your landmark occasions.", margin, pageHeight - 10);
+    doc.text("Thank you for choosing Habanos Lounge for your next memorable occasion.", margin, pageHeight - 10);
     
     doc.save(`${quote.quoteNumber || 'QT'}-${(quote.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
   };
@@ -805,13 +805,13 @@ export default function QuotesModule({
         doc.setFont('helvetica', 'bolditalic');
         doc.setFontSize(22);
         doc.setTextColor(150, 50, 120);
-        doc.text('Binti Events', margin, y + 14);
+        doc.text('Habanos Lounge', margin, y + 14);
       }
     } else {
       doc.setFont('helvetica', 'bolditalic');
       doc.setFontSize(22);
       doc.setTextColor(150, 50, 120);
-      doc.text('Binti Events', margin, y + 14);
+      doc.text('Habanos Lounge', margin, y + 14);
     }
 
     doc.setFont('helvetica', 'bold');
@@ -823,7 +823,7 @@ export default function QuotesModule({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(black[0], black[1], black[2]);
-    doc.text(companySettings.companyName || 'Binti Events', pageWidth - margin, y + 13, { align: 'right' });
+    doc.text(companySettings.companyName || 'Habanos Lounge', pageWidth - margin, y + 13, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -947,11 +947,11 @@ export default function QuotesModule({
     const termsSourceBinti = quote.terms || companySettings.termsTemplate || (companySettings as any).terms_template;
     const rawTermsLines = splitTermsIntoLines(termsSourceBinti);
     const termsLines = rawTermsLines.length > 0 ? rawTermsLines : [
-      '1. Client by making payment authorizes Binti Tents & Events to supply the above facilities',
-      '2. Payment of at least 80% confirms your booking upon signing below; balance to be upon set up',
-      '3. Cancellation policy: Cancellation must be in writing. A month before event: 50% refund, 2 weeks before: 25% refund; Less than a week: non refundable',
-      '4. Client agrees to safeguard the equipment and be solely responsible for any loss or damage of the same that may occur during period of hire',
-      '5. Quote valid for 30 days',
+      '1. A 50% deposit secures the booking and confirms the agreed schedule.',
+      '2. Final balance is due before service commencement or within the agreed event window.',
+      '3. Any damage, loss, or delayed return of reserved items will be charged at replacement cost.',
+      '4. Cancellation and rescheduling requests must be confirmed in writing and may be subject to administrative fees.',
+      '5. All confirmations are subject to availability and final venue logistics approval.',
     ];
     termsLines.forEach((term: string, i: number) => {
       const lineText = term.match(/^\d+\./) ? term : `${i + 1}. ${term}`;
@@ -969,7 +969,7 @@ export default function QuotesModule({
     doc.text('Prepared by:', pageWidth - margin, y, { align: 'right' });
     y += 5;
     doc.setFont('helvetica', 'bold');
-    doc.text(companySettings.companyName || 'Binti Events', pageWidth - margin, y, { align: 'right' });
+    doc.text(companySettings.companyName || 'Habanos Lounge', pageWidth - margin, y, { align: 'right' });
     y += 7;
 
     // Check remaining space for thank you note image to prevent extra page creation
@@ -1039,7 +1039,7 @@ export default function QuotesModule({
     try {
       openMailClient(
         clientEmail,
-        `Quotation ${quote.quoteNumber} - ${companySettings.companyName || 'Binti Events'}`,
+        `Quotation ${quote.quoteNumber} - ${companySettings.companyName || 'Habanos Lounge'}`,
         aiEmailDraft
       );
       showToast("Opened draft in email client!");
@@ -1486,7 +1486,7 @@ export default function QuotesModule({
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-base text-gray-800">Binti Events Official Quotation</h4>
+                  <h4 className="font-bold text-base text-gray-800">Habanos Lounge Official Quotation</h4>
                   <p className="text-xs text-gray-400 mt-0.5">Quote ID: {selectedQuote.id}</p>
                 </div>
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${

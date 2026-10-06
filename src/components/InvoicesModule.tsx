@@ -586,12 +586,12 @@ export default function InvoicesModule({
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
     doc.setTextColor(purple[0], purple[1], purple[2]);
-    doc.text(companySettings.companyName || "BINTI EVENTS", margin, y);
+    doc.text(companySettings.companyName || "HABANOS LOUNGE", margin, y);
     
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(110, 110, 110);
-    doc.text("Luxury Tents, Draping & Bespoke Styling", margin, y + 5.5);
+    doc.text("Premium hospitality, elevated experiences", margin, y + 5.5);
 
     // Document Identifier (Right aligned)
     doc.setFont("helvetica", "bold");
@@ -632,7 +632,7 @@ export default function InvoicesModule({
     doc.setFontSize(8.5);
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
 
-    doc.text(companySettings.companyName || "Binti Events", margin, y);
+    doc.text(companySettings.companyName || "Habanos Lounge", margin, y);
     const clientDetails = clients.find(c => c.id === invoice.clientId);
     doc.text(invoice.clientName || "Valued Client", col2X, y);
 
@@ -647,7 +647,7 @@ export default function InvoicesModule({
       y += 4.5;
     }
 
-    doc.text(`Email: ${companySettings.email || "info@bintievents.co.ke"}`, margin, y);
+    doc.text(`Email: ${companySettings.email || "reservations@habanoslounge.com"}`, margin, y);
     if (clientDetails?.phone) {
       doc.text(`Phone: ${clientDetails.phone}`, col2X, y);
       y += 4.5;
@@ -841,13 +841,13 @@ export default function InvoicesModule({
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
-    doc.text("Approved & Issued: Binti Events", margin, y + 19);
+    doc.text("Approved & Issued: Habanos Lounge", margin, y + 19);
     doc.text("Client Officer Acceptance", sig2X, y + 19);
 
     // PDF footer
     doc.setFontSize(7.5);
     doc.setTextColor(150, 150, 150);
-    doc.text("Thank you for partnering with Binti Events.", margin, pageHeight - 10);
+    doc.text("Thank you for choosing Habanos Lounge.", margin, pageHeight - 10);
     
     doc.save(`${invoice.invoiceNumber || 'INV'}-${(invoice.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
   };
@@ -927,13 +927,13 @@ export default function InvoicesModule({
         doc.setFont('helvetica', 'bolditalic');
         doc.setFontSize(22);
         doc.setTextColor(150, 50, 120);
-        doc.text('Binti Events', margin, y + 14);
+        doc.text('Habanos Lounge', margin, y + 14);
       }
     } else {
       doc.setFont('helvetica', 'bolditalic');
       doc.setFontSize(22);
       doc.setTextColor(150, 50, 120);
-      doc.text('Binti Events', margin, y + 14);
+      doc.text('Habanos Lounge', margin, y + 14);
     }
 
     doc.setFont('helvetica', 'bold');
@@ -945,7 +945,7 @@ export default function InvoicesModule({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(black[0], black[1], black[2]);
-    doc.text(companySettings.companyName || 'Binti Events', pageWidth - margin, y + 13, { align: 'right' });
+    doc.text(companySettings.companyName || 'Habanos Lounge', pageWidth - margin, y + 13, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -1086,11 +1086,11 @@ export default function InvoicesModule({
     const termsSourceBinti = invoice.terms || companySettings.termsTemplate || (companySettings as any).terms_template;
     const rawTermsLines = splitTermsIntoLines(termsSourceBinti);
     const termsLines = rawTermsLines.length > 0 ? rawTermsLines : [
-      '1. Client by making payment authorizes Binti Tents & Events to supply the above facilities',
-      '2. Payment of at least 80% confirms your booking upon signing below; balance to be upon set up',
-      '3. Cancellation policy: Cancellation must be in writing. A month before event: 50% refund, 2 weeks before: 25% refund; Less than a week: non refundable',
-      '4. Client agrees to safeguard the equipment and be solely responsible for any loss or damage of the same that may occur during period of hire',
-      '5. Quote valid for 30 days',
+      '1. A 50% deposit secures the booking and confirms the agreed schedule.',
+      '2. Final balance is due before service commencement or within the agreed event window.',
+      '3. Any damage, loss, or delayed return of reserved items will be charged at replacement cost.',
+      '4. Cancellation and rescheduling requests must be confirmed in writing and may be subject to administrative fees.',
+      '5. All confirmations are subject to availability and final venue logistics approval.',
     ];
     termsLines.forEach((term: string, i: number) => {
       const lineText = term.match(/^\d+\./) ? term : `${i + 1}. ${term}`;
@@ -1134,7 +1134,7 @@ export default function InvoicesModule({
     doc.text('Issued by:', pageWidth - margin, y, { align: 'right' });
     y += 5;
     doc.setFont('helvetica', 'bold');
-    doc.text(companySettings.companyName || 'Binti Events', pageWidth - margin, y, { align: 'right' });
+    doc.text(companySettings.companyName || 'Habanos Lounge', pageWidth - margin, y, { align: 'right' });
     y += 7;
 
     // Check remaining space for thank you note image to prevent extra page creation
@@ -1622,7 +1622,7 @@ export default function InvoicesModule({
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-base text-gray-800">Binti Events Official {selectedInvoice.taxTotal > 0 ? "Tax Invoice" : "Invoice"}</h4>
+                  <h4 className="font-bold text-base text-gray-800">Habanos Lounge Official {selectedInvoice.taxTotal > 0 ? "Tax Invoice" : "Invoice"}</h4>
                   <p className="text-xs text-gray-400 mt-0.5">Invoice ID: {selectedInvoice.id}</p>
                 </div>
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${

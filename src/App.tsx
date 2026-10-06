@@ -101,16 +101,16 @@ export default function App() {
       } catch (e) {}
     }
     return {
-      companyName: "Binti Events",
-      email: "billing@bintievents.co.ke",
+      companyName: "Habanos Lounge",
+      email: "reservations@habanoslounge.com",
       phone: "+254 712 345678",
-      address: "Ngong Road, Nairobi, Kenya",
+      address: "Nairobi, Kenya",
       taxNumber: "P051234567A",
-      bankDetails: "Bank: Equity Bank Kenya\nAccount Name: Binti Events Ltd\nAccount Number: 0123456789012\nBranch: Ngong Road\nPaybill: 247247 (Acc: 0123456789012)",
+      bankDetails: "Bank: Equity Bank Kenya\nAccount Name: Habanos Lounge Ltd\nAccount Number: 0123456789012\nBranch: Nairobi\nPaybill: 247247 (Acc: 0123456789012)",
       currency: "KES",
       invoiceFormat: "INV-2026-{SEQ}",
       quoteFormat: "QT-2026-{SEQ}",
-      termsTemplate: "1. 50% commitment fee to book, with the balance paid before setup.\n2. Broken gear billed at cost.",
+      termsTemplate: "1. A 50% deposit secures the booking and confirms the agreed schedule.\n2. Final balance is due before service commencement or within the agreed event window.\n3. Any damage, loss, or delayed return of reserved items will be charged at replacement cost.",
       emailTemplate: ""
     };
   });
@@ -336,7 +336,7 @@ export default function App() {
 
           const merged: CompanySettings = {
             ...prev,
-            companyName: raw.companyName || raw.company_name || prev.companyName || "Binti Events",
+            companyName: raw.companyName || raw.company_name || prev.companyName || "Habanos Lounge",
             email: raw.email !== undefined ? raw.email : (prev.email || ""),
             phone: raw.phone !== undefined ? raw.phone : (prev.phone || ""),
             address: raw.address !== undefined ? raw.address : (prev.address || ""),
@@ -901,8 +901,8 @@ export default function App() {
         const failedCount = allResults.filter(r => r.status === 'rejected').length;
 
         const pristineSettings: CompanySettings = {
-          companyName: "Binti Events",
-          email: "info@bintievents.co.ke",
+          companyName: "Habanos Lounge",
+          email: "reservations@habanoslounge.com",
           phone: "+254 700 111 222",
           address: "Ngong Road, Nairobi, Kenya",
           taxNumber: "P051234567A",
@@ -911,7 +911,7 @@ export default function App() {
           invoiceFormat: "INV-2026-{SEQ}",
           quoteFormat: "QT-2026-{SEQ}",
           termsTemplate: "1. 50% commitment fee to book, with the balance paid before setup.\n2. Broken or damaged equipment will be billed at replacement cost.\n3. Setup and breakdown are included within Nairobi County.\n4. Cancellation within 7 days of event date forfeits the deposit.\n5. Client by making payment authorizes Binti Tents & Events to supply the above facilities.",
-          emailTemplate: "Dear {CLIENT_NAME},\n\nPlease find attached {TYPE} #{NUMBER} from Binti Events.\n\nBest regards,\nBinti Events Team"
+          emailTemplate: "Dear {CLIENT_NAME},\n\nPlease find attached {TYPE} #{NUMBER} from Habanos Lounge.\n\nBest regards,\nHabanos Lounge Team"
         };
         await handleUpdateSettings(pristineSettings);
 

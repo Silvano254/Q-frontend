@@ -23,7 +23,7 @@ export function buildInvoiceWhatsAppMessage(
   companySettings?: CompanySettings,
   pdfTemplateStyle: string = "corporate"
 ): string {
-  const companyName = companySettings?.companyName || "Binti Events";
+  const companyName = companySettings?.companyName || "Habanos Lounge";
   const clientName = client?.name || invoice.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
   const dateFormatted = invoice.issueDate ? invoice.issueDate.split("T")[0] : "N/A";
@@ -61,7 +61,7 @@ export function buildQuoteWhatsAppMessage(
   companySettings?: CompanySettings,
   pdfTemplateStyle: string = "corporate"
 ): string {
-  const companyName = companySettings?.companyName || "Binti Events";
+  const companyName = companySettings?.companyName || "Habanos Lounge";
   const clientName = client?.name || quote.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
   const quoteDateFormatted = quote.quoteDate ? quote.quoteDate.split("T")[0] : "N/A";

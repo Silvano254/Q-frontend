@@ -17,8 +17,9 @@ export function normalizeMultilineText(text?: string): string {
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n");
 
-  // 2. Expand squashed numbered clauses (e.g. "...crew.2. 20% final..." -> "...crew.\n2. 20% final...")
-  cleaned = cleaned.replace(/([^\n])\s*(\b\d+\.\s+)/g, "$1\n$2");
+  // 2. Expand squashed numbered clauses even when the previous clause has no whitespace
+  // before the next number (for example, "facilities2.").
+  cleaned = cleaned.replace(/([^\s])(?=\d+\.\s+)/g, "$1\n");
 
   // 3. Trim extra blank lines and normalize line endings
   return cleaned

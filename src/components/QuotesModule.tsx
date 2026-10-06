@@ -691,7 +691,7 @@ export default function QuotesModule({
         let str = String(val);
         str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
         str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        str = str.replace(/(?<=[^\n])\s*(?=\b\d+\.\s+)/g, '\n');
+        str = str.replace(/([^\s])(?=\d+\.\s+)/g, '$1\n');
         return str.split('\n').map(l => l.trim()).filter(Boolean);
       };
 
@@ -940,7 +940,7 @@ export default function QuotesModule({
       let str = String(val);
       str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
       str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      str = str.replace(/(?<=[^\n])\s*(?=\b\d+\.\s+)/g, '\n');
+      str = str.replace(/([^\s])(?=\d+\.\s+)/g, '$1\n');
       return str.split('\n').map(l => l.trim()).filter(Boolean);
     };
 

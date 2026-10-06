@@ -1562,7 +1562,7 @@ export default function App() {
       </div>
 
       {/* Floating Binti Bottom-Right Action Container */}
-      <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end space-y-2 pointer-events-auto select-none font-sans">
+      <div className={`fixed bottom-6 right-6 z-40 flex flex-col items-end space-y-2 pointer-events-auto select-none font-sans ${activeTab === "quotes" ? "hidden" : ""}`}>
         {/* Onboarding Welcome Card */}
         {showBintiWelcome && (
           <div className="w-72 p-4 bg-white border border-gray-100 rounded-3xl shadow-2xl space-y-3 animate-fade-in border-t-4 border-t-[#80237E] relative">

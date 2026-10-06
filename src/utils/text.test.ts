@@ -30,6 +30,14 @@ test("repairs character-spaced terms without removing word boundaries", () => {
   assert.deepEqual(normalizePdfTerms(input), ["2. Payment of at least 70% confirms your booking"]);
 });
 
+test("repairs character-spaced terms in preview output", () => {
+  const input = "1. P a y m e n t  o f  a t  l e a s t  7 0 %  c o n f i r m s  y o u r  b o o k i n g";
+
+  assert.deepEqual(normalizeDocumentTerms(input), [
+    "1. Payment of at least 70% confirms your booking",
+  ]);
+});
+
 test("removes stray backticks and creates a structured terms list", () => {
   const input = "1. First term`\n2. Second term `\n3. Third term";
 

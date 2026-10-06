@@ -31,6 +31,33 @@ export function normalizeMultilineText(text?: string): string {
 }
 
 /**
+ * Repairs legacy terms that were stored with spaces between every character.
+ * The boundary checks avoid joining ordinary prose that happens to contain
+ * isolated single-letter tokens.
+ */
+function normalizeLegacyTermsLine(line: string): string {
+  const tokens = line.trim().split(/\s+/);
+  const singleLetterTokens = tokens.filter(token => /^[A-Za-z]$/.test(token)).length;
+  if (singleLetterTokens < 5 || singleLetterTokens / tokens.length < 0.55) {
+    return line.trim();
+  }
+
+  return line
+    .split(/\s{2,}/)
+    .map(segment => {
+      const characters = segment.trim().split(/\s+/);
+      const spacedCharacters = characters.filter(token => /^[A-Za-z0-9]$/.test(token)).length;
+      return characters.length > 1 && spacedCharacters / characters.length >= 0.55
+        ? characters.join("")
+        : segment.trim();
+    })
+    .join(" ")
+    .replace(/^(\d+)\s*\.\s*/, "$1. ")
+    .replace(/\s+([,.;:!?%])/g, "$1")
+    .trim();
+}
+
+/**
  * Normalizes terms for display and PDF use, removing stray Markdown delimiters,
  * repairing squashed numbering, and excluding quote-only validity wording from
  * invoice content.
@@ -45,7 +72,7 @@ export function normalizeDocumentTerms(text?: string, options: { invoice?: boole
 
   return normalized
     .split(/\n+/)
-    .map(line => line.replace(/`+/g, "").trim())
+    .map(line => normalizeLegacyTermsLine(line.replace(/`+/g, "")))
     .filter(Boolean)
     .filter(line => !options.invoice || !/^\s*Quote valid for \d+ days\s*$/i.test(line));
 }
@@ -59,25 +86,7 @@ export function normalizePdfTerms(text?: string): string[] {
     .replace(/`+/g, "")
     .replace(/\s*Quote valid for \d+ days\s*/gi, " ")
     .split("\n")
-    .map(line => {
-      const tokens = line.trim().split(/\s+/);
-      const singleLetterTokens = tokens.filter(token => /^[A-Za-z]$/.test(token)).length;
-      if (singleLetterTokens < 5 || singleLetterTokens / tokens.length < 0.55) return line.trim();
-
-      return line
-        .split(/\s{2,}/)
-        .map(segment => {
-          const characters = segment.trim().split(/\s+/);
-          const spacedCharacters = characters.filter(token => /^[A-Za-z0-9]$/.test(token)).length;
-          return characters.length > 1 && spacedCharacters / characters.length >= 0.55
-            ? characters.join("")
-            : segment.trim();
-        })
-        .join(" ")
-        .replace(/^(\d+)\s*\.\s*/, "$1. ")
-        .replace(/\s+([,.;:!?%])/g, "$1")
-        .trim();
-    })
+    .map(normalizeLegacyTermsLine)
     .filter(Boolean);
 }
 

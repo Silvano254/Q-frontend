@@ -31,6 +31,35 @@ export function normalizeMultilineText(text?: string): string {
 }
 
 /**
+ * Prepares terms for PDF output, repairing legacy clauses that were stored with
+ * spaces between every character while leaving normally spaced text untouched.
+ */
+export function normalizePdfTerms(text?: string): string[] {
+  return normalizeMultilineText(text)
+    .split("\n")
+    .map(line => {
+      const tokens = line.trim().split(/\s+/);
+      const singleLetterTokens = tokens.filter(token => /^[A-Za-z]$/.test(token)).length;
+      if (singleLetterTokens < 5 || singleLetterTokens / tokens.length < 0.55) return line.trim();
+
+      return line
+        .split(/\s{2,}/)
+        .map(segment => {
+          const characters = segment.trim().split(/\s+/);
+          const spacedCharacters = characters.filter(token => /^[A-Za-z0-9]$/.test(token)).length;
+          return characters.length > 1 && spacedCharacters / characters.length >= 0.55
+            ? characters.join("")
+            : segment.trim();
+        })
+        .join(" ")
+        .replace(/^(\d+)\s*\.\s*/, "$1. ")
+        .replace(/\s+([,.;:!?%])/g, "$1")
+        .trim();
+    })
+    .filter(Boolean);
+}
+
+/**
  * Generates next sequential identifier (e.g., INV-2026-001, QT-2026-001) based on pattern and existing records.
  */
 export function generateNextDocumentNumber(

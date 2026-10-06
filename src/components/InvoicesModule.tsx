@@ -30,6 +30,7 @@ import { generateEmailDraft } from "../services/geminiService";
 import { apiRequest } from "../services/apiClient";
 import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildInvoiceEmailContent, openMailClient } from "../utils/email";
+import { normalizePdfTerms } from "../utils/text";
 import ConfirmDialog from "./ConfirmDialog";
 
 const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
@@ -766,12 +767,7 @@ export default function InvoicesModule({
       doc.setTextColor(100, 100, 100);
 
       const splitTermsIntoLines = (val?: string): string[] => {
-        if (!val) return [];
-        let str = String(val);
-        str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
-        str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        str = str.replace(/([^\s])(?=\d+\.\s+)/g, '$1\n');
-        return str.split('\n').map(l => l.trim()).filter(Boolean);
+        return normalizePdfTerms(val);
       };
 
       const termsLines = splitTermsIntoLines(termsSource);
@@ -792,20 +788,20 @@ export default function InvoicesModule({
       y += 6;
       ensurePageSpace(26);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.setTextColor(purple[0], purple[1], purple[2]);
+      doc.setFontSize(10);
+      doc.setTextColor(70, 45, 105);
       doc.text("OFFICIAL PAYMENT INSTRUCTIONS & BANK DETAILS:", margin, y);
 
-      y += 5;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.5);
-      doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
-      const bankLines = companySettings.bankDetails.split(/\r?\n/);
+      y += 5.5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(35, 35, 35);
+      const bankLines = companySettings.bankDetails.split(/\r?\n/).filter(line => line.trim());
       bankLines.forEach(line => {
-        if (line.trim()) {
-          doc.text(line.trim(), margin, y);
-          y += 4.0;
-        }
+        const wrappedLine = doc.splitTextToSize(line.trim(), contentWidth);
+        ensurePageSpace(wrappedLine.length * 4.8 + 1);
+        doc.text(wrappedLine, margin, y);
+        y += wrappedLine.length * 4.8;
       });
     }
 
@@ -1075,12 +1071,7 @@ export default function InvoicesModule({
     doc.setTextColor(gray[0], gray[1], gray[2]);
 
     const splitTermsIntoLines = (val?: string): string[] => {
-      if (!val) return [];
-      let str = String(val);
-      str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
-      str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      str = str.replace(/([^\s])(?=\d+\.\s+)/g, '$1\n');
-      return str.split('\n').map(l => l.trim()).filter(Boolean);
+      return normalizePdfTerms(val);
     };
 
     const termsSourceBinti = invoice.terms || companySettings.termsTemplate || (companySettings as any).terms_template;
@@ -1110,19 +1101,19 @@ export default function InvoicesModule({
     if (hasDueBalanceBinti && companySettings.bankDetails && companySettings.bankDetails.trim()) {
       ensurePageSpace(25);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(black[0], black[1], black[2]);
+      doc.setFontSize(10);
+      doc.setTextColor(45, 30, 70);
       doc.text('OFFICIAL PAYMENT INSTRUCTIONS & BANK DETAILS:', margin, y);
-      y += 4.5;
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(gray[0], gray[1], gray[2]);
-      const bankLines = companySettings.bankDetails.split(/\r?\n/);
+      y += 5.5;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(35, 35, 35);
+      const bankLines = companySettings.bankDetails.split(/\r?\n/).filter(line => line.trim());
       bankLines.forEach(line => {
-        if (line.trim()) {
-          doc.text(line.trim(), margin, y);
-          y += 4.0;
-        }
+        const wrappedLine = doc.splitTextToSize(line.trim(), contentWidth);
+        ensurePageSpace(wrappedLine.length * 4.8 + 1);
+        doc.text(wrappedLine, margin, y);
+        y += wrappedLine.length * 4.8;
       });
       y += 4;
     }

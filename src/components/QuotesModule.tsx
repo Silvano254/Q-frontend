@@ -27,6 +27,7 @@ import { generateEmailDraft, recommendTerms } from "../services/geminiService";
 import { apiRequest } from "../services/apiClient";
 import { buildQuoteWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildQuoteEmailContent, openMailClient } from "../utils/email";
+import { normalizePdfTerms } from "../utils/text";
 import ConfirmDialog from "./ConfirmDialog";
 
 const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
@@ -687,12 +688,7 @@ export default function QuotesModule({
       doc.setTextColor(100, 100, 100);
 
       const splitTermsIntoLines = (val?: string): string[] => {
-        if (!val) return [];
-        let str = String(val);
-        str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
-        str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        str = str.replace(/([^\s])(?=\d+\.\s+)/g, '$1\n');
-        return str.split('\n').map(l => l.trim()).filter(Boolean);
+        return normalizePdfTerms(val);
       };
 
       const termsLines = splitTermsIntoLines(termsSource);
@@ -936,12 +932,7 @@ export default function QuotesModule({
     doc.setTextColor(gray[0], gray[1], gray[2]);
 
     const splitTermsIntoLines = (val?: string): string[] => {
-      if (!val) return [];
-      let str = String(val);
-      str = str.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '\n');
-      str = str.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-      str = str.replace(/([^\s])(?=\d+\.\s+)/g, '$1\n');
-      return str.split('\n').map(l => l.trim()).filter(Boolean);
+      return normalizePdfTerms(val);
     };
 
     const termsSourceBinti = quote.terms || companySettings.termsTemplate || (companySettings as any).terms_template;

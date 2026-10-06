@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeMultilineText } from "./text.ts";
+import { normalizeMultilineText, normalizePdfTerms } from "./text.ts";
 
 test("normalizes concatenated numbered clauses into separate lines", () => {
   const input = [
@@ -22,4 +22,10 @@ test("normalizes concatenated numbered clauses into separate lines", () => {
   assert.match(lines[3], /^4\./);
   assert.match(lines[4], /^5\./);
   assert.match(lines[5], /^6\./);
+});
+
+test("repairs character-spaced terms without removing word boundaries", () => {
+  const input = "2. P a y m e n t  o f  a t  l e a s t  7 0 %  c o n f i r m s  y o u r  b o o k i n g";
+
+  assert.deepEqual(normalizePdfTerms(input), ["2. Payment of at least 70% confirms your booking"]);
 });

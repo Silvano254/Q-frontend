@@ -27,7 +27,7 @@ import { generateEmailDraft, recommendTerms } from "../services/geminiService";
 import { apiRequest } from "../services/apiClient";
 import { buildQuoteWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildQuoteEmailContent, openMailClient } from "../utils/email";
-import { normalizePdfTerms } from "../utils/text";
+import { normalizeDocumentTerms, normalizePdfTerms } from "../utils/text";
 import { renderPdfClauses } from "../utils/pdfTerms";
 import ConfirmDialog from "./ConfirmDialog";
 
@@ -437,7 +437,7 @@ export default function QuotesModule({
       if (pdfTemplate === 'binti') {
         await generatePDFBinti(quote);
       } else {
-        generatePDFCorporate(quote);
+        await generatePDFCorporate(quote);
       }
       showToast("Quotation PDF downloaded successfully!");
     } catch (err) {
@@ -448,7 +448,7 @@ export default function QuotesModule({
     }
   };
 
-  const generatePDFCorporate = (quote: Quote) => {
+  const generatePDFCorporate = async (quote: Quote) => {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     const pageWidth = 210;
     const pageHeight = 297;
@@ -502,8 +502,19 @@ export default function QuotesModule({
     doc.setFillColor(purple[0], purple[1], purple[2]);
     doc.rect(0, 0, pageWidth, 8, "F");
 
+    // Logo top-left, with a branded fallback if the local asset cannot load.
+    const logoBase64 = await loadImgBase64("/logo.jpeg");
+    if (logoBase64) {
+      doc.addImage(logoBase64, "JPEG", margin, 8, 30, 10);
+    } else {
+      doc.setFont("helvetica", "bolditalic");
+      doc.setFontSize(13);
+      doc.setTextColor(255, 255, 255);
+      doc.text(companySettings.companyName || "BINTI EVENTS", margin, 17);
+    }
+
     // Title & Branding Block
-    y = 18;
+    y = 20;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
     doc.setTextColor(purple[0], purple[1], purple[2]);
@@ -786,13 +797,13 @@ export default function QuotesModule({
       }
     };
 
-    // Load logo & thank you notes
-    const logoBase64 = await loadImgBase64('https://bintievents.vercel.app/images/invoicelogo.jpg');
-    const thankYouBase64 = await loadImgBase64('https://bintievents.vercel.app/images/thankyounote.PNG');
+    // Load the local brand logo and thank-you note.
+    const logoBase64 = await loadImgBase64('/logo.jpeg');
+    const thankYouBase64 = await loadImgBase64('/thankyounote.PNG');
 
     if (logoBase64) {
       try {
-        doc.addImage(logoBase64, 'PNG', margin, y, 44, 20);
+        doc.addImage(logoBase64, 'JPEG', margin, y, 44, 20);
       } catch (err) {
         doc.setFont('helvetica', 'bolditalic');
         doc.setFontSize(22);
@@ -1538,7 +1549,11 @@ export default function QuotesModule({
                 </div>
                 <div className="bg-amber-50/20 p-4 border border-amber-50 rounded-2xl">
                   <span className="text-[10px] font-bold text-[#D4AF37] uppercase tracking-wider block mb-1">Contract Safety Terms</span>
-                  <p className="text-xs text-gray-600 leading-relaxed font-mono whitespace-pre-wrap">{selectedQuote.terms || companySettings.termsTemplate}</p>
+                  <ol className="space-y-1.5 pl-5 text-xs text-gray-600 leading-relaxed break-words">
+                    {normalizeDocumentTerms(selectedQuote.terms || companySettings.termsTemplate).map((term, index) => (
+                      <li key={`${term}-${index}`} className="pl-1">{term}</li>
+                    ))}
+                  </ol>
                 </div>
               </div>
             </div>

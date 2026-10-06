@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizeMultilineText, normalizePdfTerms } from "./text.ts";
+import { normalizeDocumentTerms, normalizeMultilineText, normalizePdfTerms } from "./text.ts";
 
 test("normalizes concatenated numbered clauses into separate lines", () => {
   const input = [
@@ -28,4 +28,14 @@ test("repairs character-spaced terms without removing word boundaries", () => {
   const input = "2. P a y m e n t  o f  a t  l e a s t  7 0 %  c o n f i r m s  y o u r  b o o k i n g";
 
   assert.deepEqual(normalizePdfTerms(input), ["2. Payment of at least 70% confirms your booking"]);
+});
+
+test("removes stray backticks and creates a structured terms list", () => {
+  const input = "1. First term`\n2. Second term `\n3. Third term";
+
+  assert.deepEqual(normalizeDocumentTerms(input), [
+    "1. First term",
+    "2. Second term",
+    "3. Third term",
+  ]);
 });

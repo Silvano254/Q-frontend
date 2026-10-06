@@ -31,11 +31,33 @@ export function normalizeMultilineText(text?: string): string {
 }
 
 /**
+ * Normalizes terms for display and PDF use, removing stray Markdown delimiters,
+ * repairing squashed numbering, and excluding quote-only validity wording from
+ * invoice content.
+ */
+export function normalizeDocumentTerms(text?: string, options: { invoice?: boolean } = {}): string[] {
+  const normalized = normalizeMultilineText(text)
+    .replace(/`+/g, "")
+    .replace(/\s*Quote valid for \d+ days\s*/gi, " ")
+    .trim();
+
+  if (!normalized) return [];
+
+  return normalized
+    .split(/\n+/)
+    .map(line => line.replace(/`+/g, "").trim())
+    .filter(Boolean)
+    .filter(line => !options.invoice || !/^\s*Quote valid for \d+ days\s*$/i.test(line));
+}
+
+/**
  * Prepares terms for PDF output, repairing legacy clauses that were stored with
  * spaces between every character while leaving normally spaced text untouched.
  */
 export function normalizePdfTerms(text?: string): string[] {
   return normalizeMultilineText(text)
+    .replace(/`+/g, "")
+    .replace(/\s*Quote valid for \d+ days\s*/gi, " ")
     .split("\n")
     .map(line => {
       const tokens = line.trim().split(/\s+/);

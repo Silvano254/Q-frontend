@@ -84,8 +84,13 @@ export function generateNextDocumentNumber(
   });
 
   const nextSeq = (maxSeq + 1).toString().padStart(3, "0");
-  if (formatTemplate.includes("{SEQ}")) {
-    return formatTemplate.replace("{SEQ}", nextSeq);
+  // Replace year tokens before {SEQ} — settings templates like "INV-{YYYY}-{SEQ}"
+  // previously rendered the literal "{YYYY}" into document numbers/filenames.
+  const resolvedTemplate = formatTemplate
+    .replace(/\{YYYY\}/g, String(currentYear))
+    .replace(/\{YY\}/g, String(currentYear).slice(-2));
+  if (resolvedTemplate.includes("{SEQ}")) {
+    return resolvedTemplate.replace("{SEQ}", nextSeq);
   }
-  return `${formatTemplate}-${nextSeq}`;
+  return `${resolvedTemplate}-${nextSeq}`;
 }

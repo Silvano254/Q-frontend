@@ -31,6 +31,7 @@ import { apiRequest } from "../services/apiClient";
 import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildInvoiceEmailContent, openMailClient } from "../utils/email";
 import { normalizePdfTerms } from "../utils/text";
+import { renderPdfClauses } from "../utils/pdfTerms";
 import ConfirmDialog from "./ConfirmDialog";
 
 const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
@@ -766,16 +767,12 @@ export default function InvoicesModule({
       doc.setFontSize(7.5);
       doc.setTextColor(100, 100, 100);
 
-      const splitTermsIntoLines = (val?: string): string[] => {
-        return normalizePdfTerms(val);
-      };
-
-      const termsLines = splitTermsIntoLines(termsSource);
-      termsLines.forEach((term: string) => {
-        const splitLine = doc.splitTextToSize(term, contentWidth);
-        ensurePageSpace(splitLine.length * 4.0 + 2);
-        doc.text(splitLine, margin, y);
-        y += splitLine.length * 4.0 + 1.5;
+      const termsLines = normalizePdfTerms(termsSource);
+      y = renderPdfClauses(doc, y, termsLines, {
+        x: margin,
+        width: contentWidth,
+        autoNumber: false,
+        ensureSpace: (needed, currentY) => { y = currentY; ensurePageSpace(needed); return y; },
       });
     }
 
@@ -793,15 +790,16 @@ export default function InvoicesModule({
       doc.text("OFFICIAL PAYMENT INSTRUCTIONS & BANK DETAILS:", margin, y);
 
       y += 5.5;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9.5);
-      doc.setTextColor(35, 35, 35);
+      // Payment details use the same typography and alignment as the terms block
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 100, 100);
       const bankLines = companySettings.bankDetails.split(/\r?\n/).filter(line => line.trim());
-      bankLines.forEach(line => {
-        const wrappedLine = doc.splitTextToSize(line.trim(), contentWidth);
-        ensurePageSpace(wrappedLine.length * 4.8 + 1);
-        doc.text(wrappedLine, margin, y);
-        y += wrappedLine.length * 4.8;
+      y = renderPdfClauses(doc, y, bankLines, {
+        x: margin,
+        width: contentWidth,
+        autoNumber: false,
+        ensureSpace: (needed, currentY) => { y = currentY; ensurePageSpace(needed); return y; },
       });
     }
 
@@ -1083,12 +1081,11 @@ export default function InvoicesModule({
       '4. Cancellation and rescheduling requests must be confirmed in writing and may be subject to administrative fees.',
       '5. All confirmations are subject to availability and final venue logistics approval.',
     ];
-    termsLines.forEach((term: string, i: number) => {
-      const lineText = term.match(/^\d+\./) ? term : `${i + 1}. ${term}`;
-      const lines = doc.splitTextToSize(lineText, contentWidth);
-      ensurePageSpace(lines.length * 4.0 + 2);
-      doc.text(lines, margin, y);
-      y += lines.length * 4.0 + 1.5;
+    y = renderPdfClauses(doc, y, termsLines, {
+      x: margin,
+      width: contentWidth,
+      autoNumber: true,
+      ensureSpace: (needed, currentY) => { y = currentY; ensurePageSpace(needed); return y; },
     });
 
     y += 6;
@@ -1105,15 +1102,16 @@ export default function InvoicesModule({
       doc.setTextColor(45, 30, 70);
       doc.text('OFFICIAL PAYMENT INSTRUCTIONS & BANK DETAILS:', margin, y);
       y += 5.5;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(35, 35, 35);
+      // Payment details use the same typography and alignment as the terms block
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(gray[0], gray[1], gray[2]);
       const bankLines = companySettings.bankDetails.split(/\r?\n/).filter(line => line.trim());
-      bankLines.forEach(line => {
-        const wrappedLine = doc.splitTextToSize(line.trim(), contentWidth);
-        ensurePageSpace(wrappedLine.length * 4.8 + 1);
-        doc.text(wrappedLine, margin, y);
-        y += wrappedLine.length * 4.8;
+      y = renderPdfClauses(doc, y, bankLines, {
+        x: margin,
+        width: contentWidth,
+        autoNumber: false,
+        ensureSpace: (needed, currentY) => { y = currentY; ensurePageSpace(needed); return y; },
       });
       y += 4;
     }

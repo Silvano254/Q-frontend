@@ -28,6 +28,7 @@ import { apiRequest } from "../services/apiClient";
 import { buildQuoteWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildQuoteEmailContent, openMailClient } from "../utils/email";
 import { normalizePdfTerms } from "../utils/text";
+import { renderPdfClauses } from "../utils/pdfTerms";
 import ConfirmDialog from "./ConfirmDialog";
 
 const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
@@ -687,16 +688,11 @@ export default function QuotesModule({
       doc.setFontSize(7.5);
       doc.setTextColor(100, 100, 100);
 
-      const splitTermsIntoLines = (val?: string): string[] => {
-        return normalizePdfTerms(val);
-      };
-
-      const termsLines = splitTermsIntoLines(termsSource);
-      termsLines.forEach((term: string) => {
-        const splitLine = doc.splitTextToSize(term, contentWidth);
-        ensurePageSpace(splitLine.length * 4.0 + 2);
-        doc.text(splitLine, margin, y);
-        y += splitLine.length * 4.0 + 1.5;
+      y = renderPdfClauses(doc, y, normalizePdfTerms(termsSource), {
+        x: margin,
+        width: contentWidth,
+        autoNumber: false,
+        ensureSpace: (needed, currentY) => { y = currentY; ensurePageSpace(needed); return y; },
       });
     }
 
@@ -944,12 +940,11 @@ export default function QuotesModule({
       '4. Cancellation and rescheduling requests must be confirmed in writing and may be subject to administrative fees.',
       '5. All confirmations are subject to availability and final venue logistics approval.',
     ];
-    termsLines.forEach((term: string, i: number) => {
-      const lineText = term.match(/^\d+\./) ? term : `${i + 1}. ${term}`;
-      const lines = doc.splitTextToSize(lineText, contentWidth);
-      ensurePageSpace(lines.length * 4.0 + 2);
-      doc.text(lines, margin, y);
-      y += lines.length * 4.0 + 1.5;
+    y = renderPdfClauses(doc, y, termsLines, {
+      x: margin,
+      width: contentWidth,
+      autoNumber: true,
+      ensureSpace: (needed, currentY) => { y = currentY; ensurePageSpace(needed); return y; },
     });
 
     y += 8;

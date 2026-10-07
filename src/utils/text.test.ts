@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_INVOICE_TERMS, DEFAULT_QUOTE_TERMS, normalizeDocumentTerms, normalizeMultilineText, normalizePdfTerms } from "./text.ts";
+import { DEFAULT_INVOICE_TERMS, DEFAULT_QUOTE_TERMS, generateNextDocumentNumber, normalizeDocumentTerms, normalizeMultilineText, normalizePdfTerms } from "./text.ts";
 
 test("normalizes concatenated numbered clauses into separate lines", () => {
   const input = [
@@ -84,6 +84,21 @@ test("invoice defaults contain the four requested clauses in order", () => {
     "3. Payments to be made via Mpesa Paybill 222111 Account 2760684",
     "4. E & OE",
   ]);
+});
+
+test("generates unique numbers even when callers have the same stale document list", () => {
+  const existingNumbers = ["INV-2026-0001"];
+  const first = generateNextDocumentNumber("INV-{YYYY}-{SEQ}", existingNumbers, "INV");
+  const second = generateNextDocumentNumber("INV-{YYYY}-{SEQ}", existingNumbers, "INV");
+
+  assert.notEqual(first, second);
+  assert.match(first, /^INV-\d{4}-[A-F0-9]{12}-\d{3}$/);
+  assert.match(second, /^INV-\d{4}-[A-F0-9]{12}-\d{3}$/);
+  assert.ok(first.endsWith("-002"));
+  assert.ok(second.endsWith("-002"));
+
+  const next = generateNextDocumentNumber("INV-{YYYY}-{SEQ}", [first], "INV");
+  assert.ok(next.endsWith("-003"));
 });
 
 test("removes stray backticks and creates a structured terms list", () => {

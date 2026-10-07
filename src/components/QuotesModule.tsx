@@ -692,7 +692,7 @@ export default function QuotesModule({
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(purple[0], purple[1], purple[2]);
-      doc.text("TERMS & CONDITIONS", margin, y);
+      doc.text("TERMS AND CONDITIONS", margin, y);
 
       y += 5;
       doc.setFont("helvetica", "normal");
@@ -931,7 +931,7 @@ export default function QuotesModule({
     doc.setFont('helvetica', 'bolditalic');
     doc.setFontSize(8);
     doc.setTextColor(black[0], black[1], black[2]);
-    doc.text('Terms & conditions apply:', margin, y);
+    doc.text('Terms and Conditions', margin, y);
 
     y += 5;
     doc.setFont('helvetica', 'normal');

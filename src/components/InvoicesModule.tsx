@@ -771,7 +771,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
       doc.setTextColor(purple[0], purple[1], purple[2]);
-      doc.text("PAYMENT TERMS & EVENT CLAUSES", margin, y);
+      doc.text("TERMS AND CONDITIONS", margin, y);
 
       y += 5;
       doc.setFont("helvetica", "normal");
@@ -1072,7 +1072,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.setFont('helvetica', 'bolditalic');
     doc.setFontSize(8);
     doc.setTextColor(black[0], black[1], black[2]);
-    doc.text('Terms & conditions apply:', margin, y);
+    doc.text('Terms and Conditions', margin, y);
 
     y += 5;
     doc.setFont('helvetica', 'normal');

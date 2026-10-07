@@ -138,9 +138,11 @@ export function generateNextDocumentNumber(
   let maxSeq = 0;
   existingNumbers.forEach(num => {
     if (!num) return;
-    const match = num.match(/\d+$/);
-    if (match) {
-      const parsed = parseInt(match[0], 10);
+    const generatedNumber = num.match(/-[A-F0-9]{12}-(\d{3})$/i);
+    const legacyNumber = num.match(/(\d+)$/);
+    const sequence = generatedNumber?.[1] ?? legacyNumber?.[1];
+    if (sequence) {
+      const parsed = parseInt(sequence, 10);
       if (!isNaN(parsed) && parsed > maxSeq) {
         maxSeq = parsed;
       }
@@ -153,8 +155,13 @@ export function generateNextDocumentNumber(
   const resolvedTemplate = formatTemplate
     .replace(/\{YYYY\}/g, String(currentYear))
     .replace(/\{YY\}/g, String(currentYear).slice(-2));
+  // Include random entropy so simultaneous creations in separate browser tabs
+  // or devices do not issue the same sequential number before state refreshes.
+  // The last numeric sequence segment remains parseable for the next number.
+  const uniqueToken = globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
+  const uniqueSequence = `${uniqueToken}-${nextSeq}`;
   if (resolvedTemplate.includes("{SEQ}")) {
-    return resolvedTemplate.replace("{SEQ}", nextSeq);
+    return resolvedTemplate.replace("{SEQ}", uniqueSequence);
   }
-  return `${resolvedTemplate}-${nextSeq}`;
+  return `${resolvedTemplate}-${uniqueSequence}`;
 }

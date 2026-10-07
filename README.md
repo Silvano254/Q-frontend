@@ -1,116 +1,82 @@
-# Binti Events Management System — Frontend Client
+# Binti Events Management System — Frontend
 
-> **Author:** Silvano Otieno  
-> **Repository:** [Silvano254/Q-frontend](https://github.com/Silvano254/Q-frontend.git)  
-> **Live Web Application:** [q-frontend-weld.vercel.app](https://q-frontend-weld.vercel.app)
+React and TypeScript web application for managing event quotations, invoices, payments, clients, products, and company settings. It includes Binti AI assistance and PDF exports in Corporate and Binti templates.
 
-Binti Events Management System is a modern, high-performance web application engineered for event management operations, marquee equipment providers, and event planners. It provides automated quotations, tax invoice generation, payment ledgers, client relationship management, and **Binti**—an AI assistant powered by Google Gemini.
+- **Repository:** [Silvano254/Q-frontend](https://github.com/Silvano254/Q-frontend)
+- **Live app:** [q-frontend-weld.vercel.app](https://q-frontend-weld.vercel.app)
+- **Backend:** Supabase Edge Functions; see the [Q-backend README](https://github.com/Silvano254/Q-backend/blob/main/README.md)
 
----
+## Features
 
-## ✨ Features & Functional Modules
+- Dashboard metrics and business activity summaries.
+- Quote and invoice builders, custom terms, PDF export, and email/WhatsApp sharing.
+- Quote-to-invoice conversion and invoice payment tracking.
+- Client directory and product/service catalog.
+- Company profile, tax information, invoice/quote settings, and payment details.
+- Responsive interface and Binti AI assistant.
+- PDF templates: Classic Formal and Binti Signature.
 
-### 1. 📊 Executive Dashboard & AI Analyst
-- Real-time KPI summary (Total Revenue, Active Quotes, Issued Invoices, Pending Balances).
-- Executive business report generation via **Binti AI Analyst**.
-- Cash flow recovery metrics and conversion rate indicators.
+## Tech stack
 
-### 2. 🧾 Quotations & Proposals Management
-- Custom proposal creation with catalog equipment selection, line-item quantities, and custom discounting.
-- **Optional Transport & Logistics Integration**: An interactive checkbox allows the admin to specify custom transport/rigging costs and descriptions directly into quotation line items.
-- Proposal status tracking (*Draft*, *Sent*, *Converted*, *Expired*).
-- **1-Click Conversion**: Automatically convert approved Quotations into official Tax Invoices.
-- **Bank-Free Quotations**: Quotations strictly detail scope of work and pricing terms without bank/payment instructions.
-- PDF generation (Binti Signature & Classic Formal templates) and client email/WhatsApp sharing utilities.
+- React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4.
+- jsPDF for PDF generation; Lucide React for icons.
+- Supabase Edge Functions for authenticated API requests and persistence.
 
-### 3. 💳 Tax Invoices & Billing Ledger
-- Official Tax Invoice generation with company tax numbers/PINs and due dates.
-- **Transport & Logistics Line Items**: Add custom transport amounts with auto-calculated VAT and totals.
-- **Conditional Banking Details**: Payment instructions and bank account details display **only** on invoices that have an active outstanding balance. Fully settled invoices omit banking details and reflect **Fully Paid / Settled** status.
-- Partial & full payment recording with automated balance deduction.
-- Dual PDF design exports (**Binti Signature** & **Classic Formal**) and printable payment receipts.
+## Requirements
 
-### 4. 💰 Payments Ledger & Manual Receipts
-- Centralized tracking for M-Pesa, Bank Transfers, Cheques, and Cash payments.
-- Automatic balance deduction and printable transaction vouchers.
-- Filter by payment method, date range, or client account.
+- Node.js 18 or later
+- npm 9 or later
+- A configured Supabase Edge Functions backend and its anon key
 
-### 5. 👥 Clients Directory
-- Client profiles with contact details, company information, tax numbers, and communication history.
-- Lifetime Value (LTV) revenue analytics and transaction histories per client.
+## Local development
 
-### 6. 🎪 Products & Services Catalog
-- Inventory catalog for Tents & Marquees, Decor & Styling, Furniture & Seating, Audio & Lighting, Catering Equipment, and Consultation.
-- Real-time stock status, billing units, and category pricing configuration.
-
-### 7. 🔔 Smart Notification Center
-- Real-time tracking of overdue invoices and upcoming payment due dates (3-day lookahead).
-- **Persistent Clear & Dismiss**: Global clearance timestamp (`binti_notifications_cleared_at`) and individual alert dismissals persist across logins and devices.
-- **Persistent Read States**: Alerts clicked by the user remain marked as read across page reloads.
-
-### 8. 📱 Mobile & Responsive Experience
-- Full mobile responsiveness with zero horizontal scroll overflow.
-- Mobile navigation drawer, adaptive popovers, and touch-optimized data tables.
-
-### 9. 🤖 Binti AI Assistant
-- Interactive assistant (`Binti ✨`) powered by Google Gemini.
-- Contextual suggestions across Dashboard, Quotes, Invoices, and Clients modules.
-- AI contract terms generation and email dispatch drafting.
-
-### 10. 🔐 Inactivity Session Timeout & Workspace State Restoration
-- **15-Minute Inactivity Protection**: Automatically logs out the user after 15 minutes of inactivity across mouse, keyboard, touch, or scroll events.
-- **Smart Workspace Preservation**: Serializes and snapshots the user's active tab, open quote/invoice previews, and search queries before logging out.
-- **Instant Workspace Restoration**: Upon re-authenticating, automatically restores the user's workspace exactly where they left off with a welcoming notification.
-
-## 🛠️ Technology Stack
-
-- **Framework**: React 18 / TypeScript
-- **Build Tool**: Vite 6
-- **Styling**: Tailwind CSS / Custom Glassmorphism UI tokens
-- **Icons**: Lucide React
-- **Document Export**: html2canvas / jsPDF / DOM-to-Image
-- **Deployment**: Vercel
-
----
-
-## 🚀 Getting Started (Local Development)
-
-### 1. Prerequisites
-- Node.js `>= 18.0.0`
-- npm `>= 9.0.0`
-
-### 2. Installation
-```bash
-# Clone repository
+```sh
 git clone https://github.com/Silvano254/Q-frontend.git
 cd Q-frontend
-
-# Install dependencies
 npm install
 ```
 
-### 3. Environment Setup
-Create a `.env` file in the root directory:
-```env
-# Production backend Supabase/Edge Function endpoint
-VITE_API_URL=https://ltinjyvcrgwcvudrnfby.supabase.co/functions/v1
+Copy `.env.example` to `.env` and configure:
 
-# Application Branding Title
+```env
+VITE_API_URL=https://<project-ref>.supabase.co/functions/v1
+VITE_SUPABASE_ANON_KEY=<supabase-anon-key>
 VITE_APP_NAME=Binti Events Management System
 ```
 
-### 4. Run Development Server
-```bash
+Do not put Supabase service-role keys or other server secrets in frontend variables. Vite-exposed values are included in the client bundle.
+
+Start the development server:
+
+```sh
 npm run dev
 ```
-Open your browser at `http://localhost:5173`.
 
-### 5. Production Build
-```bash
-npm run build
+Vite prints the local URL (normally `http://localhost:5173`).
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start Vite development server |
+| `npm run build` | Create the production bundle in `dist/` |
+| `npm run preview` | Preview the production bundle locally |
+| `npm run type-check` | Run TypeScript without emitting files |
+| `npm run lint` | Run ESLint |
+| `npm run format` | Format supported source files |
+
+The text/PDF utility tests use Node's built-in test runner and TypeScript strip-types support:
+
+```sh
+node --experimental-strip-types --test src/utils/text.test.ts src/utils/pdfTerms.test.ts
 ```
 
----
+## Deployment
 
-## 🔒 License & Ownership
+Configure `VITE_API_URL`, `VITE_SUPABASE_ANON_KEY`, and optionally `VITE_APP_NAME` in the hosting provider before building. For Vercel, connect the frontend repository and deploy the Vite app; the static output directory is `dist`.
+
+The frontend API client maps `/api/...` application routes to the corresponding Supabase Edge Function names. Backend configuration and deployment are documented in the [backend repository](https://github.com/Silvano254/Q-backend).
+
+## License
+
 Copyright © 2026 Binti Events. All rights reserved.

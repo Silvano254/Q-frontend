@@ -24,10 +24,10 @@ function mapToEdgeFunction(path: string): string {
   if (normalized.startsWith('auth/login')) return 'auth-login';
   if (normalized.startsWith('auth/biometric-login')) return 'auth-biometric-login';
   if (normalized.startsWith('auth/register-biometric')) return 'auth-register-biometric';
+  if (normalized.startsWith('auth/request-profile-update') || normalized.startsWith('auth/verify-profile-update')) return 'auth-profile-update';
   if (normalized.startsWith('auth/verify')) return 'auth-verify';
   if (normalized.startsWith('auth/logout')) return 'auth-logout';
   if (normalized.startsWith('auth/request-reset') || normalized.startsWith('auth/verify-reset-otp')) return 'auth-reset';
-  if (normalized.startsWith('auth/request-profile-update-otp') || normalized.startsWith('auth/verify-profile-update')) return 'auth-profile-update';
   if (normalized.startsWith('auth/seed-admin')) return 'auth-seed-admin';
   if (normalized.startsWith('import-products')) return 'import-products';
   if (normalized.startsWith('clients')) return 'clients';

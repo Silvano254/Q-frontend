@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from "react";
-import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key, CreditCard, DollarSign, Loader2, AlertTriangle, ShieldAlert, X } from "lucide-react";
+import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key, CreditCard, DollarSign, Loader2, AlertTriangle, ShieldAlert, X, MessageSquare, Send, LockKeyhole } from "lucide-react";
 import { CompanySettings } from "../types";
+import { apiRequest, setAuthToken } from "../services/apiClient";
 
 interface SettingsModuleProps {
   companySettings: CompanySettings;
   onUpdateSettings: (settings: CompanySettings) => Promise<void>;
   onResetDatabase: () => Promise<void>;
-  currentUser?: { name: string; role: string; email: string } | null;
-  onUpdateCurrentUser?: (user: any) => void;
+  currentUser?: { id?: string; name: string; role: string; email: string; phone?: string | null; phoneVerified?: boolean } | null;
+  onUpdateCurrentUser?: (user: { id?: string; name: string; role: string; email: string; phone?: string | null; phoneVerified?: boolean }) => void;
   theme?: "light" | "dark";
   onToggleTheme?: (theme: "light" | "dark") => void;
   showToast: (message: string, type?: "success" | "warning") => void;
@@ -28,6 +29,13 @@ export default function SettingsModule({
   const [showResetModal, setShowResetModal] = useState(false);
   const [confirmText, setConfirmText] = useState("");
   const [biometricRegistered, setBiometricRegistered] = useState(true);
+  const [showCredentialOptions, setShowCredentialOptions] = useState(false);
+  const [credentialChannel, setCredentialChannel] = useState<"email" | "sms" | null>(null);
+  const [showPhoneEnrollment, setShowPhoneEnrollment] = useState(false);
+  const [accountPhone, setAccountPhone] = useState(currentUser?.phone || "");
+  const [phoneOtp, setPhoneOtp] = useState("");
+  const [phoneOtpSent, setPhoneOtpSent] = useState(false);
+  const [isRequestingPhoneOtp, setIsRequestingPhoneOtp] = useState(false);
 
   // Security Credentials Updates states
   const [newAccessEmail, setNewAccessEmail] = useState(currentUser?.email || companySettings.email || "");
@@ -45,13 +53,102 @@ export default function SettingsModule({
     }
   }, [currentUser?.email, companySettings.email]);
 
-  const handleRequestProfileOtp = async () => {
-    showToast('Profile changes are managed by the system administrator.', 'warning');
+  React.useEffect(() => {
+    setAccountPhone(currentUser?.phone || "");
+  }, [currentUser?.phone]);
+
+  const handleRequestProfileOtp = async (channel: "email" | "sms") => {
+    setCredentialChannel(channel);
+    const changingEmail = Boolean(newAccessEmail.trim() && newAccessEmail.trim().toLowerCase() !== currentUser?.email?.toLowerCase());
+    if (!changingEmail && !newPasscode) {
+      showToast("Enter a new email or passcode before requesting a code.", "warning");
+      return;
+    }
+    if (channel === "sms" && !currentUser?.phoneVerified) {
+      showToast("Verify an account phone number before using SMS.", "warning");
+      return;
+    }
+    setIsRequestingOtp(true);
+    try {
+      const response = await apiRequest<{ sent?: boolean; message?: string }>("/api/auth/request-profile-update-otp", {
+        method: "POST",
+        body: JSON.stringify({ action: "request-code", channel }),
+      });
+      setOtpRequested(true);
+      setShowCredentialOptions(false);
+      showToast(response?.message || `Verification code sent by ${channel}.`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not send verification code.", "warning");
+    } finally {
+      setIsRequestingOtp(false);
+    }
   };
 
-  const handleApplyProfileUpdates = async (e: React.FormEvent) => {
-    e.preventDefault();
-    showToast('Profile changes are managed by the system administrator.', 'warning');
+  const handleApplyProfileUpdates = async () => {
+    setIsApplyingProfileUpdate(true);
+    try {
+      const response = await apiRequest<{ success?: boolean; token?: string; user?: { id?: string; email?: string; name?: string; role?: string; phone?: string | null; phoneVerified?: boolean }; message?: string }>("/api/auth/verify-profile-update", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "verify-and-apply",
+          otp: profileOtp,
+          newEmail: newAccessEmail.trim() !== currentUser?.email ? newAccessEmail.trim() : undefined,
+          newPasscode: newPasscode || undefined,
+        }),
+      });
+      if (response?.user && currentUser) {
+        onUpdateCurrentUser?.({ ...currentUser, ...response.user });
+      }
+      if (response?.token) setAuthToken(response.token);
+      setProfileOtp("");
+      setNewPasscode("");
+      setOtpRequested(false);
+      setCredentialChannel(null);
+      setShowCredentialOptions(false);
+      if (response?.user?.email) setNewAccessEmail(response.user.email);
+      showToast(response?.message || "Credentials updated successfully.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not update credentials.", "warning");
+    } finally {
+      setIsApplyingProfileUpdate(false);
+    }
+  };
+
+  const handleRequestPhoneOtp = async () => {
+    setIsRequestingPhoneOtp(true);
+    try {
+      const response = await apiRequest<{ sent?: boolean; message?: string }>("/api/auth/request-profile-update-otp", {
+        method: "POST",
+        body: JSON.stringify({ action: "request-phone-verification", phone: accountPhone.trim() }),
+      });
+      setPhoneOtpSent(true);
+      showToast(response?.message || "Phone verification code sent.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not send phone verification code.", "warning");
+    } finally {
+      setIsRequestingPhoneOtp(false);
+    }
+  };
+
+  const handleVerifyPhone = async () => {
+    setIsRequestingPhoneOtp(true);
+    try {
+      const response = await apiRequest<{ success?: boolean; phone?: string; message?: string }>("/api/auth/verify-profile-update", {
+        method: "POST",
+        body: JSON.stringify({ action: "verify-phone", otp: phoneOtp }),
+      });
+      if (response?.success && currentUser) {
+        onUpdateCurrentUser?.({ ...currentUser, phone: accountPhone.trim(), phoneVerified: true });
+      }
+      setPhoneOtp("");
+      setPhoneOtpSent(false);
+      setShowPhoneEnrollment(false);
+      showToast(response?.message || "Phone number verified.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not verify phone number.", "warning");
+    } finally {
+      setIsRequestingPhoneOtp(false);
+    }
   };
 
   const handleRegisterBiometric = async () => {
@@ -342,14 +439,14 @@ export default function SettingsModule({
           <div className="glass-card p-6 border-l-4 border-l-[#80237E] space-y-4">
             <span className="text-[10px] font-bold text-[#80237E] uppercase tracking-widest block">Security & Access Credentials</span>
             
-            <form onSubmit={handleApplyProfileUpdates} className="space-y-3.5">
+            <div className="space-y-3.5">
               <div>
                 <label className="block text-[9px] font-bold text-gray-400 uppercase">New Access Email</label>
                 <input
                   type="email"
-                  required
                   value={newAccessEmail}
                   onChange={(e) => setNewAccessEmail(e.target.value)}
+                  placeholder="Leave unchanged to keep current email"
                   className="w-full mt-1 px-3.5 py-2 border border-gray-200 rounded-xl text-xs"
                 />
               </div>
@@ -365,33 +462,75 @@ export default function SettingsModule({
                 />
               </div>
 
+              {(!currentUser?.phoneVerified || showPhoneEnrollment) && (
+                <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3 space-y-2">
+                  <p className="text-[10px] text-blue-900 font-semibold">{currentUser?.phoneVerified ? "Verify the replacement number before it becomes the SMS credential destination." : "Register and verify an account phone to enable SMS credential codes."}</p>
+                  {!showPhoneEnrollment ? (
+                    <button type="button" onClick={() => setShowPhoneEnrollment(true)} className="w-full py-2 bg-white border border-blue-200 text-blue-800 rounded-lg text-xs font-bold flex items-center justify-center space-x-2">
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>Set up SMS verification</span>
+                    </button>
+                  ) : (
+                    <>
+                      <input type="tel" value={accountPhone} onChange={(e) => { setAccountPhone(e.target.value); setPhoneOtpSent(false); setPhoneOtp(""); }} placeholder="+2547XXXXXXXX" className="w-full px-3 py-2 border border-blue-200 rounded-lg text-xs font-mono" />
+                      {!phoneOtpSent ? (
+                        <button type="button" onClick={handleRequestPhoneOtp} disabled={isRequestingPhoneOtp || !accountPhone.trim()} className="w-full py-2 bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center justify-center space-x-2">
+                          <Send className="w-3.5 h-3.5" />
+                          <span>{isRequestingPhoneOtp ? "Sending live SMS..." : "Send verification SMS"}</span>
+                        </button>
+                      ) : (
+                        <>
+                          <div className="flex space-x-2">
+                            <input inputMode="numeric" maxLength={6} value={phoneOtp} onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ""))} placeholder="6-digit code" className="min-w-0 flex-1 px-3 py-2 border border-blue-200 rounded-lg text-xs font-mono" />
+                            <button type="button" onClick={handleVerifyPhone} disabled={isRequestingPhoneOtp || phoneOtp.length !== 6} className="px-3 py-2 bg-blue-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold">Verify</button>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] text-blue-800">
+                            <button type="button" onClick={() => { setPhoneOtpSent(false); setPhoneOtp(""); }} className="font-bold underline">Change number</button>
+                            <button type="button" onClick={() => void handleRequestPhoneOtp()} disabled={isRequestingPhoneOtp} className="font-bold underline disabled:opacity-50">{isRequestingPhoneOtp ? "Resending..." : "Resend code"}</button>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {currentUser?.phoneVerified && (
+                <div className="flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2">
+                  <span className="text-[10px] text-emerald-800 flex items-center space-x-1.5"><CheckCircle2 className="w-3.5 h-3.5" /><span>SMS verified: {currentUser.phone}</span></span>
+                  <button type="button" onClick={() => { setPhoneOtp(""); setShowPhoneEnrollment(true); }} className="text-[10px] font-bold text-emerald-800 underline">Change phone</button>
+                </div>
+              )}
+
               {otpRequested ? (
                 <>
                   <div>
                     <label className="block text-[9px] font-bold text-gray-400 uppercase">
-                      Verification PIN (Sent to {currentUser?.email || companySettings.email || "registered email"})
+                      Verification code sent by {credentialChannel === "sms" ? "SMS" : "email"}
                     </label>
                     <input
                       type="text"
                       required
                       maxLength={6}
+                      inputMode="numeric"
                       value={profileOtp}
-                      onChange={(e) => setProfileOtp(e.target.value)}
-                      placeholder="Enter 6-digit PIN from email"
+                      onChange={(e) => setProfileOtp(e.target.value.replace(/\D/g, ""))}
+                      placeholder="Enter 6-digit code"
                       className="w-full mt-1 px-3.5 py-2 border border-[#D4AF37] rounded-xl text-xs font-mono font-bold tracking-wider"
                     />
                   </div>
                   <div className="flex space-x-2">
                     <button
                       type="button"
-                      onClick={() => setOtpRequested(false)}
+                      onClick={() => { setOtpRequested(false); setCredentialChannel(null); setProfileOtp(""); }}
                       className="w-1/3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl text-xs font-bold transition-all"
                     >
                       Cancel
                     </button>
                     <button
-                      type="submit"
-                      disabled={isApplyingProfileUpdate}
+                      type="button"
+                      onClick={() => void handleApplyProfileUpdates()}
+                      disabled={isApplyingProfileUpdate || profileOtp.length !== 6}
                       className="w-2/3 py-2 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all"
                     >
                       {isApplyingProfileUpdate ? "Saving..." : "Verify & Apply"}
@@ -399,17 +538,26 @@ export default function SettingsModule({
                   </div>
                 </>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleRequestProfileOtp}
-                  disabled={isRequestingOtp}
-                  className="w-full py-2 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold transition-all shadow shadow-[#6B46C1]/20 flex items-center justify-center space-x-1"
-                >
-                  <Mail className="w-3.5 h-3.5 text-[#D4AF37]" />
-                  <span>{isRequestingOtp ? "Requesting code..." : "Authorize Credentials Change"}</span>
-                </button>
+                <div className="space-y-2">
+                  <button type="button" onClick={() => setShowCredentialOptions((open) => !open)} className="w-full py-2 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold transition-all shadow shadow-[#6B46C1]/20 flex items-center justify-center space-x-2">
+                    <LockKeyhole className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span>{showCredentialOptions ? "Choose verification method" : "Authorize Credentials Change"}</span>
+                  </button>
+                  {showCredentialOptions && (
+                    <div className="grid grid-cols-2 gap-2 rounded-xl border border-purple-100 bg-purple-50/60 p-2 animate-fade-in">
+                      <button type="button" onClick={() => void handleRequestProfileOtp("email")} disabled={isRequestingOtp} className="p-3 bg-white border border-gray-200 hover:border-purple-400 rounded-lg text-xs font-bold text-gray-700 flex flex-col items-center space-y-1.5 disabled:opacity-50">
+                        <Mail className="w-5 h-5 text-[#6B46C1]" />
+                        <span>{isRequestingOtp && credentialChannel === "email" ? "Sending..." : "Email"}</span>
+                      </button>
+                      <button type="button" onClick={() => void handleRequestProfileOtp("sms")} disabled={isRequestingOtp || !currentUser?.phoneVerified} title={!currentUser?.phoneVerified ? "Verify an account phone first" : "Send a live SMS verification code"} className="p-3 bg-white border border-gray-200 hover:border-emerald-400 rounded-lg text-xs font-bold text-gray-700 flex flex-col items-center space-y-1.5 disabled:opacity-50">
+                        <MessageSquare className="w-5 h-5 text-emerald-600" />
+                        <span>{isRequestingOtp && credentialChannel === "sms" ? "Sending..." : "SMS"}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
-            </form>
+            </div>
           </div>
 
           {/* Theme & Visual Display Settings */}

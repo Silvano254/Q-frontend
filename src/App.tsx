@@ -28,7 +28,7 @@ export default function App() {
   // Authentication State
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string } | null>(() => {
+  const [currentUser, setCurrentUser] = useState<{ name: string; role: string; email: string; phone?: string | null; phoneVerified?: boolean } | null>(() => {
     const saved = localStorage.getItem("binti_user");
     return saved ? JSON.parse(saved) : null;
   });
@@ -394,7 +394,7 @@ export default function App() {
     const verifyInitialAuth = async () => {
       setIsAuthChecking(true);
       try {
-        const data = await apiRequest<{ valid: boolean; user: { name: string; role: string; email: string } }>(
+        const data = await apiRequest<{ valid: boolean; user: { name: string; role: string; email: string; phone?: string | null; phoneVerified?: boolean } }>(
           '/api/auth/verify', { method: 'GET' }, true
         );
         if (data && data.valid) {
@@ -494,7 +494,7 @@ export default function App() {
     setIsSigningIn(true);
 
     try {
-      const data = await apiRequest<{ success: boolean; token: string; user: { name: string; role: string; email: string } }>(
+      const data = await apiRequest<{ success: boolean; token: string; user: { name: string; role: string; email: string; phone?: string | null; phoneVerified?: boolean } }>(
         '/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password: pass }) }, false
       );
       setAuthToken(data.token);

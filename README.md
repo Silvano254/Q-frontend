@@ -12,6 +12,7 @@ React and TypeScript web application for managing event quotations, invoices, pa
 - Quote-to-invoice conversion and invoice payment tracking.
 - Client directory and product/service catalog.
 - Company profile, tax information, invoice/quote settings, and payment details.
+- Settings-based login email/passcode changes verified by email or by live SMS to a separately verified account phone.
 - Responsive interface and Binti AI assistant.
 - PDF templates: Classic Formal and Binti Signature.
 

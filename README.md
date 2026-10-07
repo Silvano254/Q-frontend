@@ -2,9 +2,8 @@
 
 React and TypeScript web application for managing event quotations, invoices, payments, clients, products, and company settings. It includes Binti AI assistance and PDF exports in Corporate and Binti templates.
 
-- **Repository:** [Silvano254/Q-frontend](https://github.com/Silvano254/Q-frontend)
-- **Live app:** [q-frontend-weld.vercel.app](https://q-frontend-weld.vercel.app)
-- **Backend:** Supabase Edge Functions; see the [Q-backend README](https://github.com/Silvano254/Q-backend/blob/main/README.md)
+- **Repository:** See your organization's source control configuration.
+- **Backend:** Supabase Edge Functions; see the backend repository's README.
 
 ## Features
 
@@ -31,15 +30,15 @@ React and TypeScript web application for managing event quotations, invoices, pa
 ## Local development
 
 ```sh
-git clone https://github.com/Silvano254/Q-frontend.git
-cd Q-frontend
+git clone <frontend-repository-url>
+cd <frontend-repository-directory>
 npm install
 ```
 
 Copy `.env.example` to `.env` and configure:
 
 ```env
-VITE_API_URL=https://<project-ref>.supabase.co/functions/v1
+VITE_API_URL=https://<your-supabase-project-ref>.supabase.co/functions/v1
 VITE_SUPABASE_ANON_KEY=<supabase-anon-key>
 VITE_APP_NAME=Binti Events Management System
 ```
@@ -73,9 +72,9 @@ node --experimental-strip-types --test src/utils/text.test.ts src/utils/pdfTerms
 
 ## Deployment
 
-Configure `VITE_API_URL`, `VITE_SUPABASE_ANON_KEY`, and optionally `VITE_APP_NAME` in the hosting provider before building. For Vercel, connect the frontend repository and deploy the Vite app; the static output directory is `dist`.
+Configure `VITE_API_URL`, `VITE_SUPABASE_ANON_KEY`, and optionally `VITE_APP_NAME` in the hosting provider before building. Connect the frontend repository to your selected hosting provider and deploy the Vite app; the static output directory is `dist`.
 
-The frontend API client maps `/api/...` application routes to the corresponding Supabase Edge Function names. Backend configuration and deployment are documented in the [backend repository](https://github.com/Silvano254/Q-backend).
+The frontend API client maps `/api/...` application routes to the corresponding Supabase Edge Function names. Backend configuration and deployment are documented in the backend repository.
 
 ## License
 

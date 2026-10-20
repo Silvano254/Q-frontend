@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, Fingerprint, CheckCircle2, Shield, Sun, Moon, Palette, Key, CreditCard, DollarSign, Loader2, AlertTriangle, ShieldAlert, X, MessageSquare, Send, LockKeyhole } from "lucide-react";
+import { Settings, Save, Sparkles, Building, Phone, Mail, Award, MapPin, AlignLeft, RefreshCw, CheckCircle2, Sun, Moon, Palette, Key, CreditCard, DollarSign, Loader2, AlertTriangle, ShieldAlert, X, MessageSquare, Send, LockKeyhole } from "lucide-react";
 import { CompanySettings } from "../types";
 import { apiRequest, setAuthToken } from "../services/apiClient";
 
@@ -28,7 +28,6 @@ export default function SettingsModule({
   const [isResettingData, setIsResettingData] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [confirmText, setConfirmText] = useState("");
-  const [biometricRegistered, setBiometricRegistered] = useState(true);
   const [showCredentialOptions, setShowCredentialOptions] = useState(false);
   const [credentialChannel, setCredentialChannel] = useState<"email" | "sms" | null>(null);
   const [showPhoneEnrollment, setShowPhoneEnrollment] = useState(false);
@@ -151,9 +150,6 @@ export default function SettingsModule({
     }
   };
 
-  const handleRegisterBiometric = async () => {
-    showToast('Biometric authentication is not configured.', 'warning');
-  };
   const normalizeMultiline = (val: any): string => {
     if (val === null || val === undefined) return "";
     let str = String(val);
@@ -401,38 +397,6 @@ export default function SettingsModule({
             <p className="text-xs text-gray-300 leading-relaxed">
               Always ensure your **KRA PIN (VAT Registration)** matches your compliance certificates before issuing tax invoices to clients.
             </p>
-          </div>
-
-          {/* Biometric Passkey Management Card */}
-          <div className="bg-[#181024] text-white p-6 rounded-2xl border border-[#80237E]/40 shadow-xl space-y-4 relative overflow-hidden">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-[#EC4899] uppercase tracking-widest block">Passkey & Biometrics</span>
-              <Shield className="w-4 h-4 text-[#EAB308]" />
-            </div>
-            
-            <div>
-              <h4 className="font-extrabold text-sm text-white flex items-center space-x-1.5">
-                <Fingerprint className="w-4 h-4 text-[#EC4899]" />
-                <span>Touch ID / Fingerprint Auth</span>
-              </h4>
-              <p className="text-xs text-gray-300 mt-1 leading-relaxed">
-                Register hardware passkey or fingerprint sensor for instant 1-touch authentication.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-[#80237E]/30">
-              <div className="flex items-center space-x-1 text-xs">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-emerald-400 font-semibold text-[11px]">Passkey Active</span>
-              </div>
-              <button
-                type="button"
-                onClick={handleRegisterBiometric}
-                className="py-2 px-3 bg-[#80237E] hover:bg-[#6b1e6a] text-white rounded-xl text-xs font-bold transition-all shadow"
-              >
-                Register Fingerprint
-              </button>
-            </div>
           </div>
 
            {/* Security Credentials Card */}

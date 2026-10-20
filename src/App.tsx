@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Sparkles, RefreshCw, Eye, X } from "lucide-react";
+import { Sparkles, RefreshCw, Eye, X, Headset } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import TopBar from "./components/TopBar";
 import Dashboard from "./components/Dashboard";
@@ -1632,22 +1632,19 @@ export default function App() {
           </div>
         )}
 
-        {/* Floating Button "✨ Binti" */}
+        {/* Floating Button — compact support-operator avatar (headset icon) */}
         <button
           onClick={() => {
             setBintiInitialPrompt("");
             setIsAiAssistantOpen(true);
           }}
-          className="px-4 py-2.5 bg-white border-2 border-[#D4AF37]/60 hover:border-[#80237E] rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center space-x-2.5 group"
+          className="relative w-14 h-14 rounded-full bg-gradient-to-br from-[#1F2937] to-[#80237E] text-white shadow-2xl shadow-[#80237E]/30 ring-2 ring-white/60 hover:scale-110 hover:shadow-[#80237E]/50 active:scale-95 transition-all flex items-center justify-center group"
           title="Open Binti Assistant"
+          aria-label="Open Binti Assistant"
         >
-          <div className="w-7 h-7 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center border border-gray-100 shrink-0 shadow-xs">
-            <img src="/logo.jpeg" alt="Binti" className="w-full h-full object-contain" />
-          </div>
-          <span className="text-xs font-bold text-gray-900 tracking-wide flex items-center space-x-1">
-            <span>Binti</span>
-            <Sparkles className="w-3.5 h-3.5 text-[#D4AF37] group-hover:scale-110 transition-transform" />
-          </span>
+          <Headset className="w-6 h-6 group-hover:scale-110 transition-transform" strokeWidth={1.8} />
+          {/* Online status dot */}
+          <span className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full ring-2 ring-white"></span>
         </button>
       </div>
 

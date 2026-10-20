@@ -125,6 +125,8 @@ export function normalizePdfTerms(
 
 /**
  * Generates next sequential identifier (e.g., INV-2026-001, QT-2026-001) based on pattern and existing records.
+ * Legacy numbers that embedded a 12-character random token (e.g., QT-2026-3F9A2B1C8D4E-007)
+ * are still recognised so sequences continue correctly after the format change.
  */
 export function generateNextDocumentNumber(
   prefixFormat: string, // e.g. "INV-2026-{SEQ}" or "QT-2026-{SEQ}"
@@ -138,9 +140,9 @@ export function generateNextDocumentNumber(
   let maxSeq = 0;
   existingNumbers.forEach(num => {
     if (!num) return;
-    const generatedNumber = num.match(/-[A-F0-9]{12}-(\d{3})$/i);
-    const legacyNumber = num.match(/(\d+)$/);
-    const sequence = generatedNumber?.[1] ?? legacyNumber?.[1];
+    const tokenizedNumber = num.match(/-[A-F0-9]{12}-(\d{3})$/i);
+    const trailingSequence = num.match(/(\d+)$/);
+    const sequence = tokenizedNumber?.[1] ?? trailingSequence?.[1];
     if (sequence) {
       const parsed = parseInt(sequence, 10);
       if (!isNaN(parsed) && parsed > maxSeq) {
@@ -155,13 +157,17 @@ export function generateNextDocumentNumber(
   const resolvedTemplate = formatTemplate
     .replace(/\{YYYY\}/g, String(currentYear))
     .replace(/\{YY\}/g, String(currentYear).slice(-2));
-  // Include random entropy so simultaneous creations in separate browser tabs
-  // or devices do not issue the same sequential number before state refreshes.
-  // The last numeric sequence segment remains parseable for the next number.
-  const uniqueToken = globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase();
-  const uniqueSequence = `${uniqueToken}-${nextSeq}`;
   if (resolvedTemplate.includes("{SEQ}")) {
-    return resolvedTemplate.replace("{SEQ}", uniqueSequence);
+    return resolvedTemplate.replace("{SEQ}", nextSeq);
   }
-  return `${resolvedTemplate}-${uniqueSequence}`;
+  return `${resolvedTemplate}-${nextSeq}`;
+}
+
+/**
+ * Renders a compact display form of a database ID (e.g. UUID) so previews
+ * show a readable tag instead of the full 36-character string.
+ */
+export function shortId(id?: string): string {
+  if (!id) return "—";
+  return id.length > 8 ? id.slice(0, 8).toUpperCase() : id;
 }

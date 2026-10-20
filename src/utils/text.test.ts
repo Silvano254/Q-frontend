@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_INVOICE_TERMS, DEFAULT_QUOTE_TERMS, generateNextDocumentNumber, normalizeDocumentTerms, normalizeMultilineText, normalizePdfTerms } from "./text.ts";
+import { DEFAULT_INVOICE_TERMS, DEFAULT_QUOTE_TERMS, generateNextDocumentNumber, normalizeDocumentTerms, normalizeMultilineText, normalizePdfTerms, shortId } from "./text.ts";
 
 test("normalizes concatenated numbered clauses into separate lines", () => {
   const input = [
@@ -86,19 +86,33 @@ test("invoice defaults contain the four requested clauses in order", () => {
   ]);
 });
 
-test("generates unique numbers even when callers have the same stale document list", () => {
+test("generates clean sequential numbers that continue from existing documents", () => {
   const existingNumbers = ["INV-2026-0001"];
   const first = generateNextDocumentNumber("INV-{YYYY}-{SEQ}", existingNumbers, "INV");
-  const second = generateNextDocumentNumber("INV-{YYYY}-{SEQ}", existingNumbers, "INV");
+  const second = generateNextDocumentNumber("INV-{YYYY}-{SEQ}", [...existingNumbers, first], "INV");
 
-  assert.notEqual(first, second);
-  assert.match(first, /^INV-\d{4}-[A-F0-9]{12}-\d{3}$/);
-  assert.match(second, /^INV-\d{4}-[A-F0-9]{12}-\d{3}$/);
+  assert.match(first, /^INV-\d{4}-\d{3}$/);
   assert.ok(first.endsWith("-002"));
-  assert.ok(second.endsWith("-002"));
+  assert.ok(second.endsWith("-003"));
 
-  const next = generateNextDocumentNumber("INV-{YYYY}-{SEQ}", [first], "INV");
-  assert.ok(next.endsWith("-003"));
+  const next = generateNextDocumentNumber("INV-{YYYY}-{SEQ}", [first, second], "INV");
+  assert.ok(next.endsWith("-004"));
+});
+
+test("continues sequences from legacy numbers that embedded a random token", () => {
+  const next = generateNextDocumentNumber(
+    "INV-{YYYY}-{SEQ}",
+    ["INV-2026-3F9A2B1C8D4E-005"],
+    "INV"
+  );
+
+  assert.equal(next, "INV-2026-006");
+});
+
+test("shortens database ids for display", () => {
+  assert.equal(shortId("550e8400-e29b-41d4-a716-446655440000"), "550E8400");
+  assert.equal(shortId("cli-9"), "cli-9");
+  assert.equal(shortId(undefined), "—");
 });
 
 test("removes stray backticks and creates a structured terms list", () => {

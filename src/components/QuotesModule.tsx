@@ -27,7 +27,7 @@ import { generateEmailDraft, recommendTerms } from "../services/geminiService";
 import { apiRequest } from "../services/apiClient";
 import { buildQuoteWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildQuoteEmailContent, openMailClient } from "../utils/email";
-import { DEFAULT_QUOTE_TERMS, normalizeDocumentTerms, normalizePdfTerms } from "../utils/text";
+import { DEFAULT_QUOTE_TERMS, normalizeDocumentTerms, normalizePdfTerms, shortId } from "../utils/text";
 import { renderPdfClauses } from "../utils/pdfTerms";
 import ConfirmDialog from "./ConfirmDialog";
 
@@ -1473,8 +1473,8 @@ export default function QuotesModule({
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-base text-gray-800">Habanos Lounge Official Quotation</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">Quote ID: {selectedQuote.id}</p>
+                  <h4 className="font-bold text-base text-gray-800">{companySettings?.companyName || 'Binti'} Official Quotation</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">Quote ID: {shortId(selectedQuote.id)}</p>
                 </div>
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                   selectedQuote.status === "converted" ? "bg-green-50 text-green-600 border border-green-200" :
@@ -1491,7 +1491,7 @@ export default function QuotesModule({
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Prepared For Client</p>
                   <p className="text-sm font-semibold text-gray-800 mt-1">{selectedQuote.clientName}</p>
-                  <p className="text-xs text-gray-500 mt-1">Client ID: {selectedQuote.clientId}</p>
+                  <p className="text-xs text-gray-500 mt-1">Client ID: {shortId(selectedQuote.clientId)}</p>
                 </div>
                 <div className="md:border-l md:border-gray-200 md:pl-4">
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Quote Timing Details</p>

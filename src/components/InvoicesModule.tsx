@@ -30,7 +30,7 @@ import { generateEmailDraft } from "../services/geminiService";
 import { apiRequest } from "../services/apiClient";
 import { buildInvoiceWhatsAppMessage, openWhatsApp } from "../utils/whatsapp";
 import { buildInvoiceEmailContent, openMailClient } from "../utils/email";
-import { DEFAULT_INVOICE_TERMS, normalizeDocumentTerms, normalizePdfTerms } from "../utils/text";
+import { DEFAULT_INVOICE_TERMS, normalizeDocumentTerms, normalizePdfTerms, shortId } from "../utils/text";
 import { renderPdfClauses } from "../utils/pdfTerms";
 import ConfirmDialog from "./ConfirmDialog";
 
@@ -1612,8 +1612,8 @@ const generatePDFCorporate = async (invoice: Invoice) => {
             <div className="lg:col-span-2 space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-base text-gray-800">Habanos Lounge Official {selectedInvoice.taxTotal > 0 ? "Tax Invoice" : "Invoice"}</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">Invoice ID: {selectedInvoice.id}</p>
+                  <h4 className="font-bold text-base text-gray-800">{companySettings?.companyName || 'Binti'} Official {selectedInvoice.taxTotal > 0 ? "Tax Invoice" : "Invoice"}</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">Invoice ID: {shortId(selectedInvoice.id)}</p>
                 </div>
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
                   selectedInvoice.status === "paid" ? "bg-green-100 text-green-700 border border-green-200" :
@@ -1631,7 +1631,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
                 <div>
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Billed Client</p>
                   <p className="text-sm font-semibold text-gray-800 mt-1">{selectedInvoice.clientName || 'Unknown'}</p>
-                  <p className="text-xs text-gray-500 mt-1">Client ID: {selectedInvoice.clientId}</p>
+                  <p className="text-xs text-gray-500 mt-1">Client ID: {shortId(selectedInvoice.clientId)}</p>
                 </div>
                 <div className="md:border-l md:border-gray-200 md:pl-4">
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Billing Timeline</p>

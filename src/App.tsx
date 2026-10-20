@@ -353,41 +353,64 @@ export default function App() {
         });
       }
 
-      // Generate dynamic notifications
-      const generatedAlerts: typeof notifications = [];
-      const readRaw = localStorage.getItem("binti_read_notifications");
-      let readSet = new Set<string>();
-      if (readRaw) {
-        try {
-          const parsed = JSON.parse(readRaw);
-          if (Array.isArray(parsed)) readSet = new Set(parsed);
-        } catch (e) {}
-      }
-
-      const now = new Date();
-      normalizedInvoices.forEach((inv: Invoice) => {
-        const remaining = Number(inv.balanceRemaining ?? inv.grandTotal ?? 0);
-        if (inv.status !== "paid" && remaining > 0 && inv.dueDate) {
-          const due = new Date(inv.dueDate);
-          if (due.getTime() < now.getTime()) {
-            const notifId = `notif-overdue-${inv.id || inv.invoiceNumber}`;
-            generatedAlerts.push({
-              id: notifId,
-              type: "overdue",
-              title: `Invoice Overdue: ${inv.invoiceNumber}`,
-              description: `${inv.clientName || 'Client'} is yet to clear ${(companySettings.currency || 'KES')} ${remaining.toLocaleString()}.`,
-              time: `Due on ${inv.dueDate.split('T')[0]}`,
-              unread: !readSet.has(notifId)
-            });
-          }
-        }
-      });
-
-      setNotifications(generatedAlerts);
     } catch (error) {
       console.error("Failed to load platform data:", error);
     }
   }, [companySettings.currency]);
+
+  // Recompute notification alerts whenever invoice data or the display currency
+  // changes, so the bell never shows stale alerts (e.g. an invoice that was just
+  // paid, or one the user already dismissed).
+  useEffect(() => {
+    const generatedAlerts: typeof notifications = [];
+    const readRaw = localStorage.getItem("binti_read_notifications");
+    let readSet = new Set<string>();
+    if (readRaw) {
+      try {
+        const parsed = JSON.parse(readRaw);
+        if (Array.isArray(parsed)) readSet = new Set(parsed);
+      } catch (e) {}
+    }
+
+    // Alerts the user has dismissed or cleared must never reappear.
+    const dismissedRaw = localStorage.getItem("binti_dismissed_notifications");
+    let dismissedSet = new Set<string>();
+    if (dismissedRaw) {
+      try {
+        const parsed = JSON.parse(dismissedRaw);
+        if (Array.isArray(parsed)) dismissedSet = new Set(parsed);
+      } catch (e) {}
+    }
+
+    const now = new Date();
+    invoices.forEach((inv: Invoice) => {
+      const remaining = Number(inv.balanceRemaining ?? inv.grandTotal ?? 0);
+      // Only issued invoices can be genuinely overdue — drafts were never
+      // sent to the client and cancelled invoices are no longer collectible.
+      const isCollectible = inv.status !== "paid" && inv.status !== "draft" && inv.status !== "cancelled";
+      if (isCollectible && remaining > 0 && inv.dueDate) {
+        const due = new Date(inv.dueDate);
+        if (Number.isNaN(due.getTime())) return;
+        // Overdue only after the due date has fully elapsed (end of local day),
+        // so invoices are not flagged while they are still due today.
+        due.setHours(23, 59, 59, 999);
+        if (due.getTime() < now.getTime()) {
+          const notifId = `notif-overdue-${inv.id || inv.invoiceNumber}`;
+          if (dismissedSet.has(notifId)) return;
+          generatedAlerts.push({
+            id: notifId,
+            type: "overdue",
+            title: `Invoice Overdue: ${inv.invoiceNumber}`,
+            description: `${inv.clientName || 'Client'} is yet to clear ${(companySettings.currency || 'KES')} ${remaining.toLocaleString()}.`,
+            time: `Due on ${inv.dueDate.split('T')[0]}`,
+            unread: !readSet.has(notifId)
+          });
+        }
+      }
+    });
+
+    setNotifications(generatedAlerts);
+  }, [invoices, companySettings.currency]);
 
   // Initial Auth Verification
   useEffect(() => {

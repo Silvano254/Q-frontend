@@ -67,6 +67,11 @@ export function buildQuoteWhatsAppMessage(
   const quoteDateFormatted = quote.quoteDate ? quote.quoteDate.split("T")[0] : "N/A";
   const expiryDateFormatted = quote.expiryDate ? quote.expiryDate.split("T")[0] : "N/A";
   const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
+  const eventDetails = [
+    quote.eventName ? `• *Event:* ${quote.eventName}` : "",
+    quote.eventDate ? `• *Event Date:* ${quote.eventDate.split("T")[0]}` : "",
+    quote.guestCount != null ? `• *Guests:* ${quote.guestCount}` : ""
+  ].filter(Boolean).join("\n");
 
   return `📋 *QUOTATION: #${quote.quoteNumber}*
 
@@ -76,7 +81,7 @@ Please find attached your customized Quotation (*#${quote.quoteNumber}*) from *$
 
 • *Quote Date:* ${quoteDateFormatted}
 • *Valid Until:* ${expiryDateFormatted}
-• *Estimated Total:* ${currency} ${quote.grandTotal.toLocaleString()}
+${eventDetails ? `${eventDetails}\n` : ""}• *Estimated Total:* ${currency} ${quote.grandTotal.toLocaleString()}
 • *PDF Document Template:* ${templateName}
 
 The complete itemized PDF proposal document is attached for your review. Feel free to reply directly if you have any questions!

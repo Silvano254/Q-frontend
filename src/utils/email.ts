@@ -68,6 +68,11 @@ export function buildQuoteEmailContent(
 
   const quoteDateFormatted = quote.quoteDate ? quote.quoteDate.split("T")[0] : "N/A";
   const expiryDateFormatted = quote.expiryDate ? quote.expiryDate.split("T")[0] : "N/A";
+  const eventDetails = [
+    quote.eventName ? `• Event: ${quote.eventName}` : "",
+    quote.eventDate ? `• Event Date: ${quote.eventDate.split("T")[0]}` : "",
+    quote.guestCount != null ? `• Guest Count: ${quote.guestCount}` : ""
+  ].filter(Boolean).join("\n");
 
   const body = `Dear ${clientName},
 
@@ -78,7 +83,7 @@ Quotation Summary:
 • Quote Number: #${quote.quoteNumber}
 • Quote Date: ${quoteDateFormatted}
 • Valid Until: ${expiryDateFormatted}
-• Estimated Total: ${currency} ${quote.grandTotal.toLocaleString()}
+${eventDetails ? `${eventDetails}\n` : ""}• Estimated Total: ${currency} ${quote.grandTotal.toLocaleString()}
 • Document Style: ${templateName}
 ----------------------------------------
 

@@ -77,6 +77,9 @@ export default function QuotesModule({
   const [clientNameInput, setClientNameInput] = useState("");
   const [quoteDate, setQuoteDate] = useState(new Date().toISOString().split("T")[0]);
   const [expiryDate, setExpiryDate] = useState("");
+  const [eventName, setEventName] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [guestCount, setGuestCount] = useState<number | "">("");
   const [applyTax, setApplyTax] = useState(true);
   const [includeTransport, setIncludeTransport] = useState(false);
   const [transportCost, setTransportCost] = useState<number | string>("");
@@ -331,6 +334,10 @@ export default function QuotesModule({
       showToast("Enter a client name or select a saved client before saving.", "warning");
       return;
     }
+    if (guestCount !== "" && (!Number.isInteger(guestCount) || guestCount < 1)) {
+      showToast("Guest count must be a whole number greater than zero.", "warning");
+      return;
+    }
     setSavingStatus(status);
     try {
       const totals = getTotals();
@@ -365,6 +372,9 @@ export default function QuotesModule({
         clientName: resolvedName,
         quoteDate,
         expiryDate,
+        eventName: eventName.trim() || undefined,
+        eventDate: eventDate || undefined,
+        guestCount: guestCount === "" ? undefined : guestCount,
         items: finalItems,
         ...totals,
         notes,
@@ -387,6 +397,9 @@ export default function QuotesModule({
     setClientId("");
     setClientNameInput("");
     setQuoteDate(new Date().toISOString().split("T")[0]);
+    setEventName("");
+    setEventDate("");
+    setGuestCount("");
     setItems([{ id: "qi_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }]);
     setIncludeTransport(false);
     setTransportCost("");
@@ -590,6 +603,17 @@ export default function QuotesModule({
     doc.text(`Address: ${companySettings.address || "Nairobi, Kenya"}`, margin, y);
     if (clientDetails?.address) {
       doc.text(`Address: ${clientDetails.address}`, col2X, y);
+    }
+
+    const corporateEventDetails = [
+      quote.eventName ? `Event: ${quote.eventName}` : "",
+      quote.eventDate ? `Event Date: ${quote.eventDate.split("T")[0]}` : "",
+      quote.guestCount != null ? `Guests: ${quote.guestCount}` : ""
+    ].filter(Boolean);
+    if (corporateEventDetails.length > 0) {
+      const eventDetailsLines = doc.splitTextToSize(corporateEventDetails.join("  •  "), partyColWidth);
+      doc.text(eventDetailsLines, col2X, y + 4.5);
+      y += Math.max(9, eventDetailsLines.length * 4.5);
     }
 
     y += 10;
@@ -861,6 +885,17 @@ export default function QuotesModule({
       doc.text(clientDetails.address || 'Kenya', margin, y + clientOffset);
     }
 
+    const bintiEventDetails = [
+      quote.eventName ? `Event: ${quote.eventName}` : "",
+      quote.eventDate ? `Event Date: ${quote.eventDate.split("T")[0]}` : "",
+      quote.guestCount != null ? `Guests: ${quote.guestCount}` : ""
+    ].filter(Boolean);
+    bintiEventDetails.forEach(detail => {
+      const lines = doc.splitTextToSize(detail, contentWidth * 0.55);
+      doc.text(lines, margin, y + clientOffset);
+      clientOffset += Math.max(1, lines.length) * 4.5;
+    });
+
     const labelX = pageWidth - margin - 60;
     const valueX = pageWidth - margin;
 
@@ -1059,6 +1094,7 @@ export default function QuotesModule({
   const filteredQuotes = quotes.filter(quote => {
     const matchesSearch = quote.quoteNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           quote.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (quote.eventName && quote.eventName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                           (quote.notes && quote.notes.toLowerCase().includes(searchQuery.toLowerCase()));
     const matchesStatus = statusFilter === "all" || quote.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -1146,6 +1182,47 @@ export default function QuotesModule({
                 onChange={(e) => setExpiryDate(e.target.value)}
                 className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1]"
               />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-[#6B46C1]/10 bg-purple-50/20 p-4">
+            <div className="mb-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#6B46C1]">Event Details</h4>
+              <p className="mt-1 text-[11px] text-gray-500">Optional booking details to include with this quotation.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase text-gray-500">Event Name / Type</label>
+                <input
+                  type="text"
+                  maxLength={200}
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  placeholder="e.g. Annual Awards Gala"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-700 focus:border-[#6B46C1] focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase text-gray-500">Event Date</label>
+                <input
+                  type="date"
+                  value={eventDate}
+                  onChange={(e) => setEventDate(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-700 focus:border-[#6B46C1] focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase text-gray-500">Number of Guests</label>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={guestCount}
+                  onChange={(e) => setGuestCount(e.target.value === "" ? "" : Number(e.target.value))}
+                  placeholder="e.g. 150"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs text-gray-700 focus:border-[#6B46C1] focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20"
+                />
+              </div>
             </div>
           </div>
 
@@ -1494,9 +1571,12 @@ export default function QuotesModule({
                   <p className="text-xs text-gray-500 mt-1">Client ID: {shortId(selectedQuote.clientId)}</p>
                 </div>
                 <div className="md:border-l md:border-gray-200 md:pl-4">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase">Quote Timing Details</p>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase">Quote & Event Details</p>
                   <p className="text-xs text-gray-700 mt-1">Quote Date: <span className="font-semibold">{selectedQuote.quoteDate}</span></p>
                   <p className="text-xs text-gray-700 mt-0.5">Expiry Date: <span className="font-semibold">{selectedQuote.expiryDate}</span></p>
+                  {selectedQuote.eventName && <p className="text-xs text-gray-700 mt-1">Event: <span className="font-semibold">{selectedQuote.eventName}</span></p>}
+                  {selectedQuote.eventDate && <p className="text-xs text-gray-700 mt-0.5">Event Date: <span className="font-semibold">{selectedQuote.eventDate.split("T")[0]}</span></p>}
+                  {selectedQuote.guestCount != null && <p className="text-xs text-gray-700 mt-0.5">Guests: <span className="font-semibold">{selectedQuote.guestCount}</span></p>}
                 </div>
               </div>
 
@@ -1759,6 +1839,7 @@ export default function QuotesModule({
                 <tr className="bg-gray-50/80 border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider">
                   <th className="p-4">Quote Number</th>
                   <th className="p-4">Client Representative</th>
+                  <th className="p-4">Event Details</th>
                   <th className="p-4">Quoted Date</th>
                   <th className="p-4">Expiry Date</th>
                   <th className="p-4">Grand Total</th>
@@ -1769,7 +1850,7 @@ export default function QuotesModule({
               <tbody className="divide-y divide-gray-50 text-gray-700">
                 {filteredQuotes.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-400">
+                    <td colSpan={8} className="p-8 text-center text-gray-400">
                       No event quotations match the filter requirements.
                     </td>
                   </tr>
@@ -1785,6 +1866,15 @@ export default function QuotesModule({
                         </button>
                       </td>
                       <td className="p-4 font-semibold text-gray-800">{quote.clientName}</td>
+                      <td className="p-4 text-gray-600">
+                        <div className="font-semibold text-gray-800">{quote.eventName || "—"}</div>
+                        {(quote.eventDate || quote.guestCount != null) && (
+                          <div className="mt-0.5 text-[10px] text-gray-500">
+                            {quote.eventDate ? quote.eventDate.split("T")[0] : "Date not set"}
+                            {quote.guestCount != null ? ` · ${quote.guestCount} guests` : ""}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-4 text-gray-500">{quote.quoteDate}</td>
                       <td className="p-4 text-gray-500">{quote.expiryDate}</td>
                       <td className="p-4 font-bold text-gray-900">{currency} {quote.grandTotal.toLocaleString()}</td>

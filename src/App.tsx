@@ -257,6 +257,11 @@ export default function App() {
         const calculatedTax = items.reduce((sum: number, item: any) => sum + (item.quantity * item.unitPrice - item.quantity * item.unitPrice * item.discount / 100) * item.tax / 100, 0);
         return {
           ...quote,
+          eventName: quote.eventName ?? quote.event_name ?? undefined,
+          eventDate: quote.eventDate ?? quote.event_date ?? undefined,
+          guestCount: quote.guestCount != null || quote.guest_count != null
+            ? Number(quote.guestCount ?? quote.guest_count)
+            : undefined,
           items,
           terms: quote.terms ?? '',
           subtotal: Number(quote.subtotal ?? quote.sub_total ?? calculatedSubtotal) || 0,
@@ -796,7 +801,13 @@ export default function App() {
       grandTotal: quote.grandTotal || 0,
       balanceRemaining: quote.grandTotal || 0,
       status: "pending",
-      notes: `Converted automatically from ${quote.quoteNumber}. ` + (quote.notes || ""),
+      notes: [
+        `Converted automatically from ${quote.quoteNumber}.`,
+        quote.eventName ? `Event: ${quote.eventName}` : "",
+        quote.eventDate ? `Event date: ${quote.eventDate.split("T")[0]}` : "",
+        quote.guestCount != null ? `Guests: ${quote.guestCount}` : "",
+        quote.notes || ""
+      ].filter(Boolean).join(" "),
       terms: quote.terms || "",
       payments: []
     };

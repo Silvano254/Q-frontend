@@ -101,12 +101,12 @@ export default function App() {
       } catch (e) {}
     }
     return {
-      companyName: "Habanos Lounge",
-      email: "reservations@habanoslounge.com",
-      phone: "+254 712 345678",
-      address: "Nairobi, Kenya",
-      taxNumber: "P051234567A",
-      bankDetails: "Bank: Equity Bank Kenya\nAccount Name: Habanos Lounge Ltd\nAccount Number: 0123456789012\nBranch: Nairobi\nPaybill: 247247 (Acc: 0123456789012)",
+      companyName: "Your Company",
+      email: "",
+      phone: "",
+      address: "",
+      taxNumber: "",
+      bankDetails: "",
       currency: "KES",
       invoiceFormat: "INV-2026-{SEQ}",
       quoteFormat: "QT-2026-{SEQ}",
@@ -341,7 +341,7 @@ export default function App() {
 
           const merged: CompanySettings = {
             ...prev,
-            companyName: raw.companyName || raw.company_name || prev.companyName || "Habanos Lounge",
+            companyName: raw.companyName || raw.company_name || prev.companyName || "Your Company",
             email: raw.email !== undefined ? raw.email : (prev.email || ""),
             phone: raw.phone !== undefined ? raw.phone : (prev.phone || ""),
             address: raw.address !== undefined ? raw.address : (prev.address || ""),
@@ -935,17 +935,17 @@ export default function App() {
         const failedCount = allResults.filter(r => r.status === 'rejected').length;
 
         const pristineSettings: CompanySettings = {
-          companyName: "Habanos Lounge",
-          email: "reservations@habanoslounge.com",
-          phone: "+254 700 111 222",
-          address: "Ngong Road, Nairobi, Kenya",
-          taxNumber: "P051234567A",
-          bankDetails: "Equity Bank — A/C 1160274628991\nBranch: Ngong Road\nSWIFT: EABORKE",
+          companyName: "Your Company",
+          email: "",
+          phone: "",
+          address: "",
+          taxNumber: "",
+          bankDetails: "",
           currency: "KES",
           invoiceFormat: "INV-2026-{SEQ}",
           quoteFormat: "QT-2026-{SEQ}",
-          termsTemplate: "1. 50% commitment fee to book, with the balance paid before setup.\n2. Broken or damaged equipment will be billed at replacement cost.\n3. Setup and breakdown are included within Nairobi County.\n4. Cancellation within 7 days of event date forfeits the deposit.\n5. Client by making payment authorizes Binti Tents & Events to supply the above facilities.",
-          emailTemplate: "Dear {CLIENT_NAME},\n\nPlease find attached {TYPE} #{NUMBER} from Habanos Lounge.\n\nBest regards,\nHabanos Lounge Team"
+          termsTemplate: "1. Payment terms are subject to the agreement confirmed with the client.\n2. Any loss or damage to hired equipment may be billed at replacement cost.\n3. Setup, delivery, and cancellation terms should be confirmed in writing.",
+          emailTemplate: "Dear {CLIENT_NAME},\n\nPlease find attached {TYPE} #{NUMBER} from {COMPANY_NAME}.\n\nBest regards,\n{COMPANY_NAME}"
         };
         await handleUpdateSettings(pristineSettings);
 

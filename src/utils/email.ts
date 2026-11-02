@@ -7,12 +7,17 @@ export function buildInvoiceEmailContent(
   invoice: Invoice,
   client?: Client | null,
   companySettings?: CompanySettings,
-  pdfTemplateStyle: string = "corporate"
+  pdfTemplateStyle: string = "editorial"
 ): { subject: string; body: string } {
-  const companyName = companySettings?.companyName || "Habanos Lounge";
+  const companyName = companySettings?.companyName || "Your Company";
   const clientName = client?.name || invoice.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
-  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
+  const templateName = ({
+    editorial: 'Editorial Luxe',
+    atelier: 'Monochrome Atelier',
+    terracotta: 'Terracotta Garden',
+    binti: 'Binti Signature'
+  } as Record<string, string>)[pdfTemplateStyle] || 'Editorial Luxe';
 
   const subject = `Invoice #${invoice.invoiceNumber} - ${companyName}`;
 
@@ -57,12 +62,17 @@ export function buildQuoteEmailContent(
   quote: Quote,
   client?: Client | null,
   companySettings?: CompanySettings,
-  pdfTemplateStyle: string = "corporate"
+  pdfTemplateStyle: string = "editorial"
 ): { subject: string; body: string } {
-  const companyName = companySettings?.companyName || "Habanos Lounge";
+  const companyName = companySettings?.companyName || "Your Company";
   const clientName = client?.name || quote.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
-  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
+  const templateName = ({
+    editorial: 'Editorial Luxe',
+    atelier: 'Monochrome Atelier',
+    terracotta: 'Terracotta Garden',
+    binti: 'Binti Signature'
+  } as Record<string, string>)[pdfTemplateStyle] || 'Editorial Luxe';
 
   const subject = `Quotation #${quote.quoteNumber} - ${companyName}`;
 

@@ -160,8 +160,8 @@ export default function SettingsModule({
   };
 
   // Fields state synced safely with companySettings prop
-  const [companyName, setCompanyName] = useState(companySettings?.companyName || (companySettings as any)?.company_name || "Habanos Lounge");
-  const [email, setEmail] = useState(companySettings?.email || "reservations@habanoslounge.com");
+  const [companyName, setCompanyName] = useState(companySettings?.companyName || (companySettings as any)?.company_name || "Your Company");
+  const [email, setEmail] = useState(companySettings?.email || "");
   const [phone, setPhone] = useState(companySettings?.phone || "+254 700 111 222");
   const [address, setAddress] = useState(companySettings?.address || "Nairobi, Kenya");
   const [taxNumber, setTaxNumber] = useState(companySettings?.taxNumber || (companySettings as any)?.tax_number || "P051234567A");
@@ -172,8 +172,8 @@ export default function SettingsModule({
   // Synchronize internal state whenever parent companySettings updates
   React.useEffect(() => {
     if (companySettings) {
-      setCompanyName(companySettings.companyName || (companySettings as any).company_name || "Habanos Lounge");
-      setEmail(companySettings.email || "reservations@habanoslounge.com");
+      setCompanyName(companySettings.companyName || (companySettings as any).company_name || "Your Company");
+      setEmail(companySettings.email || "");
       setPhone(companySettings.phone || "+254 700 111 222");
       setAddress(companySettings.address || "Nairobi, Kenya");
       setTaxNumber(companySettings.taxNumber || (companySettings as any).tax_number || "P051234567A");

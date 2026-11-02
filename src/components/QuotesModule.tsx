@@ -118,9 +118,21 @@ export default function QuotesModule({
     setItems(updated);
   }, [applyTax]);
   
-  const [pdfTemplate, setPdfTemplate] = useState<'corporate' | 'binti'>(() => {
-    return (localStorage.getItem('pdf_template_preference') as 'corporate' | 'binti') || 'corporate';
+  type QuotePdfTemplate = 'editorial' | 'atelier' | 'terracotta' | 'binti';
+  const [pdfTemplate, setPdfTemplate] = useState<QuotePdfTemplate>(() => {
+    const savedTemplate = localStorage.getItem('pdf_template_preference');
+    if (savedTemplate === 'binti' || savedTemplate === 'atelier' || savedTemplate === 'terracotta') {
+      return savedTemplate;
+    }
+    // Migrate the former Classic Formal preference to its recommended replacement.
+    return 'editorial';
   });
+  const pdfTemplateName = (template: QuotePdfTemplate) => ({
+    editorial: 'Editorial Luxe',
+    atelier: 'Monochrome Atelier',
+    terracotta: 'Terracotta Garden',
+    binti: 'Binti Signature'
+  })[template];
 
   // Action states for button transitions
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -449,8 +461,10 @@ export default function QuotesModule({
       await new Promise(r => setTimeout(r, 60));
       if (pdfTemplate === 'binti') {
         await generatePDFBinti(quote);
+      } else if (pdfTemplate === 'atelier' || pdfTemplate === 'terracotta') {
+        await generatePDFAlternate(quote, pdfTemplate);
       } else {
-        await generatePDFCorporate(quote);
+        await generatePDFEditorial(quote);
       }
       showToast("Quotation PDF downloaded successfully!");
     } catch (err) {
@@ -461,7 +475,7 @@ export default function QuotesModule({
     }
   };
 
-  const generatePDFCorporate = async (quote: Quote) => {
+  const generatePDFEditorial = async (quote: Quote) => {
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     const pageWidth = 210;
     const pageHeight = 297;
@@ -469,9 +483,9 @@ export default function QuotesModule({
     const contentWidth = pageWidth - margin * 2;
     const bottomLimit = pageHeight - margin - 12;
 
-    // Elegant Corporate Color Palette
-    const purple = [107, 70, 193];  // #6B46C1
-    const gold = [212, 175, 55];    // #D4AF37
+    // Editorial Luxe palette: deep evergreen, champagne brass, warm paper.
+    const evergreen = [31, 64, 57];
+    const gold = [185, 151, 94];
     const charcoal = [31, 41, 55];  // #1F2937
     const lightGray = [229, 231, 235];
     const offWhite = [249, 250, 251];
@@ -479,7 +493,7 @@ export default function QuotesModule({
     let y = margin;
 
     const drawCorpTableHeader = () => {
-      doc.setFillColor(purple[0], purple[1], purple[2]);
+      doc.setFillColor(evergreen[0], evergreen[1], evergreen[2]);
       doc.rect(margin, y, contentWidth, 8.5, "F");
 
       doc.setFont("helvetica", "bold");
@@ -512,7 +526,7 @@ export default function QuotesModule({
     };
 
     // Header Background Top Accent
-    doc.setFillColor(purple[0], purple[1], purple[2]);
+    doc.setFillColor(evergreen[0], evergreen[1], evergreen[2]);
     doc.rect(0, 0, pageWidth, 8, "F");
 
     // Logo top-left, with a branded fallback if the local asset cannot load.
@@ -528,9 +542,9 @@ export default function QuotesModule({
 
     // Title & Branding Block
     y = 20;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.setFont("times", "bold");
+    doc.setFontSize(21);
+    doc.setTextColor(evergreen[0], evergreen[1], evergreen[2]);
     doc.text(companySettings.companyName || "BINTI EVENTS", margin, y);
     
     doc.setFont("helvetica", "normal");
@@ -567,7 +581,7 @@ export default function QuotesModule({
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
-    doc.setTextColor(purple[0], purple[1], purple[2]);
+    doc.setTextColor(evergreen[0], evergreen[1], evergreen[2]);
     doc.text("FROM (SERVICE PROVIDER):", margin, y);
     doc.text("PREPARED FOR (CLIENT):", col2X, y);
     
@@ -699,7 +713,7 @@ export default function QuotesModule({
     }
 
     y += 2;
-    doc.setFillColor(purple[0], purple[1], purple[2]);
+    doc.setFillColor(evergreen[0], evergreen[1], evergreen[2]);
     doc.rect(totalsLeftX, y, totalsBoxWidth, 9, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9.5);
@@ -715,7 +729,7 @@ export default function QuotesModule({
       ensurePageSpace(30);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
-      doc.setTextColor(purple[0], purple[1], purple[2]);
+      doc.setTextColor(evergreen[0], evergreen[1], evergreen[2]);
       doc.text("TERMS AND CONDITIONS", margin, y);
 
       y += 5;
@@ -746,15 +760,273 @@ export default function QuotesModule({
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
-    doc.text("Prepared By: Habanos Lounge", margin, y + 19);
+    doc.text(`Prepared By: ${companySettings.companyName || "Your Company"}`, margin, y + 19);
     doc.text("Client Confirmation Sign", sig2X, y + 19);
 
     // PDF footer
     doc.setFontSize(7.5);
     doc.setTextColor(150, 150, 150);
-    doc.text("Thank you for choosing Habanos Lounge for your next memorable occasion.", margin, pageHeight - 10);
+    doc.text(`Thank you for choosing ${companySettings.companyName || "your service provider"}.`, margin, pageHeight - 10);
     
     doc.save(`${quote.quoteNumber || 'QT'}-${(quote.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
+  };
+
+  const generatePDFAlternate = async (quote: Quote, style: 'atelier' | 'terracotta') => {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 16;
+    const contentWidth = pageWidth - margin * 2;
+    const bottomLimit = pageHeight - margin - 12;
+    const isAtelier = style === 'atelier';
+    const ink = isAtelier ? [38, 42, 44] : [63, 48, 42];
+    const accent = isAtelier ? [73, 83, 87] : [166, 91, 67];
+    const secondary = isAtelier ? [127, 133, 136] : [190, 151, 111];
+    const paper = isAtelier ? [255, 255, 255] : [250, 246, 239];
+    const line = isAtelier ? [218, 221, 222] : [226, 215, 202];
+    const colWidths = quote.taxTotal > 0
+      ? [68, 13, 26, 18, 15, 38]
+      : [82, 15, 32, 20, 29];
+    const colX: number[] = [];
+    let currentX = margin;
+    colWidths.forEach(width => {
+      colX.push(currentX);
+      currentX += width;
+    });
+    let y = margin;
+
+    const drawTableHeader = () => {
+      if (!isAtelier) {
+        doc.setFillColor(paper[0], paper[1], paper[2]);
+        doc.rect(margin, y, contentWidth, 9, 'F');
+      }
+      doc.setDrawColor(line[0], line[1], line[2]);
+      doc.line(margin, y + 9, pageWidth - margin, y + 9);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(accent[0], accent[1], accent[2]);
+      doc.text('DESCRIPTION', colX[0] + 2, y + 6);
+      doc.text('QTY', colX[1] + colWidths[1] / 2, y + 6, { align: 'center' });
+      doc.text('UNIT', colX[2] + colWidths[2] - 2, y + 6, { align: 'right' });
+      if (quote.taxTotal > 0) {
+        doc.text('DISC.', colX[3] + colWidths[3] / 2, y + 6, { align: 'center' });
+        doc.text('TAX', colX[4] + colWidths[4] / 2, y + 6, { align: 'center' });
+        doc.text('AMOUNT', colX[5] + colWidths[5] - 2, y + 6, { align: 'right' });
+      } else {
+        doc.text('DISC.', colX[3] + colWidths[3] / 2, y + 6, { align: 'center' });
+        doc.text('AMOUNT', colX[4] + colWidths[4] - 2, y + 6, { align: 'right' });
+      }
+    };
+
+    const ensureSpace = (height: number, repeatTableHeader = false) => {
+      if (y + height <= bottomLimit) return;
+      doc.addPage();
+      y = margin;
+      if (repeatTableHeader) {
+        drawTableHeader();
+        y += 11;
+      }
+    };
+
+    // Distinct title treatments: typographic atelier vs. warm terracotta stationery.
+    if (isAtelier) {
+      doc.setFont('times', 'normal');
+      doc.setFontSize(25);
+      doc.setTextColor(ink[0], ink[1], ink[2]);
+      doc.text('QUOTATION', margin, y + 7);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(secondary[0], secondary[1], secondary[2]);
+      doc.text(companySettings.companyName || 'Event Services', margin, y + 13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(accent[0], accent[1], accent[2]);
+      doc.text(quote.quoteNumber || '', pageWidth - margin, y + 5, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(ink[0], ink[1], ink[2]);
+      doc.text(`Issued ${quote.quoteDate || '—'}   ·   Valid until ${quote.expiryDate || '—'}`, pageWidth - margin, y + 11, { align: 'right' });
+      y += 23;
+      doc.setDrawColor(accent[0], accent[1], accent[2]);
+      doc.setLineWidth(0.7);
+      doc.line(margin, y, pageWidth - margin, y);
+    } else {
+      doc.setFillColor(paper[0], paper[1], paper[2]);
+      doc.rect(0, 0, pageWidth, 38, 'F');
+      doc.setFillColor(accent[0], accent[1], accent[2]);
+      doc.rect(0, 0, 6, 38, 'F');
+      doc.setFont('times', 'bold');
+      doc.setFontSize(21);
+      doc.setTextColor(ink[0], ink[1], ink[2]);
+      doc.text(companySettings.companyName || 'Event Services', margin + 3, y + 7);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(secondary[0], secondary[1], secondary[2]);
+      doc.text('EVENT PROPOSAL', margin + 3, y + 13);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(accent[0], accent[1], accent[2]);
+      doc.text(quote.quoteNumber || '', pageWidth - margin, y + 7, { align: 'right' });
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(ink[0], ink[1], ink[2]);
+      doc.text(`${quote.quoteDate || '—'}  |  Valid through ${quote.expiryDate || '—'}`, pageWidth - margin, y + 13, { align: 'right' });
+      y = 46;
+      doc.setDrawColor(secondary[0], secondary[1], secondary[2]);
+      doc.setLineWidth(0.5);
+      doc.line(margin, y - 3, pageWidth - margin, y - 3);
+    }
+
+    const clientDetails = clients.find(client => client.id === quote.clientId);
+    const leftX = margin;
+    const rightX = margin + contentWidth * 0.53;
+    const blockTop = y + 7;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(accent[0], accent[1], accent[2]);
+    doc.text(isAtelier ? 'PREPARED FOR' : 'YOUR EVENT', leftX, blockTop);
+    doc.text(isAtelier ? 'EVENT DETAILS' : 'BOOKING OVERVIEW', rightX, blockTop);
+    doc.setFont('times', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(ink[0], ink[1], ink[2]);
+    doc.text(quote.clientName || 'Valued Client', leftX, blockTop + 7);
+
+    let clientY = blockTop + 13;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(ink[0], ink[1], ink[2]);
+    for (const detail of [clientDetails?.company, clientDetails?.email, clientDetails?.phone, clientDetails?.address].filter(Boolean) as string[]) {
+      const wrapped = doc.splitTextToSize(detail, contentWidth * 0.48);
+      doc.text(wrapped, leftX, clientY);
+      clientY += wrapped.length * 4;
+    }
+
+    const eventRows = [
+      quote.eventName ? ['Event', quote.eventName] : null,
+      quote.eventDate ? ['Date', quote.eventDate.split('T')[0]] : null,
+      quote.guestCount != null ? ['Guests', String(quote.guestCount)] : null,
+      ['Company', companySettings.companyName || 'Event Services'],
+      companySettings.phone ? ['Contact', companySettings.phone] : null
+    ].filter(Boolean) as string[][];
+    let eventY = blockTop + 7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    eventRows.forEach(([label, value]) => {
+      doc.setTextColor(secondary[0], secondary[1], secondary[2]);
+      doc.text(`${label.toUpperCase()}  `, rightX, eventY);
+      const labelWidth = doc.getTextWidth(`${label.toUpperCase()}  `);
+      doc.setTextColor(ink[0], ink[1], ink[2]);
+      const wrapped = doc.splitTextToSize(value, pageWidth - margin - rightX - labelWidth);
+      doc.text(wrapped, rightX + labelWidth, eventY);
+      eventY += Math.max(4.5, wrapped.length * 4.2);
+    });
+    y = Math.max(clientY, eventY) + 7;
+
+    const drawTable = () => {
+      drawTableHeader();
+      y += 11;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(ink[0], ink[1], ink[2]);
+      quote.items.forEach((item, index) => {
+        const description = doc.splitTextToSize(item.description || 'Service', colWidths[0] - 5);
+        const rowHeight = Math.max(9, description.length * 4 + 3);
+        ensureSpace(rowHeight + 1, true);
+        if (!isAtelier && index % 2 === 0) {
+          doc.setFillColor(paper[0], paper[1], paper[2]);
+          doc.rect(margin, y, contentWidth, rowHeight, 'F');
+        }
+        doc.setDrawColor(line[0], line[1], line[2]);
+        doc.line(margin, y + rowHeight, pageWidth - margin, y + rowHeight);
+        const textY = y + 5;
+        doc.text(description, colX[0] + 2, textY);
+        doc.text(String(item.quantity), colX[1] + colWidths[1] / 2, textY, { align: 'center' });
+        doc.text((Number(item.unitPrice) || 0).toLocaleString(), colX[2] + colWidths[2] - 2, textY, { align: 'right' });
+        if (quote.taxTotal > 0) {
+          doc.text(`${Number(item.discount) || 0}%`, colX[3] + colWidths[3] / 2, textY, { align: 'center' });
+          doc.text(`${Number(item.tax) || 0}%`, colX[4] + colWidths[4] / 2, textY, { align: 'center' });
+          doc.text((Number(item.amount) || 0).toLocaleString(), colX[5] + colWidths[5] - 2, textY, { align: 'right' });
+        } else {
+          doc.text(`${Number(item.discount) || 0}%`, colX[3] + colWidths[3] / 2, textY, { align: 'center' });
+          doc.text((Number(item.amount) || 0).toLocaleString(), colX[4] + colWidths[4] - 2, textY, { align: 'right' });
+        }
+        y += rowHeight;
+      });
+    };
+
+    drawTable();
+    y += 6;
+    ensureSpace(34);
+    const totalsX = pageWidth - margin - 78;
+    const totalsValueX = pageWidth - margin - 2;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(ink[0], ink[1], ink[2]);
+    doc.text('Subtotal', totalsX, y);
+    doc.text(`${currency} ${(Number(quote.subtotal) || 0).toLocaleString()}`, totalsValueX, y, { align: 'right' });
+    y += 5;
+    if (Number(quote.discountTotal) > 0) {
+      doc.text('Discount', totalsX, y);
+      doc.text(`− ${currency} ${Number(quote.discountTotal).toLocaleString()}`, totalsValueX, y, { align: 'right' });
+      y += 5;
+    }
+    if (Number(quote.taxTotal) > 0) {
+      doc.text('Tax', totalsX, y);
+      doc.text(`${currency} ${Number(quote.taxTotal).toLocaleString()}`, totalsValueX, y, { align: 'right' });
+      y += 5;
+    }
+    doc.setFillColor(accent[0], accent[1], accent[2]);
+    doc.roundedRect(totalsX - 3, y, 81, 11, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOTAL', totalsX, y + 7);
+    doc.text(`${currency} ${(Number(quote.grandTotal) || 0).toLocaleString()}`, totalsValueX - 1, y + 7, { align: 'right' });
+    y += 18;
+
+    if (quote.notes?.trim()) {
+      const noteLines = doc.splitTextToSize(quote.notes.trim(), contentWidth);
+      ensureSpace(noteLines.length * 4 + 12);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(accent[0], accent[1], accent[2]);
+      doc.text('SCOPE & SPECIFIC NOTES', margin, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(ink[0], ink[1], ink[2]);
+      doc.text(noteLines, margin, y);
+      y += noteLines.length * 4 + 5;
+    }
+
+    const terms = normalizePdfTerms(quote.terms?.trim() || DEFAULT_QUOTE_TERMS, { preserveQuoteValidity: true });
+    if (terms.length) {
+      ensureSpace(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(accent[0], accent[1], accent[2]);
+      doc.text('TERMS & CONDITIONS', margin, y);
+      y += 5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(ink[0], ink[1], ink[2]);
+      y = renderPdfClauses(doc, y, terms, {
+        x: margin,
+        width: contentWidth,
+        autoNumber: false,
+        ensureSpace: (height, currentY) => { y = currentY; ensureSpace(height); return y; }
+      });
+    }
+
+    y += 7;
+    ensureSpace(23);
+    doc.setDrawColor(line[0], line[1], line[2]);
+    doc.line(margin, y + 10, margin + 60, y + 10);
+    doc.line(pageWidth - margin - 60, y + 10, pageWidth - margin, y + 10);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(secondary[0], secondary[1], secondary[2]);
+    doc.text(`Prepared by ${companySettings.companyName || 'Event Services'}`, margin, y + 15);
+    doc.text('Client approval', pageWidth - margin - 60, y + 15);
+    doc.setFontSize(7);
+    doc.text(`${quote.quoteNumber || 'QT'}  ·  ${companySettings.companyName || 'Event Services'}`, pageWidth / 2, pageHeight - 8, { align: 'center' });
+    doc.save(`${quote.quoteNumber || 'QT'}-${(quote.clientName || 'Client').replace(/\s+/g, '_')}.pdf`);
   };
 
   const generatePDFBinti = async (quote: Quote) => {
@@ -832,13 +1104,13 @@ export default function QuotesModule({
         doc.setFont('helvetica', 'bolditalic');
         doc.setFontSize(22);
         doc.setTextColor(150, 50, 120);
-        doc.text('Habanos Lounge', margin, y + 14);
+        doc.text(companySettings.companyName || 'Your Company', margin, y + 14);
       }
     } else {
       doc.setFont('helvetica', 'bolditalic');
       doc.setFontSize(22);
       doc.setTextColor(150, 50, 120);
-      doc.text('Habanos Lounge', margin, y + 14);
+      doc.text(companySettings.companyName || 'Your Company', margin, y + 14);
     }
 
     doc.setFont('helvetica', 'bold');
@@ -850,7 +1122,7 @@ export default function QuotesModule({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(black[0], black[1], black[2]);
-    doc.text(companySettings.companyName || 'Habanos Lounge', pageWidth - margin, y + 13, { align: 'right' });
+    doc.text(companySettings.companyName || 'Your Company', pageWidth - margin, y + 13, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -883,6 +1155,7 @@ export default function QuotesModule({
         clientOffset += 4.5;
       }
       doc.text(clientDetails.address || 'Kenya', margin, y + clientOffset);
+      clientOffset += 4.5;
     }
 
     const bintiEventDetails = [
@@ -991,7 +1264,7 @@ export default function QuotesModule({
     doc.text('Prepared by:', pageWidth - margin, y, { align: 'right' });
     y += 5;
     doc.setFont('helvetica', 'bold');
-    doc.text(companySettings.companyName || 'Habanos Lounge', pageWidth - margin, y, { align: 'right' });
+    doc.text(companySettings.companyName || 'Your Company', pageWidth - margin, y, { align: 'right' });
     y += 7;
 
     // Check remaining space for thank you note image to prevent extra page creation
@@ -1061,7 +1334,7 @@ export default function QuotesModule({
     try {
       openMailClient(
         clientEmail,
-        `Quotation ${quote.quoteNumber} - ${companySettings.companyName || 'Habanos Lounge'}`,
+        `Quotation ${quote.quoteNumber} - ${companySettings.companyName || 'Your Company'}`,
         aiEmailDraft
       );
       showToast("Opened draft in email client!");
@@ -1662,14 +1935,16 @@ export default function QuotesModule({
                     <select
                       value={pdfTemplate}
                       onChange={(e) => {
-                        const val = e.target.value as 'corporate' | 'binti';
+                        const val = e.target.value as QuotePdfTemplate;
                         setPdfTemplate(val);
                         localStorage.setItem('pdf_template_preference', val);
                       }}
                       className="w-full px-2.5 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-xs text-white focus:outline-none focus:border-[#6B46C1]"
                     >
-                      <option value="corporate">Classic Formal (Purple/Gold)</option>
-                      <option value="binti">Binti Signature (Pink Header/Logo/ThankYou)</option>
+                      <option value="editorial">Editorial Luxe · Evergreen & Brass</option>
+                      <option value="atelier">Monochrome Atelier · Minimal</option>
+                      <option value="terracotta">Terracotta Garden · Warm Neutral</option>
+                      <option value="binti">Binti Signature</option>
                     </select>
                   </div>
 
@@ -1986,7 +2261,7 @@ export default function QuotesModule({
                 <div>
                   <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
                   <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
-                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Formal (Purple/Gold)'}
+                    {pdfTemplateName(pdfTemplate)}
                   </p>
                 </div>
                 <button
@@ -2095,7 +2370,7 @@ export default function QuotesModule({
                 <div>
                   <p className="text-[10px] font-bold text-purple-600 dark:text-purple-300 uppercase">Selected PDF Template</p>
                   <p className="text-xs font-semibold text-gray-800 dark:text-white capitalize">
-                    {pdfTemplate === 'binti' ? 'Binti Signature (Pink Header/Logo)' : 'Classic Formal (Purple/Gold)'}
+                    {pdfTemplateName(pdfTemplate)}
                   </p>
                 </div>
                 <button

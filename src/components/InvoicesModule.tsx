@@ -132,8 +132,8 @@ export default function InvoicesModule({
   const [pAmount, setPAmount] = useState("");
   const [pNotes, setPNotes] = useState("");
 
-  const [pdfTemplate, setPdfTemplate] = useState<'corporate' | 'binti'>(() => {
-    return (localStorage.getItem('pdf_template_preference') as 'corporate' | 'binti') || 'corporate';
+  const [pdfTemplate, setPdfTemplate] = useState<'corporate' | 'binti' | 'premium' | 'minimal'>(() => {
+    return (localStorage.getItem('pdf_template_preference') as 'corporate' | 'binti' | 'premium' | 'minimal') || 'corporate';
   });
 
   // Action states for button transitions
@@ -506,6 +506,8 @@ export default function InvoicesModule({
       await new Promise(r => setTimeout(r, 60));
       if (pdfTemplate === 'binti') {
         await generatePDFBinti(invoice);
+      } else if (pdfTemplate === 'premium') {
+        await generatePDFPremium(invoice);
       } else {
         await generatePDFCorporate(invoice);
       }
@@ -535,7 +537,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
 
     let y = margin;
 
-    const colWidths = invoice.taxTotal > 0 
+    const colWidths = invoice.taxTotal > 0
       ? [contentWidth * 0.44, contentWidth * 0.12, contentWidth * 0.16, contentWidth * 0.12, contentWidth * 0.16]
       : [contentWidth * 0.54, contentWidth * 0.12, contentWidth * 0.17, contentWidth * 0.17];
 
@@ -599,7 +601,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
     doc.setTextColor(purple[0], purple[1], purple[2]);
-    doc.text(companySettings.companyName || "HABANOS LOUNGE", margin, y);
+    doc.text(companySettings.companyName || "Your Company", margin, y);
     
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
@@ -645,7 +647,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.setFontSize(8.5);
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
 
-    doc.text(companySettings.companyName || "Habanos Lounge", margin, y);
+    doc.text(companySettings.companyName || "Your Company", margin, y);
     const clientDetails = clients.find(c => c.id === invoice.clientId);
     doc.text(invoice.clientName || "Valued Client", col2X, y);
 
@@ -660,7 +662,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
       y += 4.5;
     }
 
-    doc.text(`Email: ${companySettings.email || "reservations@habanoslounge.com"}`, margin, y);
+    if (companySettings.email) doc.text(`Email: ${companySettings.email}`, margin, y);
     if (clientDetails?.phone) {
       doc.text(`Phone: ${clientDetails.phone}`, col2X, y);
       y += 4.5;
@@ -739,7 +741,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     }
     
     if (invoice.taxTotal > 0) {
-      doc.text("Tax Amount (VAT 16%):", totalsLeftX + 3, y + 4);
+      doc.text("Tax Amount (VAT 16%)", totalsLeftX + 3, y + 4);
       doc.text(`${currency} ${(Number(invoice.taxTotal) || 0).toLocaleString()}`, totalsValX, y + 4, { align: "right" });
       y += 6;
     }
@@ -846,15 +848,453 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(charcoal[0], charcoal[1], charcoal[2]);
-    doc.text("Approved & Issued: Habanos Lounge", margin, y + 19);
+    doc.text(`Approved & Issued: ${companySettings.companyName || "Your Company"}`, margin, y + 19);
     doc.text("Client Officer Acceptance", sig2X, y + 19);
 
     // PDF footer
     doc.setFontSize(7.5);
     doc.setTextColor(150, 150, 150);
-    doc.text("Thank you for choosing Habanos Lounge.", margin, pageHeight - 10);
-    
+    doc.text(`Thank you for choosing ${companySettings.companyName || "your service provider"}.`, margin, pageHeight - 10);
+
     doc.save(`${invoice.invoiceNumber || 'INV'}-${(invoice.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
+  };
+
+  const generatePDFPremium = async (invoice: Invoice) => {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 18;
+    const contentWidth = pageWidth - margin * 2;
+    const bottomLimit = pageHeight - margin - 14;
+
+    // Refined premium palette: deep ink navy, warm gold, soft ivory
+    const navy = [30, 41, 62];          // #1E293B
+    const gold = [197, 156, 65];        // #C59C41
+    const ink = [44, 48, 56];           // #2C3038
+    const stone = [94, 98, 105];        // #5E6269
+    const ivory = [250, 250, 247];      // #FAFAF7
+    const rule = [200, 204, 209];       // #C8CCD1
+
+    let y = margin;
+
+    // Table column widths
+    const colWidths = invoice.taxTotal > 0
+      ? [contentWidth * 0.43, contentWidth * 0.115, contentWidth * 0.155, contentWidth * 0.115, contentWidth * 0.185]
+      : [contentWidth * 0.54, contentWidth * 0.135, contentWidth * 0.165, contentWidth * 0.16];
+    const colX: number[] = [];
+    let currentX = margin;
+    colWidths.forEach(w => {
+      colX.push(currentX);
+      currentX += w;
+    });
+
+    // Top brand band
+    doc.setFillColor(navy[0], navy[1], navy[2]);
+    doc.rect(0, 0, pageWidth, 11, 'F');
+
+    const logoBase64 = await loadImgBase64('/logo.jpeg');
+    if (logoBase64) {
+      try {
+        doc.addImage(logoBase64, 'JPEG', margin, y, 44, 20);
+      } catch (err) {
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(22);
+        doc.setTextColor(150, 50, 120);
+        doc.text(companySettings.companyName || 'Your Company', margin, y + 14);
+      }
+    } else {
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setFontSize(22);
+      doc.setTextColor(150, 50, 120);
+      doc.text(companySettings.companyName || 'Your Company', margin, y + 14);
+    }
+
+    // Headline
+    y = 15;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(21);
+    doc.setTextColor(navy[0], navy[1], navy[2]);
+    doc.text(companySettings.companyName || 'Your Company', margin, y);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(stone[0], stone[1], stone[2]);
+    doc.text('Premium hospitality, elevated experiences', margin, y + 5.5);
+
+    // Document identifier (right)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(ink[0], ink[1], ink[2]);
+    const documentTitle = invoice.taxTotal > 0 ? `TAX INVOICE: ${invoice.invoiceNumber}` : `INVOICE: ${invoice.invoiceNumber}`;
+    doc.text(documentTitle, pageWidth - margin, y, { align: 'right' });
+
+    // Meta block
+    y += 19;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(stone[0], stone[1], stone[2]);
+    doc.text(`Issue Date: ${invoice.issueDate || 'N/A'}`, pageWidth - margin, y);
+    doc.text(`Due Date: ${invoice.dueDate || 'N/A'}`, pageWidth - margin, y + 5.5);
+    doc.text(`Status: ${(invoice.status || 'Pending').toUpperCase()}`, pageWidth - margin, y + 11);
+
+    // Thin gold rule
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
+    doc.setLineWidth(0.6);
+    doc.line(margin, y + 15.5, pageWidth - margin, y + 15.5);
+
+    y += 18;
+
+    // Party details (FROM / TO)
+    const partyColWidth = (contentWidth - 12) / 2;
+    const col2X = margin + partyColWidth + 12;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(navy[0], navy[1], navy[2]);
+    doc.text('FROM (SERVICE PROVIDER):', margin, y);
+    doc.text('PREPARED FOR (CLIENT):', col2X, y);
+
+    y += 6;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(ink[0], ink[1], ink[2]);
+
+    doc.text(companySettings.companyName || 'Your Company', margin, y);
+    const clientDetails = clients.find(c => c.id === invoice.clientId);
+    doc.text(invoice.clientName || 'Valued Client', col2X, y);
+
+    y += 5.5;
+    if (invoice.taxTotal > 0 && companySettings.taxNumber) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(stone[0], stone[1], stone[2]);
+      doc.text(`Tax PIN: ${companySettings.taxNumber}`, margin, y);
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(stone[0], stone[1], stone[2]);
+      doc.text(`Phone: ${companySettings.phone || '+254 700 111 222'}`, margin, y);
+    }
+    if (clientDetails?.company) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(stone[0], stone[1], stone[2]);
+      doc.text(clientDetails.company, col2X, y);
+    }
+
+    y += 4.5;
+    if (companySettings.email) doc.text(`Email: ${companySettings.email}`, margin, y);
+    if (clientDetails?.phone) {
+      doc.text(`Phone: ${clientDetails.phone}`, col2X, y);
+    } else if (clientDetails?.email) {
+      doc.text(`Email: ${clientDetails.email}`, col2X, y);
+    }
+
+    y += 6;
+    doc.text(`Address: ${companySettings.address || 'Nairobi, Kenya'}`, margin, y);
+    if (clientDetails?.address) {
+      doc.text(`Address: ${clientDetails.address}`, col2X, y);
+    }
+
+    y += 11;
+
+    doc.save(`${invoice.invoiceNumber || 'INV'}-${(invoice.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
+  };
+
+  const generatePDFBintiLegacy = async (invoice: Invoice) => {
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pageWidth = 210;
+    const pageHeight = 297;
+    const margin = 16;
+    const contentWidth = pageWidth - margin * 2;
+    const bottomLimit = pageHeight - margin - 12;
+
+    // Colors
+    const pink = [255, 192, 250];      // #FFC0FA - table header
+    const black = [51, 51, 51];        // #333333
+    const gray = [102, 102, 102];      // #666666
+    const lightGray = [220, 220, 220]; // borders
+
+    const invoiceDate = invoice.issueDate || new Date().toISOString().split("T")[0];
+    const dueDate = invoice.dueDate || '';
+    const invoiceNo = invoice.invoiceNumber || '';
+
+    let y = margin;
+
+    const colWidths = invoice.taxTotal > 0
+      ? [contentWidth * 0.44, contentWidth * 0.12, contentWidth * 0.16, contentWidth * 0.12, contentWidth * 0.16]
+      : [contentWidth * 0.54, contentWidth * 0.12, contentWidth * 0.17, contentWidth * 0.17];
+
+    const colX: number[] = [];
+    let currentX = margin;
+    colWidths.forEach(w => {
+      colX.push(currentX);
+      currentX += w;
+    });
+
+    const drawTableHeader = () => {
+      doc.setFillColor(pink[0], pink[1], pink[2]);
+      doc.rect(margin, y, contentWidth, 8.5, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(black[0], black[1], black[2]);
+      doc.text('DESCRIPTION', colX[0] + 3, y + 5.5);
+      doc.text('QTY', colX[1] + colWidths[1] / 2, y + 5.5, { align: 'center' });
+      doc.text('UNIT PRICE', colX[2] + colWidths[2] - 3, y + 5.5, { align: 'right' });
+      if (invoice.taxTotal > 0) {
+        doc.text('TAX', colX[3] + colWidths[3] / 2, y + 5.5, { align: 'center' });
+        doc.text('AMOUNT', colX[4] + colWidths[4] - 3, y + 5.5, { align: 'right' });
+      } else {
+        doc.text('AMOUNT', colX[3] + colWidths[3] - 3, y + 5.5, { align: 'right' });
+      }
+    };
+
+    const ensurePageSpace = (requiredHeight: number, options = { repeatTableHeader: false }) => {
+      if (y + requiredHeight <= bottomLimit) {
+        return;
+      }
+      doc.addPage();
+      y = margin;
+      if (options.repeatTableHeader) {
+        drawTableHeader();
+        y += 8.5;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(black[0], black[1], black[2]);
+      }
+    };
+
+    // Load the local brand logo and thank-you note.
+    const logoBase64 = await loadImgBase64('/logo.jpeg');
+    const thankYouBase64 = await loadImgBase64('/thankyounote.PNG');
+
+    if (logoBase64) {
+      try {
+        doc.addImage(logoBase64, 'JPEG', margin, y, 44, 20);
+      } catch (err) {
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(22);
+        doc.setTextColor(150, 50, 120);
+        doc.text(companySettings.companyName || 'Your Company', margin, y + 14);
+      }
+    } else {
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setFontSize(22);
+      doc.setTextColor(150, 50, 120);
+      doc.text(companySettings.companyName || 'Your Company', margin, y + 14);
+    }
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(24);
+    doc.setTextColor(black[0], black[1], black[2]);
+    const documentTitle = invoice.taxTotal > 0 ? 'TAX INVOICE' : 'INVOICE';
+    doc.text(documentTitle, pageWidth - margin, y + 6, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text(companySettings.companyName || 'Your Company', pageWidth - margin, y + 13, { align: 'right' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+    doc.text(companySettings.address || '', pageWidth - margin, y + 18, { align: 'right' });
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.text('Customer Care', pageWidth - margin, y + 24, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text(companySettings.phone || '', pageWidth - margin, y + 28.5, { align: 'right' });
+    doc.text(companySettings.email || '', pageWidth - margin, y + 33, { align: 'right' });
+
+    y += 42;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text('FOR', margin, y);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.text(invoice.clientName || '', margin, y + 5.5);
+    const clientDetails = clients.find(c => c.id === invoice.clientId);
+    let clientOffset = 10;
+    if (clientDetails) {
+      if (clientDetails.company) {
+        doc.text(clientDetails.company, margin, y + clientOffset);
+        clientOffset += 4.5;
+      }
+      doc.text(clientDetails.address || 'Kenya', margin, y + clientOffset);
+    }
+
+    const labelX = pageWidth - margin - 60;
+    const valueX = pageWidth - margin;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+    doc.text('Invoice No.:', labelX, y, { align: 'right' });
+    doc.text('Issue date:', labelX, y + 5.5, { align: 'right' });
+    doc.text('Due date:', labelX, y + 11, { align: 'right' });
+    doc.text('Payment:', labelX, y + 16.5, { align: 'right' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text(invoiceNo, valueX, y, { align: 'right' });
+    doc.text(invoiceDate, valueX, y + 5.5, { align: 'right' });
+    doc.text(dueDate, valueX, y + 11, { align: 'right' });
+
+    doc.setTextColor(76, 175, 80);
+    doc.text((invoice.status || 'pending').toUpperCase(), valueX, y + 16.5, { align: 'right' });
+
+    y += Math.max(clientOffset + 6, 26);
+
+    drawTableHeader();
+    y += 8.5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(black[0], black[1], black[2]);
+
+    invoice.items.forEach(item => {
+      const descriptionLines = doc.splitTextToSize(item.description, colWidths[0] - 6);
+      const rowHeight = Math.max(9, descriptionLines.length * 4.2 + 3);
+      const textY = y + 4.8;
+      const valueY = y + rowHeight / 2 + 1;
+
+      ensurePageSpace(rowHeight + 2, { repeatTableHeader: true });
+
+      doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+      doc.line(margin, y + rowHeight, margin + contentWidth, y + rowHeight);
+
+      doc.text(descriptionLines, colX[0] + 3, textY);
+      doc.text(String(item.quantity), colX[1] + colWidths[1] / 2, valueY, { align: 'center' });
+      doc.text((Number(item.unitPrice) || 0).toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: 'right' });
+      const lineNet = Math.round((item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100)) * 100) / 100;
+      if (invoice.taxTotal > 0) {
+        doc.text(`${item.tax}%`, colX[3] + colWidths[3] / 2, valueY, { align: 'center' });
+        doc.text(lineNet.toLocaleString(), colX[4] + colWidths[4] - 3, valueY, { align: 'right' });
+      } else {
+        doc.text(lineNet.toLocaleString(), colX[3] + colWidths[3] - 2, valueY, { align: 'right' });
+      }
+
+      y += rowHeight;
+    });
+
+    doc.setDrawColor(lightGray[0], lightGray[1], lightGray[2]);
+    doc.line(margin, y, margin + contentWidth, y);
+
+    y += 6;
+    ensurePageSpace(35);
+
+    const totalAlignX = invoice.taxTotal > 0 ? colX[4] + colWidths[4] - 3 : colX[3] + colWidths[3] - 3;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text('TOTAL:', totalAlignX - 45, y + 2, { align: 'right' });
+    doc.text(`${currency} ${(Number(invoice.grandTotal) || 0).toLocaleString()}`, totalAlignX, y + 2, { align: 'right' });
+
+    y += 6;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+    const paidSum = invoice.payments ? invoice.payments.reduce((sum, p) => sum + p.amountPaid, 0) : 0;
+    const balanceRemaining = invoice.balanceRemaining;
+    const depositLines = doc.splitTextToSize(
+      `Paid Amount: ${currency} ${paidSum.toLocaleString()}   |   Remaining Balance: ${currency} ${balanceRemaining.toLocaleString()}`,
+      contentWidth
+    );
+    doc.text(depositLines, margin, y + 4);
+
+    y += 8 + depositLines.length * 4.0;
+
+    ensurePageSpace(20);
+    doc.setFont('helvetica', 'bolditalic');
+    doc.setFontSize(8);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text('Terms and Conditions', margin, y);
+
+    y += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(gray[0], gray[1], gray[2]);
+
+    const termsSourceBinti = invoice.terms?.trim() || DEFAULT_INVOICE_TERMS;
+    const rawTermsLines = normalizePdfTerms(termsSourceBinti);
+    const termsLines = rawTermsLines.length > 0 ? rawTermsLines : normalizePdfTerms(DEFAULT_INVOICE_TERMS);
+    y = renderPdfClauses(doc, y, termsLines, {
+      x: margin,
+      width: contentWidth,
+      autoNumber: true,
+      ensureSpace: (needed, currentY) => { y = currentY; ensurePageSpace(needed); return y; },
+    });
+
+    y += 6;
+
+    // Registered Bank / Billing Details Block (Only for invoices with an active due balance)
+    const paidTotalBinti = (invoice.payments || []).reduce((sum, p) => sum + (Number(p.amountPaid) || 0), 0);
+    const balanceRemainingBinti = invoice.balanceRemaining !== undefined ? Number(invoice.balanceRemaining) : Math.max(0, (Number(invoice.grandTotal) || 0) - paidTotalBinti);
+    const hasDueBalanceBinti = invoice.status !== 'paid' && balanceRemainingBinti > 0;
+
+    if (hasDueBalanceBinti && companySettings.bankDetails && companySettings.bankDetails.trim()) {
+      ensurePageSpace(25);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(45, 30, 70);
+      doc.text('OFFICIAL PAYMENT INSTRUCTIONS & BANK DETAILS:', margin, y);
+      y += 5.5;
+      // Payment details use the same typography and alignment as the terms block
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(gray[0], gray[1], gray[2]);
+      const bankLines = companySettings.bankDetails.split(/\r?\n/).filter(line => line.trim());
+      y = renderPdfClauses(doc, y, bankLines, {
+        x: margin,
+        width: contentWidth,
+        autoNumber: false,
+        ensureSpace: (needed, currentY) => { y = currentY; ensurePageSpace(needed); return y; },
+      });
+      y += 4;
+    }
+
+    ensurePageSpace(28);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(black[0], black[1], black[2]);
+    doc.text('Issued by:', pageWidth - margin, y, { align: 'right' });
+    y += 5;
+    doc.setFont('helvetica', 'bold');
+    doc.text(companySettings.companyName || 'Your Company', pageWidth - margin, y, { align: 'right' });
+    y += 7;
+
+    // Check remaining space for thank you note image to prevent extra page creation
+    if (thankYouBase64 && (y + 25 <= bottomLimit)) {
+      try {
+        const imageProps = doc.getImageProperties(thankYouBase64);
+        const baseScale = Math.min(90 / imageProps.width, 35 / imageProps.height);
+        const width = imageProps.width * baseScale;
+        const height = imageProps.height * baseScale;
+        doc.addImage(thankYouBase64, 'PNG', (pageWidth - width) / 2, y, width, height);
+      } catch (e) {
+        y += 4;
+        doc.setTextColor(255, 130, 171);
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(15);
+        doc.text('thank you', pageWidth / 2, y, { align: 'center' });
+      }
+    } else {
+      y += 2;
+      doc.setTextColor(255, 130, 171);
+      doc.setFont('helvetica', 'bolditalic');
+      doc.setFontSize(15);
+      doc.text('thank you', pageWidth / 2, y, { align: 'center' });
+    }
+
+    doc.save(`${invoice.invoiceNumber}-${(invoice.clientName || 'Client').replace(/\s+/g, "_")}.pdf`);
   };
 
   const generatePDFBinti = async (invoice: Invoice) => {
@@ -932,13 +1372,13 @@ const generatePDFCorporate = async (invoice: Invoice) => {
         doc.setFont('helvetica', 'bolditalic');
         doc.setFontSize(22);
         doc.setTextColor(150, 50, 120);
-        doc.text('Habanos Lounge', margin, y + 14);
+        doc.text(companySettings.companyName || 'Your Company', margin, y + 14);
       }
     } else {
       doc.setFont('helvetica', 'bolditalic');
       doc.setFontSize(22);
       doc.setTextColor(150, 50, 120);
-      doc.text('Habanos Lounge', margin, y + 14);
+      doc.text(companySettings.companyName || 'Your Company', margin, y + 14);
     }
 
     doc.setFont('helvetica', 'bold');
@@ -950,7 +1390,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(black[0], black[1], black[2]);
-    doc.text(companySettings.companyName || 'Habanos Lounge', pageWidth - margin, y + 13, { align: 'right' });
+    doc.text(companySettings.companyName || 'Your Company', pageWidth - margin, y + 13, { align: 'right' });
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
@@ -1124,7 +1564,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.text('Issued by:', pageWidth - margin, y, { align: 'right' });
     y += 5;
     doc.setFont('helvetica', 'bold');
-    doc.text(companySettings.companyName || 'Habanos Lounge', pageWidth - margin, y, { align: 'right' });
+    doc.text(companySettings.companyName || 'Your Company', pageWidth - margin, y, { align: 'right' });
     y += 7;
 
     // Check remaining space for thank you note image to prevent extra page creation

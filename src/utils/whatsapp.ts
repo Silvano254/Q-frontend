@@ -21,9 +21,9 @@ export function buildInvoiceWhatsAppMessage(
   invoice: Invoice,
   client?: Client | null,
   companySettings?: CompanySettings,
-  pdfTemplateStyle: string = "corporate"
+  pdfTemplateStyle: string = "editorial"
 ): string {
-  const companyName = companySettings?.companyName || "Habanos Lounge";
+  const companyName = companySettings?.companyName || "Your Company";
   const clientName = client?.name || invoice.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
   const dateFormatted = invoice.issueDate ? invoice.issueDate.split("T")[0] : "N/A";
@@ -32,7 +32,12 @@ export function buildInvoiceWhatsAppMessage(
   const balanceText = isPaid 
     ? `${currency} 0 (Fully Paid)` 
     : (invoice.balanceRemaining !== undefined ? `${currency} ${invoice.balanceRemaining.toLocaleString()}` : `${currency} ${invoice.grandTotal.toLocaleString()}`);
-  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
+  const templateName = ({
+    editorial: 'Editorial Luxe',
+    atelier: 'Monochrome Atelier',
+    terracotta: 'Terracotta Garden',
+    binti: 'Binti Signature'
+  } as Record<string, string>)[pdfTemplateStyle] || 'Editorial Luxe';
 
   return `📄 *INVOICE: #${invoice.invoiceNumber}*
 
@@ -59,14 +64,19 @@ export function buildQuoteWhatsAppMessage(
   quote: Quote,
   client?: Client | null,
   companySettings?: CompanySettings,
-  pdfTemplateStyle: string = "corporate"
+  pdfTemplateStyle: string = "editorial"
 ): string {
-  const companyName = companySettings?.companyName || "Habanos Lounge";
+  const companyName = companySettings?.companyName || "Your Company";
   const clientName = client?.name || quote.clientName || "Valued Client";
   const currency = companySettings?.currency || "KES";
   const quoteDateFormatted = quote.quoteDate ? quote.quoteDate.split("T")[0] : "N/A";
   const expiryDateFormatted = quote.expiryDate ? quote.expiryDate.split("T")[0] : "N/A";
-  const templateName = pdfTemplateStyle === 'binti' ? 'Binti Signature' : 'Classic Formal';
+  const templateName = ({
+    editorial: 'Editorial Luxe',
+    atelier: 'Monochrome Atelier',
+    terracotta: 'Terracotta Garden',
+    binti: 'Binti Signature'
+  } as Record<string, string>)[pdfTemplateStyle] || 'Editorial Luxe';
   const eventDetails = [
     quote.eventName ? `• *Event:* ${quote.eventName}` : "",
     quote.eventDate ? `• *Event Date:* ${quote.eventDate.split("T")[0]}` : "",

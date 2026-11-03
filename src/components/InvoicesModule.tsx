@@ -22,7 +22,8 @@ import {
   Copy,
   Check,
   Loader2,
-  Truck
+  Truck,
+  Pencil
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { Invoice, Client, ProductService, BillingItem, PaymentRecord, CompanySettings } from "../types";
@@ -74,6 +75,7 @@ export default function InvoicesModule({
   showToast
 }: InvoicesModuleProps) {
   const [isCreating, setIsCreating] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   
@@ -95,6 +97,7 @@ export default function InvoicesModule({
   React.useEffect(() => {
     if (!openCreateRequest) return;
     setSelectedInvoice(null);
+    setEditingInvoice(null);
     resetForm();
     setIsCreating(true);
   }, [openCreateRequest]);
@@ -235,12 +238,12 @@ export default function InvoicesModule({
 
   // Auto-set due date to 14 days by default
   React.useEffect(() => {
-    if (issueDate) {
+    if (issueDate && !editingInvoice) {
       const d = new Date(issueDate);
       d.setDate(d.getDate() + 14); // 14 days default payment term
       setDueDate(d.toISOString().split("T")[0]);
     }
-  }, [issueDate]);
+  }, [issueDate, editingInvoice?.id]);
 
   // Handle item change
   const handleItemChange = (index: number, field: keyof BillingItem, value: any) => {
@@ -342,14 +345,14 @@ export default function InvoicesModule({
   };
 
   // Save Invoice — a saved client is optional: either pick one or type a walk-in name.
-  const handleSaveInvoice = async (status: 'draft' | 'pending') => {
+  const handleSaveInvoice = async (status: Invoice['status'] = editingInvoice?.status || 'pending') => {
     const selectedCli = clients.find(c => c.id === clientId);
     const resolvedName = (selectedCli ? selectedCli.name : clientNameInput.trim()) || "";
     if (!resolvedName) {
       showToast("Enter a client name or select a saved client before saving.", "warning");
       return;
     }
-    setSavingStatus(status);
+    setSavingStatus(status === 'draft' ? 'draft' : 'pending');
     try {
       const totals = getTotals();
       
@@ -387,12 +390,17 @@ export default function InvoicesModule({
         ...totals,
         notes,
         terms,
-        status,
-        payments: []
+        status: editingInvoice?.status || status,
+        ...(editingInvoice ? {} : { payments: [] })
       };
 
-      await onCreateInvoice(invoicePayload);
+      if (editingInvoice) {
+        await onUpdateInvoice(editingInvoice.id, invoicePayload);
+      } else {
+        await onCreateInvoice(invoicePayload);
+      }
       setIsCreating(false);
+      setEditingInvoice(null);
       resetForm();
     } catch (err) {
       console.error("Save invoice error:", err);
@@ -406,6 +414,10 @@ export default function InvoicesModule({
     setClientId("");
     setClientNameInput("");
     setIssueDate(new Date().toISOString().split("T")[0]);
+    const defaultDueDate = new Date();
+    defaultDueDate.setDate(defaultDueDate.getDate() + 14);
+    setDueDate(defaultDueDate.toISOString().split("T")[0]);
+    setApplyTax(true);
     setItems([{ id: "ii_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }]);
     setIncludeTransport(false);
     setTransportCost("");
@@ -413,6 +425,23 @@ export default function InvoicesModule({
     setNotes("");
     setTerms("");
     setAiEmailDraft(null);
+  };
+
+  const handleEditInvoice = (invoice: Invoice) => {
+    setEditingInvoice(invoice);
+    setSelectedInvoice(null);
+    const savedClient = clients.find(client => client.id === invoice.clientId);
+    setClientId(savedClient?.id || "");
+    setClientNameInput(savedClient ? "" : invoice.clientName || "");
+    setIssueDate((invoice.issueDate || new Date().toISOString()).split("T")[0]);
+    setDueDate((invoice.dueDate || "").split("T")[0]);
+    setItems((invoice.items || []).map(item => ({ ...item })));
+    setApplyTax((invoice.items || []).some(item => Number(item.tax) > 0));
+    setIncludeTransport(false);
+    setTransportCost("");
+    setNotes(invoice.notes || "");
+    setTerms(invoice.terms || "");
+    setIsCreating(true);
   };
 
   const submitManualPayment = async (invoiceId: string, amount: number) => {
@@ -1675,6 +1704,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
         {!isCreating && !selectedInvoice && (
           <button
             onClick={() => {
+              setEditingInvoice(null);
               setIsCreating(true);
               resetForm();
             }}
@@ -1690,9 +1720,12 @@ const generatePDFCorporate = async (invoice: Invoice) => {
       {isCreating && (
         <div className="glass-card p-6 space-y-6 animate-fade-in">
           <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <h3 className="font-bold text-sm text-gray-800">New Invoice Builder</h3>
+            <h3 className="font-bold text-sm text-gray-800">{editingInvoice ? `Edit Invoice ${editingInvoice.invoiceNumber}` : "New Invoice Builder"}</h3>
             <button 
-              onClick={() => setIsCreating(false)}
+              onClick={() => {
+                setIsCreating(false);
+                setEditingInvoice(null);
+              }}
               className="text-gray-400 hover:text-gray-600 text-xs flex items-center space-x-1"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -1987,6 +2020,16 @@ const generatePDFCorporate = async (invoice: Invoice) => {
 
               {/* Action buttons */}
               <div className="flex items-center space-x-4 pt-4 border-t border-gray-200/60">
+                {editingInvoice ? (
+                  <button
+                    type="button"
+                    disabled={savingStatus !== null}
+                    onClick={() => handleSaveInvoice()}
+                    className="flex-1 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md shadow-[#6B46C1]/20 transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {savingStatus ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Saving Changes...</span></> : <span>Save Changes</span>}
+                  </button>
+                ) : <>
                 <button
                   type="button"
                   disabled={savingStatus !== null}
@@ -2020,6 +2063,7 @@ const generatePDFCorporate = async (invoice: Invoice) => {
                     </>
                   )}
                 </button>
+                </>}
               </div>
             </div>
           </div>
@@ -2035,16 +2079,25 @@ const generatePDFCorporate = async (invoice: Invoice) => {
               <span className="text-xs text-gray-400">|</span>
               <span className="text-xs font-bold text-gray-800">{selectedInvoice.invoiceNumber}</span>
             </div>
-            <button 
-              onClick={() => {
-                setSelectedInvoice(null);
-                setAiEmailDraft(null);
-              }}
-              className="text-gray-400 hover:text-gray-600 text-xs flex items-center space-x-1"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>Back to Listing</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleEditInvoice(selectedInvoice)}
+                className="text-[#6B46C1] hover:text-purple-800 text-xs font-semibold flex items-center space-x-1"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Edit Invoice</span>
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedInvoice(null);
+                  setAiEmailDraft(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 text-xs flex items-center space-x-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Back to Listing</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

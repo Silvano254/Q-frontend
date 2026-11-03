@@ -19,7 +19,8 @@ import {
   Check,
   Loader2,
   CreditCard,
-  Truck
+  Truck,
+  Pencil
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { Quote, Client, ProductService, BillingItem, CompanySettings } from "../types";
@@ -69,6 +70,7 @@ export default function QuotesModule({
   showToast
 }: QuotesModuleProps) {
   const [isCreating, setIsCreating] = useState(false);
+  const [editingQuote, setEditingQuote] = useState<Quote | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   
@@ -96,6 +98,7 @@ export default function QuotesModule({
   React.useEffect(() => {
     if (!openCreateRequest) return;
     setSelectedQuote(null);
+    setEditingQuote(null);
     resetForm();
     setIsCreating(true);
   }, [openCreateRequest]);
@@ -233,12 +236,12 @@ export default function QuotesModule({
 
   // Auto-calculate expiry date
   React.useEffect(() => {
-    if (quoteDate) {
+    if (quoteDate && !editingQuote) {
       const d = new Date(quoteDate);
       d.setDate(d.getDate() + 30); // 30 days default validity
       setExpiryDate(d.toISOString().split("T")[0]);
     }
-  }, [quoteDate]);
+  }, [quoteDate, editingQuote?.id]);
 
   // Handle item change
   const handleItemChange = (index: number, field: keyof BillingItem, value: any) => {
@@ -339,7 +342,7 @@ export default function QuotesModule({
   };
 
   // Save Quote — a saved client is optional: either pick one or type a walk-in name.
-  const handleSaveQuote = async (status: 'draft' | 'sent') => {
+  const handleSaveQuote = async (status: Quote['status'] = editingQuote?.status || 'sent') => {
     const selectedCli = clients.find(c => c.id === clientId);
     const resolvedName = (selectedCli ? selectedCli.name : clientNameInput.trim()) || "";
     if (!resolvedName) {
@@ -350,7 +353,7 @@ export default function QuotesModule({
       showToast("Guest count must be a whole number greater than zero.", "warning");
       return;
     }
-    setSavingStatus(status);
+    setSavingStatus(status === 'draft' ? 'draft' : 'sent');
     try {
       const totals = getTotals();
       
@@ -391,11 +394,16 @@ export default function QuotesModule({
         ...totals,
         notes,
         terms,
-        status
+        status: editingQuote?.status || status
       };
 
-      await onCreateQuote(quotePayload);
+      if (editingQuote) {
+        await onUpdateQuote(editingQuote.id, quotePayload);
+      } else {
+        await onCreateQuote(quotePayload);
+      }
       setIsCreating(false);
+      setEditingQuote(null);
       resetForm();
     } catch (err) {
       console.error("Save quote error:", err);
@@ -409,16 +417,40 @@ export default function QuotesModule({
     setClientId("");
     setClientNameInput("");
     setQuoteDate(new Date().toISOString().split("T")[0]);
+    const defaultExpiryDate = new Date();
+    defaultExpiryDate.setDate(defaultExpiryDate.getDate() + 30);
+    setExpiryDate(defaultExpiryDate.toISOString().split("T")[0]);
     setEventName("");
     setEventDate("");
     setGuestCount("");
     setItems([{ id: "qi_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }]);
+    setApplyTax(true);
     setIncludeTransport(false);
     setTransportCost("");
     setTransportDescription("Transport & Logistics / Site Rigging Transit");
     setNotes("");
     setTerms("");
     setAiEmailDraft(null);
+  };
+
+  const handleEditQuote = (quote: Quote) => {
+    setEditingQuote(quote);
+    setSelectedQuote(null);
+    const savedClient = clients.find(client => client.id === quote.clientId);
+    setClientId(savedClient?.id || "");
+    setClientNameInput(savedClient ? "" : quote.clientName || "");
+    setQuoteDate((quote.quoteDate || new Date().toISOString()).split("T")[0]);
+    setExpiryDate((quote.expiryDate || "").split("T")[0]);
+    setEventName(quote.eventName || "");
+    setEventDate((quote.eventDate || "").split("T")[0]);
+    setGuestCount(quote.guestCount ?? "");
+    setItems((quote.items || []).map(item => ({ ...item })));
+    setApplyTax((quote.items || []).some(item => Number(item.tax) > 0));
+    setIncludeTransport(false);
+    setTransportCost("");
+    setNotes(quote.notes || "");
+    setTerms(quote.terms || "");
+    setIsCreating(true);
   };
 
   const loadImgBase64 = (url: string): Promise<string> => {
@@ -1387,6 +1419,7 @@ export default function QuotesModule({
         {!isCreating && !selectedQuote && (
           <button
             onClick={() => {
+              setEditingQuote(null);
               setIsCreating(true);
               resetForm();
             }}
@@ -1402,9 +1435,12 @@ export default function QuotesModule({
       {isCreating && (
         <div className="glass-card p-6 space-y-6 animate-fade-in">
           <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <h3 className="font-bold text-sm text-gray-800">New Premium Quote Builder</h3>
+            <h3 className="font-bold text-sm text-gray-800">{editingQuote ? `Edit Quote ${editingQuote.quoteNumber}` : "New Premium Quote Builder"}</h3>
             <button 
-              onClick={() => setIsCreating(false)}
+              onClick={() => {
+                setIsCreating(false);
+                setEditingQuote(null);
+              }}
               className="text-gray-400 hover:text-gray-600 text-xs flex items-center space-x-1"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -1758,6 +1794,16 @@ export default function QuotesModule({
 
               {/* Action Save Buttons */}
               <div className="flex items-center space-x-4 pt-4 border-t border-gray-200/60">
+                {editingQuote ? (
+                  <button
+                    type="button"
+                    disabled={savingStatus !== null}
+                    onClick={() => handleSaveQuote()}
+                    className="flex-1 py-2.5 bg-[#6B46C1] hover:bg-purple-800 text-white rounded-xl text-xs font-bold shadow-md shadow-[#6B46C1]/20 transition-all flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                  >
+                    {savingStatus ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span>Saving Changes...</span></> : <span>Save Changes</span>}
+                  </button>
+                ) : <>
                 <button
                   type="button"
                   disabled={savingStatus !== null}
@@ -1791,6 +1837,7 @@ export default function QuotesModule({
                     </>
                   )}
                 </button>
+                </>}
               </div>
             </div>
           </div>
@@ -1806,16 +1853,25 @@ export default function QuotesModule({
               <span className="text-xs text-gray-400">|</span>
               <span className="text-xs font-bold text-gray-800">{selectedQuote.quoteNumber}</span>
             </div>
-            <button 
-              onClick={() => {
-                setSelectedQuote(null);
-                setAiEmailDraft(null);
-              }}
-              className="text-gray-400 hover:text-gray-600 text-xs flex items-center space-x-1"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              <span>Back to Listing</span>
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => handleEditQuote(selectedQuote)}
+                className="text-[#6B46C1] hover:text-purple-800 text-xs font-semibold flex items-center space-x-1"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>Edit Quote</span>
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedQuote(null);
+                  setAiEmailDraft(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 text-xs flex items-center space-x-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Back to Listing</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

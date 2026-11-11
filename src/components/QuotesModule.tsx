@@ -86,6 +86,8 @@ export default function QuotesModule({
   const [includeTransport, setIncludeTransport] = useState(false);
   const [transportCost, setTransportCost] = useState<number | string>("");
   const [transportDescription, setTransportDescription] = useState("Transport & Logistics / Site Rigging Transit");
+  const [includeDeposit, setIncludeDeposit] = useState(false);
+  const [depositAmount, setDepositAmount] = useState<number | string>("");
   const [items, setItems] = useState<Partial<BillingItem>[]>([
     { id: "qi_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }
   ]);
@@ -353,6 +355,11 @@ export default function QuotesModule({
       showToast("Guest count must be a whole number greater than zero.", "warning");
       return;
     }
+    const requestedDeposit = Number(depositAmount) || 0;
+    if (includeDeposit && (requestedDeposit <= 0 || requestedDeposit > getTotals().grandTotal)) {
+      showToast("Enter a deposit greater than zero and no more than the quote total.", "warning");
+      return;
+    }
     setSavingStatus(status === 'draft' ? 'draft' : 'sent');
     try {
       const totals = getTotals();
@@ -392,6 +399,8 @@ export default function QuotesModule({
         guestCount: guestCount === "" ? undefined : guestCount,
         items: finalItems,
         ...totals,
+        depositRequired: includeDeposit,
+        depositAmount: includeDeposit ? requestedDeposit : 0,
         notes,
         terms,
         status: editingQuote?.status || status
@@ -428,6 +437,8 @@ export default function QuotesModule({
     setIncludeTransport(false);
     setTransportCost("");
     setTransportDescription("Transport & Logistics / Site Rigging Transit");
+    setIncludeDeposit(false);
+    setDepositAmount("");
     setNotes("");
     setTerms("");
     setAiEmailDraft(null);
@@ -448,6 +459,8 @@ export default function QuotesModule({
     setApplyTax((quote.items || []).some(item => Number(item.tax) > 0));
     setIncludeTransport(false);
     setTransportCost("");
+    setIncludeDeposit(Boolean(quote.depositRequired || Number(quote.depositAmount) > 0));
+    setDepositAmount(Number(quote.depositAmount) > 0 ? Number(quote.depositAmount) : "");
     setNotes(quote.notes || "");
     setTerms(quote.terms || "");
     setIsCreating(true);
@@ -754,6 +767,15 @@ export default function QuotesModule({
     doc.text(`${currency} ${(Number(quote.grandTotal) || 0).toLocaleString()}`, totalsValX, y + 6, { align: "right" });
 
     y += 15;
+    if (quote.depositRequired && Number(quote.depositAmount) > 0) {
+      ensurePageSpace(8);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(5, 120, 80);
+      doc.text("Deposit due upfront (part of total):", totalsLeftX + 3, y + 3);
+      doc.text(`${currency} ${Number(quote.depositAmount).toLocaleString()}`, totalsValX, y + 3, { align: "right" });
+      y += 8;
+    }
 
     // Terms & Conditions Block
     const termsSource = quote.terms?.trim() || DEFAULT_QUOTE_TERMS;
@@ -1012,6 +1034,14 @@ export default function QuotesModule({
     doc.text('TOTAL', totalsX, y + 7);
     doc.text(`${currency} ${(Number(quote.grandTotal) || 0).toLocaleString()}`, totalsValueX - 1, y + 7, { align: 'right' });
     y += 18;
+    if (quote.depositRequired && Number(quote.depositAmount) > 0) {
+      ensureSpace(7);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(5, 120, 80);
+      doc.text(`Deposit due upfront (part of total): ${currency} ${Number(quote.depositAmount).toLocaleString()}`, totalsX, y);
+      y += 7;
+    }
 
     if (quote.notes?.trim()) {
       const noteLines = doc.splitTextToSize(quote.notes.trim(), contentWidth);
@@ -1266,6 +1296,14 @@ export default function QuotesModule({
     doc.text(`${currency} ${(Number(quote.grandTotal) || 0).toLocaleString()}`, totalAlignX, y + 2, { align: 'right' });
 
     y += 8;
+    if (quote.depositRequired && Number(quote.depositAmount) > 0) {
+      ensurePageSpace(8);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(5, 120, 80);
+      doc.text(`Deposit due upfront (part of total): ${currency} ${Number(quote.depositAmount).toLocaleString()}`, margin, y);
+      y += 7;
+    }
 
     ensurePageSpace(20);
     doc.setFont('helvetica', 'bolditalic');
@@ -1598,6 +1636,45 @@ export default function QuotesModule({
                 </div>
               )}
             </div>
+
+            {/* Optional upfront deposit; shown separately but included within the total. */}
+            <div className={`border rounded-xl p-3.5 transition-all ${
+              includeDeposit ? "bg-emerald-50/50 border-emerald-200" : "bg-gray-50/50 border-gray-100"
+            }`}>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="includeQuoteDeposit"
+                  checked={includeDeposit}
+                  onChange={(e) => {
+                    setIncludeDeposit(e.target.checked);
+                    if (!e.target.checked) setDepositAmount("");
+                  }}
+                  className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                />
+                <label htmlFor="includeQuoteDeposit" className="text-xs font-bold text-gray-800 select-none cursor-pointer flex items-center space-x-1.5">
+                  <CreditCard className="w-4 h-4 text-emerald-600" />
+                  <span>Show upfront deposit below quote total</span>
+                </label>
+              </div>
+              {includeDeposit && (
+                <div className="mt-3 pt-2 border-t border-emerald-200/70 animate-fade-in">
+                  <label htmlFor="quoteDepositAmount" className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Deposit Due ({currency})</label>
+                  <input
+                    id="quoteDepositAmount"
+                    type="number"
+                    min="0.01"
+                    max={getTotals().grandTotal}
+                    step="0.01"
+                    placeholder="Enter upfront amount"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="w-full sm:max-w-xs px-3 py-1.5 border border-emerald-300 bg-white rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">This is part of the quote total, shown separately as the upfront amount due.</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Items Table Section */}
@@ -1790,6 +1867,12 @@ export default function QuotesModule({
                   <span className="text-[#6B46C1]">GRAND TOTAL PAYABLE</span>
                   <span className="text-lg text-gray-900">{currency} {getTotals().grandTotal.toLocaleString()}</span>
                 </div>
+                {includeDeposit && Number(depositAmount) > 0 && (
+                  <div className="flex justify-between py-2 px-2 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-bold">
+                    <span>Deposit due upfront (part of total)</span>
+                    <span>{currency} {Number(depositAmount).toLocaleString()}</span>
+                  </div>
+                )}
               </div>
 
               {/* Action Save Buttons */}
@@ -1982,6 +2065,12 @@ export default function QuotesModule({
                     <span className="text-[#D4AF37]">GRAND TOTAL</span>
                     <span className="text-base text-white">{currency} {(Number(selectedQuote.grandTotal) || 0).toLocaleString()}</span>
                   </div>
+                  {selectedQuote.depositRequired && Number(selectedQuote.depositAmount) > 0 && (
+                    <div className="flex justify-between py-2 text-emerald-300 font-semibold">
+                      <span>Deposit due upfront (part of total)</span>
+                      <span>{currency} {Number(selectedQuote.depositAmount).toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Operations */}

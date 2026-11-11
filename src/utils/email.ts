@@ -38,7 +38,7 @@ Invoice Summary:
 • Issue Date: ${dateFormatted}
 • Payment Due Date: ${dueDateFormatted}
 • Total Billed: ${currency} ${invoice.grandTotal.toLocaleString()}
-• Balance Due: ${balanceText}
+${invoice.depositRequired && Number(invoice.depositAmount) > 0 ? `• Deposit Due Upfront (part of total): ${currency} ${Number(invoice.depositAmount).toLocaleString()}\n` : ""}• Balance Due: ${balanceText}
 • Payment Status: ${isPaid ? 'Fully Paid / Settled' : (invoice.status || 'Pending').toUpperCase()}
 • Document Style: ${templateName}
 ----------------------------------------
@@ -94,7 +94,7 @@ Quotation Summary:
 • Quote Date: ${quoteDateFormatted}
 • Valid Until: ${expiryDateFormatted}
 ${eventDetails ? `${eventDetails}\n` : ""}• Estimated Total: ${currency} ${quote.grandTotal.toLocaleString()}
-• Document Style: ${templateName}
+${quote.depositRequired && Number(quote.depositAmount) > 0 ? `• Deposit Due Upfront (part of total): ${currency} ${Number(quote.depositAmount).toLocaleString()}\n` : ""}• Document Style: ${templateName}
 ----------------------------------------
 
 The complete itemized PDF proposal document formatted with our ${templateName} design template is attached for your review.

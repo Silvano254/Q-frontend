@@ -88,6 +88,8 @@ export default function InvoicesModule({
   const [includeTransport, setIncludeTransport] = useState(false);
   const [transportCost, setTransportCost] = useState<number | string>("");
   const [transportDescription, setTransportDescription] = useState("Transport & Logistics / Site Rigging Transit");
+  const [includeDeposit, setIncludeDeposit] = useState(false);
+  const [depositAmount, setDepositAmount] = useState<number | string>("");
   const [items, setItems] = useState<Partial<BillingItem>[]>([
     { id: "ii_1", description: "", quantity: 1, unitPrice: 0, discount: 0, tax: 16, amount: 0 }
   ]);
@@ -352,6 +354,11 @@ export default function InvoicesModule({
       showToast("Enter a client name or select a saved client before saving.", "warning");
       return;
     }
+    const requestedDeposit = Number(depositAmount) || 0;
+    if (includeDeposit && (requestedDeposit <= 0 || requestedDeposit > getTotals().grandTotal)) {
+      showToast("Enter a deposit greater than zero and no more than the invoice total.", "warning");
+      return;
+    }
     setSavingStatus(status === 'draft' ? 'draft' : 'pending');
     try {
       const totals = getTotals();
@@ -388,6 +395,8 @@ export default function InvoicesModule({
         dueDate,
         items: finalItems,
         ...totals,
+        depositRequired: includeDeposit,
+        depositAmount: includeDeposit ? requestedDeposit : 0,
         notes,
         terms,
         status: editingInvoice?.status || status,
@@ -422,6 +431,8 @@ export default function InvoicesModule({
     setIncludeTransport(false);
     setTransportCost("");
     setTransportDescription("Transport & Logistics / Site Rigging Transit");
+    setIncludeDeposit(false);
+    setDepositAmount("");
     setNotes("");
     setTerms("");
     setAiEmailDraft(null);
@@ -439,6 +450,8 @@ export default function InvoicesModule({
     setApplyTax((invoice.items || []).some(item => Number(item.tax) > 0));
     setIncludeTransport(false);
     setTransportCost("");
+    setIncludeDeposit(Boolean(invoice.depositRequired || Number(invoice.depositAmount) > 0));
+    setDepositAmount(Number(invoice.depositAmount) > 0 ? Number(invoice.depositAmount) : "");
     setNotes(invoice.notes || "");
     setTerms(invoice.terms || "");
     setIsCreating(true);
@@ -794,6 +807,15 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.text(`${currency} ${(invoice.balanceRemaining ?? invoice.grandTotal).toLocaleString()}`, totalsValX, y + 6, { align: "right" });
 
     y += 15;
+    if (invoice.depositRequired && Number(invoice.depositAmount) > 0) {
+      ensurePageSpace(8);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(5, 120, 80);
+      doc.text("Deposit due upfront (part of total):", totalsLeftX + 3, y + 3);
+      doc.text(`${currency} ${Number(invoice.depositAmount).toLocaleString()}`, totalsValX, y + 3, { align: "right" });
+      y += 8;
+    }
 
     // Terms & Conditions Block
     const termsSource = invoice.terms?.trim() || DEFAULT_INVOICE_TERMS;
@@ -1233,8 +1255,11 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.setTextColor(gray[0], gray[1], gray[2]);
     const paidSum = invoice.payments ? invoice.payments.reduce((sum, p) => sum + p.amountPaid, 0) : 0;
     const balanceRemaining = invoice.balanceRemaining;
+    const depositDueText = invoice.depositRequired && Number(invoice.depositAmount) > 0
+      ? `\nDeposit due upfront (part of total): ${currency} ${Number(invoice.depositAmount).toLocaleString()}`
+      : "";
     const depositLines = doc.splitTextToSize(
-      `Paid Amount: ${currency} ${paidSum.toLocaleString()}   |   Remaining Balance: ${currency} ${balanceRemaining.toLocaleString()}`,
+      `Paid Amount: ${currency} ${paidSum.toLocaleString()}   |   Remaining Balance: ${currency} ${balanceRemaining.toLocaleString()}${depositDueText}`,
       contentWidth
     );
     doc.text(depositLines, margin, y + 4);
@@ -1529,8 +1554,11 @@ const generatePDFCorporate = async (invoice: Invoice) => {
     doc.setTextColor(gray[0], gray[1], gray[2]);
     const paidSum = invoice.payments ? invoice.payments.reduce((sum, p) => sum + p.amountPaid, 0) : 0;
     const balanceRemaining = invoice.balanceRemaining;
+    const depositDueText = invoice.depositRequired && Number(invoice.depositAmount) > 0
+      ? `\nDeposit due upfront (part of total): ${currency} ${Number(invoice.depositAmount).toLocaleString()}`
+      : "";
     const depositLines = doc.splitTextToSize(
-      `Paid Amount: ${currency} ${paidSum.toLocaleString()}   |   Remaining Balance: ${currency} ${balanceRemaining.toLocaleString()}`,
+      `Paid Amount: ${currency} ${paidSum.toLocaleString()}   |   Remaining Balance: ${currency} ${balanceRemaining.toLocaleString()}${depositDueText}`,
       contentWidth
     );
     doc.text(depositLines, margin, y + 4);
@@ -1842,6 +1870,45 @@ const generatePDFCorporate = async (invoice: Invoice) => {
                 </div>
               )}
             </div>
+
+            {/* Optional upfront deposit; shown separately but included within the total. */}
+            <div className={`border rounded-xl p-3.5 transition-all ${
+              includeDeposit ? "bg-emerald-50/50 border-emerald-200" : "bg-gray-50/50 border-gray-100"
+            }`}>
+              <div className="flex items-center space-x-3">
+                <input
+                  type="checkbox"
+                  id="includeInvoiceDeposit"
+                  checked={includeDeposit}
+                  onChange={(e) => {
+                    setIncludeDeposit(e.target.checked);
+                    if (!e.target.checked) setDepositAmount("");
+                  }}
+                  className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
+                />
+                <label htmlFor="includeInvoiceDeposit" className="text-xs font-bold text-gray-800 select-none cursor-pointer flex items-center space-x-1.5">
+                  <CreditCard className="w-4 h-4 text-emerald-600" />
+                  <span>Show upfront deposit below invoice total</span>
+                </label>
+              </div>
+              {includeDeposit && (
+                <div className="mt-3 pt-2 border-t border-emerald-200/70 animate-fade-in">
+                  <label htmlFor="invoiceDepositAmount" className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Deposit Due ({currency})</label>
+                  <input
+                    id="invoiceDepositAmount"
+                    type="number"
+                    min="0.01"
+                    max={getTotals().grandTotal}
+                    step="0.01"
+                    placeholder="Enter upfront amount"
+                    value={depositAmount}
+                    onChange={(e) => setDepositAmount(e.target.value === "" ? "" : Number(e.target.value))}
+                    className="w-full sm:max-w-xs px-3 py-1.5 border border-emerald-300 bg-white rounded-lg text-xs font-bold text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                  <p className="text-[10px] text-gray-500 mt-1">This is part of the invoice total, shown separately as the upfront amount due.</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Items Table Section */}
@@ -2016,6 +2083,12 @@ const generatePDFCorporate = async (invoice: Invoice) => {
                   <span className="text-[#6B46C1]">TOTAL BALANCE DUE</span>
                   <span className="text-lg text-gray-900">{currency} {getTotals().grandTotal.toLocaleString()}</span>
                 </div>
+                {includeDeposit && Number(depositAmount) > 0 && (
+                  <div className="flex justify-between py-2 px-2 rounded-lg bg-emerald-50 text-emerald-800 text-xs font-bold">
+                    <span>Deposit due upfront (part of total)</span>
+                    <span>{currency} {Number(depositAmount).toLocaleString()}</span>
+                  </div>
+                )}
               </div>
 
               {/* Action buttons */}
@@ -2267,6 +2340,12 @@ const generatePDFCorporate = async (invoice: Invoice) => {
                     <span className="text-[#D4AF37]">BALANCE DUE:</span>
                     <span className="text-base text-white">{currency} {(Number(selectedInvoice.balanceRemaining ?? selectedInvoice.grandTotal) || 0).toLocaleString()}</span>
                   </div>
+                  {selectedInvoice.depositRequired && Number(selectedInvoice.depositAmount) > 0 && (
+                    <div className="flex justify-between py-2 text-emerald-300 font-semibold">
+                      <span>Deposit due upfront (part of total)</span>
+                      <span>{currency} {Number(selectedInvoice.depositAmount).toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Operations */}

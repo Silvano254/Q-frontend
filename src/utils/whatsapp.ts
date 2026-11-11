@@ -48,7 +48,7 @@ Please find attached your Tax Invoice (*#${invoice.invoiceNumber}*) from *${comp
 • *Issue Date:* ${dateFormatted}
 • *Due Date:* ${dueDateFormatted}
 • *Total Billed:* ${currency} ${invoice.grandTotal.toLocaleString()}
-• *Balance Due:* ${balanceText}
+${invoice.depositRequired && Number(invoice.depositAmount) > 0 ? `• *Deposit Due Upfront (part of total):* ${currency} ${Number(invoice.depositAmount).toLocaleString()}\n` : ""}• *Balance Due:* ${balanceText}
 • *Status:* ${isPaid ? 'Fully Paid / Settled' : (invoice.status || 'Pending').toUpperCase()}
 • *PDF Document Template:* ${templateName}
 
@@ -92,7 +92,7 @@ Please find attached your customized Quotation (*#${quote.quoteNumber}*) from *$
 • *Quote Date:* ${quoteDateFormatted}
 • *Valid Until:* ${expiryDateFormatted}
 ${eventDetails ? `${eventDetails}\n` : ""}• *Estimated Total:* ${currency} ${quote.grandTotal.toLocaleString()}
-• *PDF Document Template:* ${templateName}
+${quote.depositRequired && Number(quote.depositAmount) > 0 ? `• *Deposit Due Upfront (part of total):* ${currency} ${Number(quote.depositAmount).toLocaleString()}\n` : ""}• *PDF Document Template:* ${templateName}
 
 The complete itemized PDF proposal document is attached for your review. Feel free to reply directly if you have any questions!
 

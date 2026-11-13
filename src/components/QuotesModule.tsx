@@ -32,6 +32,20 @@ import { DEFAULT_QUOTE_TERMS, normalizeDocumentTerms, normalizePdfTerms, shortId
 import { renderPdfClauses } from "../utils/pdfTerms";
 import ConfirmDialog from "./ConfirmDialog";
 
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const addDaysToDateString = (dateString: string, days: number) => {
+  const [year, month, day] = dateString.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  date.setDate(date.getDate() + days);
+  return getLocalDateString(date);
+};
+
 const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.461c-1.926 0-3.72-.519-5.263-1.423l-.377-.222-3.913 1.026 1.044-3.815-.247-.393A9.873 9.873 0 012.1 11.92c0-5.461 4.444-9.905 9.907-9.905 5.46 0 9.904 4.444 9.904 9.905 0 5.46-4.444 9.907-9.904 9.907m0-21.782c-6.559 0-11.896 5.335-11.896 11.875 0 2.096.547 4.14 1.587 5.945L0 24l6.335-1.662a11.87 11.87 0 005.672 1.449h.005c6.557 0 11.894-5.337 11.894-11.876 0-3.174-1.236-6.158-3.483-8.406A11.798 11.798 0 0012.051.061z"/>
@@ -77,8 +91,8 @@ export default function QuotesModule({
   // Form States
   const [clientId, setClientId] = useState("");
   const [clientNameInput, setClientNameInput] = useState("");
-  const [quoteDate, setQuoteDate] = useState(new Date().toISOString().split("T")[0]);
-  const [expiryDate, setExpiryDate] = useState("");
+  const [quoteDate, setQuoteDate] = useState(getLocalDateString());
+  const [expiryDate, setExpiryDate] = useState(addDaysToDateString(getLocalDateString(), 14));
   const [eventName, setEventName] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [guestCount, setGuestCount] = useState<number | "">("");
@@ -236,12 +250,10 @@ export default function QuotesModule({
     }
   };
 
-  // Auto-calculate expiry date
+  // Every new quote is valid for exactly 14 days from its quote date.
   React.useEffect(() => {
     if (quoteDate && !editingQuote) {
-      const d = new Date(quoteDate);
-      d.setDate(d.getDate() + 30); // 30 days default validity
-      setExpiryDate(d.toISOString().split("T")[0]);
+      setExpiryDate(addDaysToDateString(quoteDate, 14));
     }
   }, [quoteDate, editingQuote?.id]);
 
@@ -363,6 +375,8 @@ export default function QuotesModule({
     setSavingStatus(status === 'draft' ? 'draft' : 'sent');
     try {
       const totals = getTotals();
+      const savedQuoteDate = getLocalDateString();
+      const savedExpiryDate = addDaysToDateString(savedQuoteDate, 14);
       
       const baseItems: BillingItem[] = items.map(i => ({
         id: i.id || "qi_" + Math.random().toString(),
@@ -392,8 +406,8 @@ export default function QuotesModule({
       const quotePayload: Partial<Quote> = {
         clientId: selectedCli ? selectedCli.id : "",
         clientName: resolvedName,
-        quoteDate,
-        expiryDate,
+        quoteDate: savedQuoteDate,
+        expiryDate: savedExpiryDate,
         eventName: eventName.trim() || undefined,
         eventDate: eventDate || undefined,
         guestCount: guestCount === "" ? undefined : guestCount,
@@ -425,10 +439,9 @@ export default function QuotesModule({
   const resetForm = () => {
     setClientId("");
     setClientNameInput("");
-    setQuoteDate(new Date().toISOString().split("T")[0]);
-    const defaultExpiryDate = new Date();
-    defaultExpiryDate.setDate(defaultExpiryDate.getDate() + 30);
-    setExpiryDate(defaultExpiryDate.toISOString().split("T")[0]);
+    const today = getLocalDateString();
+    setQuoteDate(today);
+    setExpiryDate(addDaysToDateString(today, 14));
     setEventName("");
     setEventDate("");
     setGuestCount("");
@@ -450,8 +463,9 @@ export default function QuotesModule({
     const savedClient = clients.find(client => client.id === quote.clientId);
     setClientId(savedClient?.id || "");
     setClientNameInput(savedClient ? "" : quote.clientName || "");
-    setQuoteDate((quote.quoteDate || new Date().toISOString()).split("T")[0]);
-    setExpiryDate((quote.expiryDate || "").split("T")[0]);
+    const editedOn = getLocalDateString();
+    setQuoteDate(editedOn);
+    setExpiryDate(addDaysToDateString(editedOn, 14));
     setEventName(quote.eventName || "");
     setEventDate((quote.eventDate || "").split("T")[0]);
     setGuestCount(quote.guestCount ?? "");
@@ -1515,9 +1529,11 @@ export default function QuotesModule({
               <input
                 type="date"
                 value={quoteDate}
-                onChange={(e) => setQuoteDate(e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1]"
+                disabled
+                aria-describedby="quoteDateHelp"
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs bg-gray-50 text-gray-500"
               />
+              <p id="quoteDateHelp" className="mt-1 text-[10px] text-gray-400">Automatically set to today when created or edited.</p>
             </div>
 
             {/* Expiry Date */}
@@ -1526,9 +1542,11 @@ export default function QuotesModule({
               <input
                 type="date"
                 value={expiryDate}
-                onChange={(e) => setExpiryDate(e.target.value)}
-                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#6B46C1]/20 focus:border-[#6B46C1]"
+                disabled
+                aria-describedby="expiryDateHelp"
+                className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-xs bg-gray-50 text-gray-500"
               />
+              <p id="expiryDateHelp" className="mt-1 text-[10px] text-gray-400">Automatically set to 14 days after the quote date.</p>
             </div>
           </div>
 
@@ -2161,12 +2179,12 @@ export default function QuotesModule({
                       {convertingId === selectedQuote.id ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          <span>Converting to Live Invoice...</span>
+                          <span>Converting to Invoice...</span>
                         </>
                       ) : (
                         <>
                           <ArrowRightLeft className="w-3.5 h-3.5" />
-                          <span>Convert to live Invoice</span>
+                          <span>Convert to Invoice</span>
                         </>
                       )}
                     </button>

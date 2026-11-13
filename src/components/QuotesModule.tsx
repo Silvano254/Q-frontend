@@ -46,6 +46,14 @@ const addDaysToDateString = (dateString: string, days: number) => {
   return getLocalDateString(date);
 };
 
+const getQuoteDisplayStatus = (quote: Quote): Quote["status"] => {
+  const expiryDate = quote.expiryDate?.split("T")[0];
+  if (quote.status !== "converted" && expiryDate && expiryDate < getLocalDateString()) {
+    return "expired";
+  }
+  return quote.status;
+};
+
 const WhatsAppIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414-.074-.124-.272-.198-.57-.347m-5.421 7.461c-1.926 0-3.72-.519-5.263-1.423l-.377-.222-3.913 1.026 1.044-3.815-.247-.393A9.873 9.873 0 012.1 11.92c0-5.461 4.444-9.905 9.907-9.905 5.46 0 9.904 4.444 9.904 9.905 0 5.46-4.444 9.907-9.904 9.907m0-21.782c-6.559 0-11.896 5.335-11.896 11.875 0 2.096.547 4.14 1.587 5.945L0 24l6.335-1.662a11.87 11.87 0 005.672 1.449h.005c6.557 0 11.894-5.337 11.894-11.876 0-3.174-1.236-6.158-3.483-8.406A11.798 11.798 0 0012.051.061z"/>
@@ -417,7 +425,7 @@ export default function QuotesModule({
         depositAmount: includeDeposit ? requestedDeposit : 0,
         notes,
         terms,
-        status: editingQuote?.status || status
+        status: editingQuote?.status === "expired" ? "sent" : editingQuote?.status || status
       };
 
       if (editingQuote) {
@@ -1453,7 +1461,7 @@ export default function QuotesModule({
                           quote.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           (quote.eventName && quote.eventName.toLowerCase().includes(searchQuery.toLowerCase())) ||
                           (quote.notes && quote.notes.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesStatus = statusFilter === "all" || quote.status === statusFilter;
+    const matchesStatus = statusFilter === "all" || getQuoteDisplayStatus(quote) === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -1984,12 +1992,12 @@ export default function QuotesModule({
                   <p className="text-xs text-gray-400 mt-0.5">Quote ID: {shortId(selectedQuote.id)}</p>
                 </div>
                 <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                  selectedQuote.status === "converted" ? "bg-green-50 text-green-600 border border-green-200" :
-                  selectedQuote.status === "sent" ? "bg-blue-50 text-blue-600 border border-blue-200" :
-                  selectedQuote.status === "draft" ? "bg-gray-100 text-gray-600 border border-gray-200" :
+                  getQuoteDisplayStatus(selectedQuote) === "converted" ? "bg-green-50 text-green-600 border border-green-200" :
+                  getQuoteDisplayStatus(selectedQuote) === "sent" ? "bg-blue-50 text-blue-600 border border-blue-200" :
+                  getQuoteDisplayStatus(selectedQuote) === "draft" ? "bg-gray-100 text-gray-600 border border-gray-200" :
                   "bg-red-50 text-red-600 border border-red-200"
                 }`}>
-                  {selectedQuote.status}
+                  {getQuoteDisplayStatus(selectedQuote)}
                 </span>
               </div>
 
@@ -2317,14 +2325,19 @@ export default function QuotesModule({
                       <td className="p-4 text-gray-500">{quote.expiryDate}</td>
                       <td className="p-4 font-bold text-gray-900">{currency} {quote.grandTotal.toLocaleString()}</td>
                       <td className="p-4">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                          quote.status === "converted" ? "bg-green-100 text-green-700" :
-                          quote.status === "sent" ? "bg-blue-100 text-blue-700" :
-                          quote.status === "draft" ? "bg-gray-100 text-gray-600" :
-                          "bg-red-100 text-red-700"
-                        }`}>
-                          {quote.status}
-                        </span>
+                        {(() => {
+                          const quoteStatus = getQuoteDisplayStatus(quote);
+                          return (
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                              quoteStatus === "converted" ? "bg-green-100 text-green-700" :
+                              quoteStatus === "sent" ? "bg-blue-100 text-blue-700" :
+                              quoteStatus === "draft" ? "bg-gray-100 text-gray-600" :
+                              "bg-red-100 text-red-700"
+                            }`}>
+                              {quoteStatus}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="p-4 text-right">
                         <div className="flex items-center justify-end space-x-2">

@@ -1144,10 +1144,27 @@ export default function QuotesModule({
     const quoteDate = quote.quoteDate || new Date().toISOString().split("T")[0];
     const expiryDate = quote.expiryDate || '';
     const quoteNo = quote.quoteNumber || '';
+    const itemsSubtotal = quote.items.reduce((total, item) => total + Number(item.quantity) * Number(item.unitPrice), 0);
+    const itemsDiscount = quote.items.reduce((total, item) => {
+      const base = Number(item.quantity) * Number(item.unitPrice);
+      return total + base * (Number(item.discount) || 0) / 100;
+    }, 0);
+    const calculatedVat = quote.items.reduce((total, item) => {
+      const base = Number(item.quantity) * Number(item.unitPrice);
+      const discounted = base * (1 - (Number(item.discount) || 0) / 100);
+      return total + discounted * (Number(item.tax) || 0) / 100;
+    }, 0);
+    const subtotalExclVat = Number(quote.subtotal ?? itemsSubtotal) || 0;
+    const discountTotal = Number(quote.discountTotal ?? itemsDiscount) || 0;
+    const vatAmount = Number(quote.taxTotal) || calculatedVat;
+    const netSubtotal = subtotalExclVat - discountTotal;
+    const savedGrandTotal = Number(quote.grandTotal) || 0;
+    const hasVat = vatAmount > 0 &&
+      Math.abs(savedGrandTotal - Math.round(netSubtotal + vatAmount)) < Math.abs(savedGrandTotal - Math.round(netSubtotal));
     
     let y = margin;
 
-    const colWidths = quote.taxTotal > 0 
+    const colWidths = hasVat
       ? [contentWidth * 0.44, contentWidth * 0.12, contentWidth * 0.16, contentWidth * 0.12, contentWidth * 0.16]
       : [contentWidth * 0.54, contentWidth * 0.12, contentWidth * 0.17, contentWidth * 0.17];
 
@@ -1168,7 +1185,7 @@ export default function QuotesModule({
       doc.text('DESCRIPTION', colX[0] + 3, y + 5.5);
       doc.text('QTY', colX[1] + colWidths[1] / 2, y + 5.5, { align: 'center' });
       doc.text('UNIT PRICE', colX[2] + colWidths[2] - 3, y + 5.5, { align: 'right' });
-      if (quote.taxTotal > 0) {
+      if (hasVat) {
         doc.text('TAX', colX[3] + colWidths[3] / 2, y + 5.5, { align: 'center' });
         doc.text('AMOUNT', colX[4] + colWidths[4] - 3, y + 5.5, { align: 'right' });
       } else {
@@ -1214,7 +1231,7 @@ export default function QuotesModule({
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(24);
     doc.setTextColor(black[0], black[1], black[2]);
-    const documentTitle = quote.taxTotal > 0 ? 'TAX QUOTATION' : 'QUOTATION';
+    const documentTitle = hasVat ? 'TAX QUOTATION' : 'QUOTATION';
     doc.text(documentTitle, pageWidth - margin, y + 6, { align: 'right' });
 
     doc.setFont('helvetica', 'bold');
@@ -1307,7 +1324,7 @@ export default function QuotesModule({
       doc.text(String(item.quantity), colX[1] + colWidths[1] / 2, valueY, { align: 'center' });
       doc.text((Number(item.unitPrice) || 0).toLocaleString(), colX[2] + colWidths[2] - 3, valueY, { align: 'right' });
       const lineNet = Math.round((item.quantity * item.unitPrice * (1 - (item.discount || 0) / 100)) * 100) / 100;
-      if (quote.taxTotal > 0) {
+      if (hasVat) {
         doc.text(`${item.tax}%`, colX[3] + colWidths[3] / 2, valueY, { align: 'center' });
         doc.text(lineNet.toLocaleString(), colX[4] + colWidths[4] - 3, valueY, { align: 'right' });
       } else {
@@ -1321,7 +1338,6 @@ export default function QuotesModule({
     doc.line(margin, y, margin + contentWidth, y);
 
     y += 6;
-    const hasVat = Number(quote.taxTotal) > 0;
     const totalAlignX = pageWidth - margin;
     const totalsLabelX = totalAlignX - 62;
     const summaryRows = hasVat
@@ -1333,18 +1349,18 @@ export default function QuotesModule({
     doc.setFontSize(8.5);
     doc.setTextColor(0, 0, 0);
     if (hasVat) {
-      doc.text('Subtotal (excl. VAT):', totalsLabelX, y + 3);
-      doc.text(`${currency} ${(Number(quote.subtotal) || 0).toLocaleString()}`, totalAlignX, y + 3, { align: 'right' });
+      doc.text('SUBTOTAL (EXCL. VAT):', totalsLabelX, y + 3);
+      doc.text(`${currency} ${subtotalExclVat.toLocaleString()}`, totalAlignX, y + 3, { align: 'right' });
       y += 6;
 
-      if (Number(quote.discountTotal) > 0) {
-        doc.text('Discount:', totalsLabelX, y + 3);
-        doc.text(`-${currency} ${Number(quote.discountTotal).toLocaleString()}`, totalAlignX, y + 3, { align: 'right' });
+      if (discountTotal > 0) {
+        doc.text('DISCOUNT:', totalsLabelX, y + 3);
+        doc.text(`-${currency} ${discountTotal.toLocaleString()}`, totalAlignX, y + 3, { align: 'right' });
         y += 6;
       }
 
       doc.text('VAT (16%):', totalsLabelX, y + 3);
-      doc.text(`${currency} ${Number(quote.taxTotal).toLocaleString()}`, totalAlignX, y + 3, { align: 'right' });
+      doc.text(`${currency} ${vatAmount.toLocaleString()}`, totalAlignX, y + 3, { align: 'right' });
       y += 7;
     }
 

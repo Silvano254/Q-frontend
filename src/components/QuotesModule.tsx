@@ -1307,14 +1307,37 @@ export default function QuotesModule({
     doc.line(margin, y, margin + contentWidth, y);
 
     y += 6;
-    ensurePageSpace(30);
+    const hasVat = Number(quote.taxTotal) > 0;
+    const totalAlignX = pageWidth - margin;
+    const totalsLabelX = totalAlignX - 62;
+    const summaryRows = hasVat
+      ? 1 + (Number(quote.discountTotal) > 0 ? 1 : 0) + 1
+      : 0;
+    ensurePageSpace(summaryRows * 6 + 13);
 
-    const totalAlignX = quote.taxTotal > 0 ? colX[4] + colWidths[4] - 3 : colX[3] + colWidths[3] - 3;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 0, 0);
+    if (hasVat) {
+      doc.text('Subtotal (excl. VAT):', totalsLabelX, y + 3);
+      doc.text(`${currency} ${(Number(quote.subtotal) || 0).toLocaleString()}`, totalAlignX, y + 3, { align: 'right' });
+      y += 6;
+
+      if (Number(quote.discountTotal) > 0) {
+        doc.text('Discount:', totalsLabelX, y + 3);
+        doc.text(`-${currency} ${Number(quote.discountTotal).toLocaleString()}`, totalAlignX, y + 3, { align: 'right' });
+        y += 6;
+      }
+
+      doc.text('VAT (16%):', totalsLabelX, y + 3);
+      doc.text(`${currency} ${Number(quote.taxTotal).toLocaleString()}`, totalAlignX, y + 3, { align: 'right' });
+      y += 7;
+    }
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9.5);
-    doc.setTextColor(black[0], black[1], black[2]);
-    doc.text('TOTAL:', totalAlignX - 45, y + 2, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+    doc.text(hasVat ? 'TOTAL (incl. VAT):' : 'TOTAL:', totalsLabelX, y + 2);
     doc.text(`${currency} ${(Number(quote.grandTotal) || 0).toLocaleString()}`, totalAlignX, y + 2, { align: 'right' });
 
     y += 8;

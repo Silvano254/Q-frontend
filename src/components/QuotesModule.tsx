@@ -1154,7 +1154,10 @@ export default function QuotesModule({
       const discounted = base * (1 - (Number(item.discount) || 0) / 100);
       return total + discounted * (Number(item.tax) || 0) / 100;
     }, 0);
-    const subtotalExclVat = Number(quote.subtotal ?? itemsSubtotal) || 0;
+    const storedSubtotal = Number(quote.subtotal);
+    const subtotalExclVat = Number.isFinite(storedSubtotal) && storedSubtotal > 0
+      ? storedSubtotal
+      : itemsSubtotal;
     const discountTotal = Number(quote.discountTotal ?? itemsDiscount) || 0;
     const vatAmount = Number(quote.taxTotal) || calculatedVat;
     const netSubtotal = subtotalExclVat - discountTotal;

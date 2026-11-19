@@ -392,7 +392,7 @@ export default function QuotesModule({
         quantity: Number(i.quantity) || 1,
         unitPrice: Number(i.unitPrice) || 0,
         discount: Number(i.discount) || 0,
-        tax: Number(i.tax) || (applyTax ? 16 : 0),
+        tax: applyTax ? (Number(i.tax) || 16) : 0,
         amount: Number(i.amount) || 0
       }));
 
@@ -478,7 +478,21 @@ export default function QuotesModule({
     setEventDate((quote.eventDate || "").split("T")[0]);
     setGuestCount(quote.guestCount ?? "");
     setItems((quote.items || []).map(item => ({ ...item })));
-    setApplyTax((quote.items || []).some(item => Number(item.tax) > 0));
+    // Legacy records may contain item tax rates even when VAT was excluded from the saved total.
+    const itemTax = (quote.items || []).reduce((total, item) => {
+      const base = Number(item.quantity) * Number(item.unitPrice);
+      const discounted = base * (1 - (Number(item.discount) || 0) / 100);
+      return total + discounted * (Number(item.tax) || 0) / 100;
+    }, 0);
+    const subtotal = Number(quote.subtotal) || (quote.items || []).reduce(
+      (total, item) => total + Number(item.quantity) * Number(item.unitPrice),
+      0,
+    );
+    const netTotal = subtotal - (Number(quote.discountTotal) || 0);
+    const savedTotal = Number(quote.grandTotal) || 0;
+    const vatWasIncluded = itemTax > 0 &&
+      Math.abs(savedTotal - Math.round(netTotal + itemTax)) < Math.abs(savedTotal - Math.round(netTotal));
+    setApplyTax(vatWasIncluded);
     setIncludeTransport(false);
     setTransportCost("");
     setIncludeDeposit(Boolean(quote.depositRequired || Number(quote.depositAmount) > 0));
